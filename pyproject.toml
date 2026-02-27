@@ -1,0 +1,19 @@
+[project]
+name = "glucose-forecasting"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "asitop>=0.0.24",
+    "neuralforecast>=3",
+    "numpy>=2.4.0",
+    "nvitop>=1.5.3",
+    "pandas>=2.0",
+    "pyarrow>=22.0.0",
+    "scikit-learn>=1.8.0",
+    "scipy>=1.16.3",
+    "torch>=2.9.1",
+    "transformers>=5.1.0",
+    "utilsforecast>=0.2.15",
+]
