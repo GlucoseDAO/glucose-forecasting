@@ -133,6 +133,7 @@
 ### Group-Level Win Count (GluMind (our) lower-error wins)
 
 - vs NHITS: MAE wins 1/1, RMSE wins 0/1, MARD wins 1/1.
+- vs GluFormer: MAE wins 1/1, RMSE wins 0/1, MARD wins 1/1.
 
 ## AI Ready + Type1 (Combined)
 
@@ -170,7 +171,7 @@
 ### Group-Level Win Count (GluMind (our) lower-error wins)
 
 - vs NHITS: MAE wins 5/5, RMSE wins 4/5, MARD wins 5/5.
-- vs GluFormer: MAE wins 5/5, RMSE wins 4/5, MARD wins 5/5.
+- vs GluFormer: MAE wins 5/5, RMSE wins 5/5, MARD wins 5/5.
 
 ### Original GluMind Article vs Combined Run (Shared Cohorts)
 
