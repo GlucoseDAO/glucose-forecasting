@@ -187,7 +187,7 @@
 | Oral | 19.23 | 19.30 | 0.07 | 19.23 | -0.00 | 12.35 | 13.80 | 1.45 | 13.74 | 1.39 |
 | Insulin-T2DM | 21.15 | 23.27 | 2.12 | 22.78 | 1.63 | 13.58 | 16.73 | 3.15 | 16.41 | 2.83 |
 
-- RMSE: better in `4/4` cohorts vs original `BG+W+HR`; better in `3/4` and essentially tied on Oral vs original best-feature RMSE.
+- RMSE: better in `4/4` cohorts vs original `BG+W+HR`; better in `4/4` and essentially tied on Oral vs original best-feature RMSE.
 - MAE: better in `4/4` cohorts vs both original `BG+W+HR` and original best-feature MAE.
 
 #### Direct Comparison to Original GluMind “Best” Table (Requested)
