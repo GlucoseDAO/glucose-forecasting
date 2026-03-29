@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 """
-GluMind — Multimodal Parallel-Attention Transformer for Blood Glucose Forecasting.
+GluMindUni — Univariate Multi-Scale Attention Transformer for Blood Glucose Forecasting.
 
-Architecture (Farahmand et al., 2025b, arXiv:2509.18457):
-  Parallel cross-attention (multimodal fusion) + multi-scale self-attention
-  with optional LwF knowledge retention for continual cross-cohort learning.
+Univariate variant of GluMind: cross-attention covariate branches (HR, step count)
+are removed. Only glucose values are used for input.
 
-Works with the same CSV format as tune_nf_baselines_by_group.py.
+Works with the same CSV format as train_glumind.py.
 """
 from __future__ import annotations
 
-import argparse
 import copy
 import json
 import os
@@ -23,12 +21,16 @@ import numpy as np
 import polars as pl
 import torch
 import torch.nn as nn
+import typer
 from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader, Dataset
-from glumind_model import GluMindModel
+
+from glumind_uni_model import GluMindUniModel
+
+app = typer.Typer(help="GluMindUni: Univariate glucose transformer trainer.")
 
 # ---------------------------------------------------------------------------
-# Source CSV columns (same conventions as tune_nf_baselines_by_group.py)
+# Source CSV columns
 # ---------------------------------------------------------------------------
 COL_SEQ = "sequence_id"
 COL_USER = "User ID"
@@ -36,10 +38,7 @@ COL_TS = "Timestamp (YYYY-MM-DDThh:mm:ss)"
 COL_SPLIT = "Recommended Split"
 COL_GROUP = "Study Group"
 COL_EVENT = "Event Type"
-
 COL_GLU = "Glucose Value (mg/dL)"
-COL_HR = "Heart Rate"
-COL_STEPS = "Step Count"
 
 TS_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
@@ -106,14 +105,11 @@ def load_splits_streaming(
             infer_schema_length=10_000,
             schema_overrides={COL_SEQ: pl.Utf8, COL_USER: pl.Utf8},
         )
-        .select([uid_col, COL_TS, COL_SPLIT, COL_GROUP, COL_EVENT,
-                 COL_GLU, COL_HR, COL_STEPS])
+        .select([uid_col, COL_TS, COL_SPLIT, COL_GROUP, COL_EVENT, COL_GLU])
         .rename({
             uid_col: "unique_id",
             COL_TS: "ds",
             COL_GLU: "glucose",
-            COL_HR: "hr",
-            COL_STEPS: "steps",
             COL_GROUP: "study_group",
             COL_SPLIT: "split",
             COL_EVENT: "event_type",
@@ -121,8 +117,6 @@ def load_splits_streaming(
         .with_columns([
             pl.col("ds").str.strptime(pl.Datetime, TS_FORMAT, strict=False),
             pl.col("glucose").cast(pl.Float32, strict=False),
-            pl.col("hr").cast(pl.Float32, strict=False),
-            pl.col("steps").cast(pl.Float32, strict=False),
         ])
         .drop_nulls(subset=["unique_id", "ds", "split", "study_group"])
     )
@@ -158,12 +152,7 @@ def apply_split_scheme(
         remapped_val = test_df
         remapped_test = test_df.clear()
         print(
-            "Applied split scheme: train <- train+val | val <- test | "
-            "test disabled."
-        )
-        print(
-            "Note: this mode is for tuning only and does not produce held-out "
-            "test metrics."
+            "Applied split scheme: train <- train+val | val <- test | test disabled."
         )
         return merged_train, remapped_val, remapped_test
 
@@ -171,20 +160,19 @@ def apply_split_scheme(
 
 
 def impute_and_sort(df: pl.DataFrame) -> pl.DataFrame:
-    """Sort by (unique_id, ds), forward-fill then back-fill numeric columns per series."""
+    """Sort by (unique_id, ds), forward-fill then back-fill glucose per series."""
     if df.is_empty():
         return df
     return (
         df.sort(["unique_id", "ds"])
-        .with_columns([
-            pl.col(c)
+        .with_columns(
+            pl.col("glucose")
             .forward_fill()
             .backward_fill()
             .fill_null(0.0)
             .cast(pl.Float32)
             .over("unique_id")
-            for c in ["glucose", "hr", "steps"]
-        ])
+        )
     )
 
 
@@ -199,8 +187,8 @@ def limit_series(df: pl.DataFrame, max_series: int) -> pl.DataFrame:
 #  SLIDING-WINDOW DATASET
 # ============================================================================
 
-class GlucoseWindowDataset(Dataset):
-    """Lazy sliding-window dataset for multimodal glucose forecasting.
+class GlucoseUniWindowDataset(Dataset):
+    """Lazy sliding-window dataset for univariate glucose forecasting.
 
     Stores only the scaled per-series arrays; windows are sliced on-the-fly in
     __getitem__ so peak RAM is O(n_rows) instead of O(n_windows × input_steps).
@@ -212,58 +200,38 @@ class GlucoseWindowDataset(Dataset):
         input_steps: int,
         horizon: int,
         scaler_glucose: MinMaxScaler | None = None,
-        scaler_hr: MinMaxScaler | None = None,
-        scaler_steps: MinMaxScaler | None = None,
         fit_scalers: bool = False,
     ):
         self.input_steps = input_steps
         self.horizon = horizon
         window_len = input_steps + horizon
 
-        # Gather raw arrays per series
+        # Gather raw glucose arrays per series using fast Polars group iteration
         raw_glucose: list[np.ndarray] = []
-        raw_hr: list[np.ndarray] = []
-        raw_steps: list[np.ndarray] = []
         uids: list = []
         sgroups: list[str] = []
         for (uid_val,), grp in df.sort(["unique_id", "ds"]).group_by(["unique_id"], maintain_order=True):
             uids.append(uid_val)
             sgroups.append(grp["study_group"][0])
             raw_glucose.append(grp["glucose"].to_numpy())
-            raw_hr.append(grp["hr"].to_numpy())
-            raw_steps.append(grp["steps"].to_numpy())
 
-        # Fit or reuse scalers
+        # Fit or reuse scaler on concatenated data
         if fit_scalers or scaler_glucose is None:
             all_g = np.concatenate(raw_glucose).reshape(-1, 1)
-            all_h = np.concatenate(raw_hr).reshape(-1, 1)
-            all_s = np.concatenate(raw_steps).reshape(-1, 1)
             self.scaler_glucose = MinMaxScaler().fit(all_g)
-            self.scaler_hr = MinMaxScaler().fit(all_h)
-            self.scaler_steps = MinMaxScaler().fit(all_s)
         else:
             self.scaler_glucose = scaler_glucose
-            self.scaler_hr = scaler_hr
-            self.scaler_steps = scaler_steps
 
-        # Scale each series and build an index: (series_idx, window_start_offset)
-        self._series_g: list[np.ndarray] = []
-        self._series_h: list[np.ndarray] = []
-        self._series_s: list[np.ndarray] = []
-        self._index: list[tuple[int, int]] = []   # (series_idx, start)
+        # Scale each series and build a flat index: (series_idx, window_start)
+        self._series: list[np.ndarray] = []
+        self._index: list[tuple[int, int]] = []
         self.series_ids: list = []
         self.study_groups: list[str] = []
 
         n_skipped = 0
-        for i, (uid, sg, rg, rh, rs) in enumerate(
-            zip(uids, sgroups, raw_glucose, raw_hr, raw_steps)
-        ):
-            g = self.scaler_glucose.transform(rg.reshape(-1, 1)).ravel().astype(np.float32)
-            h = self.scaler_hr.transform(rh.reshape(-1, 1)).ravel().astype(np.float32)
-            s = self.scaler_steps.transform(rs.reshape(-1, 1)).ravel().astype(np.float32)
-            self._series_g.append(g)
-            self._series_h.append(h)
-            self._series_s.append(s)
+        for i, (uid, sg, raw) in enumerate(zip(uids, sgroups, raw_glucose)):
+            g = self.scaler_glucose.transform(raw.reshape(-1, 1)).ravel().astype(np.float32)
+            self._series.append(g)
             n_windows = len(g) - window_len + 1
             if n_windows <= 0:
                 n_skipped += 1
@@ -277,27 +245,15 @@ class GlucoseWindowDataset(Dataset):
             print(f"  Note: Skipped {n_skipped} series/segments shorter than "
                   f"{window_len} steps.")
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._index)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         series_idx, start = self._index[idx]
-        g = self._series_g[series_idx]
-        h = self._series_h[series_idx]
-        s = self._series_s[series_idx]
-        x = np.stack([
-            g[start : start + self.input_steps],
-            h[start : start + self.input_steps],
-            s[start : start + self.input_steps],
-        ], axis=-1)  # (input_steps, 3)
+        g = self._series[series_idx]
+        x = g[start : start + self.input_steps].reshape(-1, 1)
         y = g[start + self.input_steps : start + self.input_steps + self.horizon]
         return torch.from_numpy(x), torch.from_numpy(y)
-
-
-# ============================================================================
-#  MODEL ARCHITECTURE
-# ============================================================================
-# Kept in separate module for cleaner inference/evaluation reuse.
 
 
 # ============================================================================
@@ -307,7 +263,7 @@ class GlucoseWindowDataset(Dataset):
 def mae_rmse_mard(
     y_true: np.ndarray, y_pred: np.ndarray
 ) -> tuple[float, float, float]:
-    """Compute MAE, RMSE, MARD (same formula as tune_nf_baselines_by_group)."""
+    """Compute MAE, RMSE, MARD."""
     err = y_true - y_pred
     mae = float(np.mean(np.abs(err)))
     rmse = float(np.sqrt(np.mean(err * err)))
@@ -324,12 +280,12 @@ def mae_rmse_mard(
 # ============================================================================
 
 def train_one_epoch(
-    model: GluMindModel,
+    model: GluMindUniModel,
     loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     loss_fn: nn.Module,
     device: torch.device,
-    teacher: GluMindModel | None = None,
+    teacher: GluMindUniModel | None = None,
     lwf_lambda: float = 0.0,
     use_amp: bool = False,
     amp_dtype: torch.dtype = torch.float32,
@@ -372,7 +328,7 @@ def train_one_epoch(
 
 @torch.no_grad()
 def evaluate(
-    model: GluMindModel,
+    model: GluMindUniModel,
     loader: DataLoader,
     loss_fn: nn.Module,
     device: torch.device,
@@ -405,10 +361,9 @@ def compute_and_print_metrics(
     scaler_glucose: MinMaxScaler,
     split_name: str,
     run_dir: Path,
-    dataset: GlucoseWindowDataset | None = None,
-):
+    dataset: GlucoseUniWindowDataset | None = None,
+) -> tuple[float, float, float]:
     """Inverse-transform, compute MAE/RMSE/MARD, save CSVs."""
-    # Flatten for overall metrics
     t_flat = true_arr.ravel().reshape(-1, 1)
     p_flat = pred_arr.ravel().reshape(-1, 1)
     t_inv = scaler_glucose.inverse_transform(t_flat).ravel()
@@ -424,7 +379,6 @@ def compute_and_print_metrics(
         run_dir / f"{split_name}_metrics_overall.csv"
     )
 
-    # Per-study-group breakdown
     if dataset is not None and len(dataset.study_groups) == len(true_arr):
         groups = np.array(dataset.study_groups)
         rows = []
@@ -448,13 +402,13 @@ def compute_and_print_metrics(
 
 def save_full_checkpoint(
     path: Path,
-    model: GluMindModel,
+    model: GluMindUniModel,
     optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler._LRScheduler | None,
+    scheduler: torch.optim.lr_scheduler.LRScheduler | None,
     epoch: int,
     best_val_loss: float,
-    args,
-):
+    cfg: dict,
+) -> None:
     """Save a full checkpoint: model + optimizer + scheduler + metadata."""
     ckpt = {
         "epoch": epoch,
@@ -462,20 +416,19 @@ def save_full_checkpoint(
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "scheduler_state_dict": scheduler.state_dict() if scheduler else None,
-        "args": {k: str(v) if isinstance(v, Path) else v
-                 for k, v in vars(args).items()},
+        "cfg": cfg,
     }
     torch.save(ckpt, path)
 
 
 def load_full_checkpoint(
     path: Path,
-    model: GluMindModel,
+    model: GluMindUniModel,
     optimizer: torch.optim.Optimizer | None = None,
-    scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
+    scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
     device: torch.device | None = None,
-) -> int:
-    """Load a full checkpoint. Returns the epoch number to resume from."""
+) -> tuple[int, float]:
+    """Load a full checkpoint. Returns (epoch, best_val_loss)."""
     ckpt = torch.load(path, map_location=device or "cpu", weights_only=False)
     model.load_state_dict(ckpt["model_state_dict"])
     if optimizer is not None and "optimizer_state_dict" in ckpt:
@@ -490,42 +443,32 @@ def load_full_checkpoint(
 
 
 def train_loop(
-    model: GluMindModel,
+    model: GluMindUniModel,
     train_loader: DataLoader,
     val_loader: DataLoader | None,
     optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler._LRScheduler | None,
+    scheduler: torch.optim.lr_scheduler.LRScheduler | None,
     loss_fn: nn.Module,
     device: torch.device,
     epochs: int,
     patience: int,
     run_dir: Path,
-    teacher: GluMindModel | None = None,
+    teacher: GluMindUniModel | None = None,
     lwf_lambda: float = 0.0,
     verbose_every: int = 10,
     ckpt_every_n_epochs: int = 0,
     ckpt_eval_callback=None,
     start_epoch: int = 1,
     best_val_loss: float = float("inf"),
-    args=None,
+    cfg: dict | None = None,
     use_amp: bool = False,
     amp_dtype: torch.dtype = torch.float32,
     scaler: torch.amp.GradScaler | None = None,
     val_every_n_epochs: int = 1,
-) -> GluMindModel:
-    """Full training loop with early stopping on validation loss.
-
-    Args:
-        ckpt_every_n_epochs: Save checkpoint + run eval every N epochs (0=off).
-        ckpt_eval_callback: Callable(model, epoch, ckpt_dir) for full eval at
-            checkpoint epochs.
-        start_epoch: Epoch to start from (for resume).
-        best_val_loss: Best validation loss so far (for resume).
-        args: Parsed CLI args (needed for full checkpoint saving).
-    """
+) -> GluMindUniModel:
+    """Full training loop with early stopping on validation loss."""
     wait = 0
     best_epoch = start_epoch - 1
-    start_time = time.time()  # Start time for ETA calculation
     total_time = 0.0
 
     for epoch in range(start_epoch, epochs + 1):
@@ -552,19 +495,16 @@ def train_loop(
                 best_epoch = epoch
                 wait = 0
                 torch.save(model.state_dict(), run_dir / "best_model.pt")
-                # Save metadata so you always know which epoch is in best_model.pt
                 with open(run_dir / "best_info.json", "w") as f:
                     json.dump({"epoch": epoch, "val_loss": best_val_loss}, f)
                 print(f"  ★ New best at epoch {epoch} (val_loss={val_loss:.6f})")
             else:
                 wait += 1
                 if patience > 0 and wait >= patience:
-                    print(f"  Early stopping at epoch {epoch} "
-                          f"(patience={patience})")
+                    print(f"  Early stopping at epoch {epoch} (patience={patience})")
                     break
         elif val_loader is None:
             val_loss_str = "N/A"
-            # No validation — save every improvement on train loss
             if train_loss < best_val_loss:
                 best_val_loss = train_loss
                 best_epoch = epoch
@@ -579,8 +519,7 @@ def train_loop(
         total_time += dt
         avg_time = total_time / (epoch - start_epoch + 1)
         remaining_epochs = epochs - epoch
-        eta_seconds = avg_time * remaining_epochs
-        eta_str = str(timedelta(seconds=int(eta_seconds)))
+        eta_str = str(timedelta(seconds=int(avg_time * remaining_epochs)))
 
         if epoch == 1 or epoch % verbose_every == 0 or epoch == epochs:
             print(f"  Epoch {epoch:4d}/{epochs} | "
@@ -588,32 +527,26 @@ def train_loop(
                   f"val_loss={val_loss_str} | "
                   f"{dt:.1f}s/epoch | ETA: {eta_str}")
 
-        # Periodic checkpoint with full eval
         if ckpt_every_n_epochs > 0 and epoch % ckpt_every_n_epochs == 0:
             ckpt_dir = run_dir / "checkpoints" / f"epoch_{epoch:04d}"
             ckpt_dir.mkdir(parents=True, exist_ok=True)
-            # Save full checkpoint (model + optimizer + scheduler + epoch)
             save_full_checkpoint(
                 ckpt_dir / "checkpoint.pt",
-                model, optimizer, scheduler, epoch, best_val_loss, args,
+                model, optimizer, scheduler, epoch, best_val_loss, cfg or {},
             )
             print(f"  [Checkpoint] Saved at epoch {epoch} → {ckpt_dir}")
-            # Run full eval if callback provided
             if ckpt_eval_callback is not None:
                 ckpt_eval_callback(model, epoch, ckpt_dir)
 
-    # Save last full checkpoint
     save_full_checkpoint(
         run_dir / "last_checkpoint.pt",
-        model, optimizer, scheduler, epoch, best_val_loss, args,
+        model, optimizer, scheduler, epoch, best_val_loss, cfg or {},
     )
-    # Also save plain weights for easy loading
     torch.save(model.state_dict(), run_dir / "last_model.pt")
 
     print(f"\n  Summary: best_model.pt = epoch {best_epoch} | "
           f"last_model.pt = epoch {epoch}")
 
-    # Load best
     best_path = run_dir / "best_model.pt"
     if best_path.exists():
         model.load_state_dict(torch.load(best_path, map_location=device,
@@ -622,30 +555,39 @@ def train_loop(
 
 
 # ============================================================================
-#  TRAINING MODES
+#  HELPERS
 # ============================================================================
 
-def make_model(args, device: torch.device) -> GluMindModel:
-    model = GluMindModel(
-        n_time_steps=args.input_steps,
-        n_features=3,
-        d_model=args.d_model,
-        n_heads=args.n_heads,
-        ff_units=args.ff_units,
-        n_blocks=args.n_blocks,
-        prediction_horizon=args.horizon,
-        dropout=args.dropout,
+def make_model(
+    input_steps: int,
+    d_model: int,
+    n_heads: int,
+    ff_units: int,
+    n_blocks: int,
+    horizon: int,
+    dropout: float,
+    device: torch.device,
+    compile_mode: str,
+) -> GluMindUniModel:
+    model = GluMindUniModel(
+        n_time_steps=input_steps,
+        d_model=d_model,
+        n_heads=n_heads,
+        ff_units=ff_units,
+        n_blocks=n_blocks,
+        prediction_horizon=horizon,
+        dropout=dropout,
     ).to(device)
-    if device.type == "cuda" and args.compile_mode != "none":
+    if device.type == "cuda" and compile_mode != "none":
         try:
-            model = torch.compile(model, mode=args.compile_mode)
-            print(f"torch.compile enabled (mode={args.compile_mode})")
+            model = torch.compile(model, mode=compile_mode)
+            print(f"torch.compile enabled (mode={compile_mode})")
         except Exception as e:
-            print(f"Warning: torch.compile failed, using eager mode ({e})")
+            print(f"Warning: torch.compile failed, running in eager mode. ({e})")
     return model
 
 
-def update_latest_symlink(run_dir: Path, out_dir: Path):
+def update_latest_symlink(run_dir: Path, out_dir: Path) -> None:
     """Write a 'latest.txt' pointer to the most recent run directory.
 
     Using a plain text file instead of a symlink avoids the Windows privilege
@@ -658,12 +600,15 @@ def update_latest_symlink(run_dir: Path, out_dir: Path):
     print(f"Latest run pointer: {latest_txt} -> {run_dir}")
 
 
-def make_optimizer_and_scheduler(model, args):
-    optimizer = torch.optim.AdamW(
-        model.parameters(), lr=args.lr, weight_decay=args.weight_decay,
-    )
+def make_optimizer_and_scheduler(
+    model: GluMindUniModel,
+    lr: float,
+    weight_decay: float,
+    epochs: int,
+) -> tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LRScheduler]:
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=args.epochs, eta_min=args.lr * 0.01,
+        optimizer, T_max=epochs, eta_min=lr * 0.01,
     )
     return optimizer, scheduler
 
@@ -672,109 +617,106 @@ def build_datasets(
     train_df: pl.DataFrame,
     val_df: pl.DataFrame,
     test_df: pl.DataFrame,
-    args,
-) -> tuple[GlucoseWindowDataset, GlucoseWindowDataset | None, GlucoseWindowDataset | None]:
-    """Build window datasets, fitting scalers on train."""
-    train_ds = GlucoseWindowDataset(
-        train_df, args.input_steps, args.horizon, fit_scalers=True,
+    input_steps: int,
+    horizon: int,
+) -> tuple[GlucoseUniWindowDataset, GlucoseUniWindowDataset | None, GlucoseUniWindowDataset | None]:
+    """Build window datasets, fitting scaler on train."""
+    train_ds = GlucoseUniWindowDataset(
+        train_df, input_steps, horizon, fit_scalers=True,
     )
-    val_ds = None
+    val_ds: GlucoseUniWindowDataset | None = None
     if not val_df.is_empty():
-        val_ds = GlucoseWindowDataset(
-            val_df, args.input_steps, args.horizon,
+        val_ds = GlucoseUniWindowDataset(
+            val_df, input_steps, horizon,
             scaler_glucose=train_ds.scaler_glucose,
-            scaler_hr=train_ds.scaler_hr,
-            scaler_steps=train_ds.scaler_steps,
         )
-    test_ds = None
+    test_ds: GlucoseUniWindowDataset | None = None
     if not test_df.is_empty():
-        test_ds = GlucoseWindowDataset(
-            test_df, args.input_steps, args.horizon,
+        test_ds = GlucoseUniWindowDataset(
+            test_df, input_steps, horizon,
             scaler_glucose=train_ds.scaler_glucose,
-            scaler_hr=train_ds.scaler_hr,
-            scaler_steps=train_ds.scaler_steps,
         )
     return train_ds, val_ds, test_ds
 
 
 def run_train_and_eval(
-    model: GluMindModel,
-    train_ds: GlucoseWindowDataset,
-    val_ds: GlucoseWindowDataset | None,
-    test_ds: GlucoseWindowDataset | None,
-    args,
-    device: torch.device,
+    model: GluMindUniModel,
+    train_ds: GlucoseUniWindowDataset,
+    val_ds: GlucoseUniWindowDataset | None,
+    test_ds: GlucoseUniWindowDataset | None,
     run_name: str,
-    teacher: GluMindModel | None = None,
-    lwf_lambda: float = 0.0,
-):
+    out_dir: Path,
+    batch_size: int,
+    epochs: int,
+    patience: int,
+    lr: float,
+    weight_decay: float,
+    num_workers: int,
+    prefetch_factor: int,
+    precision: str,
+    log_every: int,
+    ckpt_every_n_epochs: int,
+    val_every_n_epochs: int,
+    resume_from: str,
+    lwf_lambda: float,
+    device: torch.device,
+    teacher: GluMindUniModel | None = None,
+    cfg: dict | None = None,
+) -> GluMindUniModel:
     """Train, evaluate, and save results."""
-    # Create run dir
-    run_dir = args.out_dir / run_name
+    run_dir = out_dir / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
     print(f"Run directory: {run_dir}")
 
-    # Save initial metadata (args + dataset sizes)
-    meta = {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()}
+    meta = dict(cfg or {})
     meta.update({
         "train_samples": len(train_ds),
         "val_samples": len(val_ds) if val_ds else 0,
         "test_samples": len(test_ds) if test_ds else 0,
-        "start_time": datetime.now().isoformat()
+        "start_time": datetime.now().isoformat(),
     })
     with open(run_dir / "tuning_meta.json", "w") as f:
         json.dump(meta, f, indent=2)
 
-    # Create/Update 'latest' symlink
-    update_latest_symlink(run_dir, args.out_dir)
+    update_latest_symlink(run_dir, out_dir)
 
-    num_workers = resolve_num_workers(args.num_workers, device)
+    resolved_workers = resolve_num_workers(num_workers, device)
     pin_memory = device.type == "cuda"
-    loader_kwargs = dict(
-        num_workers=num_workers,
+    loader_kwargs: dict = dict(
+        num_workers=resolved_workers,
         pin_memory=pin_memory,
-        persistent_workers=num_workers > 0,
+        persistent_workers=resolved_workers > 0,
     )
-    if num_workers > 0:
-        loader_kwargs["prefetch_factor"] = args.prefetch_factor
+    if resolved_workers > 0:
+        loader_kwargs["prefetch_factor"] = prefetch_factor
 
-    train_loader = DataLoader(
-        train_ds, batch_size=args.batch_size, shuffle=True,
-        **loader_kwargs,
-    )
-    val_loader = None
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, **loader_kwargs)
+    val_loader: DataLoader | None = None
     if val_ds is not None and len(val_ds) > 0:
-        val_loader = DataLoader(
-            val_ds, batch_size=args.batch_size, shuffle=False,
-            **loader_kwargs,
-        )
-    test_loader = None
+        val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, **loader_kwargs)
+    test_loader: DataLoader | None = None
     if test_ds is not None and len(test_ds) > 0:
-        test_loader = DataLoader(
-            test_ds, batch_size=args.batch_size, shuffle=False,
-            **loader_kwargs,
-        )
+        test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, **loader_kwargs)
 
-    optimizer, scheduler = make_optimizer_and_scheduler(model, args)
+    optimizer, scheduler = make_optimizer_and_scheduler(model, lr, weight_decay, epochs)
     loss_fn = nn.MSELoss()
-    use_amp = device.type == "cuda" and args.precision in ("bf16", "fp16")
-    amp_dtype = torch.bfloat16 if args.precision == "bf16" else torch.float16
-    scaler = torch.amp.GradScaler(
+    use_amp = device.type == "cuda" and precision in ("bf16", "fp16")
+    amp_dtype = torch.bfloat16 if precision == "bf16" else torch.float16
+    grad_scaler = torch.amp.GradScaler(
         "cuda",
-        enabled=(device.type == "cuda" and args.precision == "fp16"),
+        enabled=(device.type == "cuda" and precision == "fp16"),
     )
 
-    # Handle resume from checkpoint
     start_epoch = 1
     best_val_loss = float("inf")
-    if args.resume_from:
-        resume_path = Path(args.resume_from)
+    if resume_from:
+        resume_path = Path(resume_from)
         if not resume_path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {resume_path}")
         start_epoch, best_val_loss = load_full_checkpoint(
             resume_path, model, optimizer, scheduler, device,
         )
-        start_epoch += 1  # resume from NEXT epoch
+        start_epoch += 1
 
     print(f"\n{'=' * 60}")
     print(f"Training: {len(train_ds):,} windows | "
@@ -785,220 +727,217 @@ def run_train_and_eval(
         print(f"Resuming from epoch {start_epoch}")
     print(f"{'=' * 60}")
 
-    # Build checkpoint eval callback for periodic full evaluation
-    def ckpt_eval_callback(mdl, epoch, ckpt_dir):
+    def ckpt_eval_callback(mdl: GluMindUniModel, epoch: int, ckpt_dir: Path) -> None:
         if val_loader is not None:
-            _, vt, vp = evaluate(
-                mdl, val_loader, loss_fn, device,
-                use_amp=use_amp, amp_dtype=amp_dtype,
-            )
-            compute_and_print_metrics(
-                vt, vp, train_ds.scaler_glucose,
-                f"val_epoch{epoch:04d}", ckpt_dir, val_ds,
-            )
+            _, vt, vp = evaluate(mdl, val_loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype)
+            compute_and_print_metrics(vt, vp, train_ds.scaler_glucose, f"val_epoch{epoch:04d}", ckpt_dir, val_ds)
         if test_loader is not None:
-            _, tt, tp = evaluate(
-                mdl, test_loader, loss_fn, device,
-                use_amp=use_amp, amp_dtype=amp_dtype,
-            )
-            compute_and_print_metrics(
-                tt, tp, train_ds.scaler_glucose,
-                f"test_epoch{epoch:04d}", ckpt_dir, test_ds,
-            )
+            _, tt, tp = evaluate(mdl, test_loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype)
+            compute_and_print_metrics(tt, tp, train_ds.scaler_glucose, f"test_epoch{epoch:04d}", ckpt_dir, test_ds)
 
     model = train_loop(
         model, train_loader, val_loader, optimizer, scheduler,
-        loss_fn, device, args.epochs, args.patience, run_dir,
+        loss_fn, device, epochs, patience, run_dir,
         teacher=teacher, lwf_lambda=lwf_lambda,
-        verbose_every=args.log_every,
-        ckpt_every_n_epochs=args.ckpt_every_n_epochs,
+        verbose_every=log_every,
+        ckpt_every_n_epochs=ckpt_every_n_epochs,
         ckpt_eval_callback=ckpt_eval_callback,
         start_epoch=start_epoch,
         best_val_loss=best_val_loss,
-        args=args,
+        cfg=cfg,
         use_amp=use_amp,
         amp_dtype=amp_dtype,
-        scaler=scaler,
-        val_every_n_epochs=args.val_every_n_epochs,
+        scaler=grad_scaler,
+        val_every_n_epochs=val_every_n_epochs,
     )
 
-    # Final evaluation on val (using best model)
     if val_loader is not None:
-        _, val_true, val_pred = evaluate(
-            model, val_loader, loss_fn, device,
-            use_amp=use_amp, amp_dtype=amp_dtype,
-        )
-        compute_and_print_metrics(
-            val_true, val_pred, train_ds.scaler_glucose,
-            "val", run_dir, val_ds,
-        )
+        _, val_true, val_pred = evaluate(model, val_loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype)
+        compute_and_print_metrics(val_true, val_pred, train_ds.scaler_glucose, "val", run_dir, val_ds)
 
-    # Final evaluation on test (using best model)
     if test_loader is not None:
-        _, test_true, test_pred = evaluate(
-            model, test_loader, loss_fn, device,
-            use_amp=use_amp, amp_dtype=amp_dtype,
-        )
-        compute_and_print_metrics(
-            test_true, test_pred, train_ds.scaler_glucose,
-            "test", run_dir, test_ds,
-        )
+        _, test_true, test_pred = evaluate(model, test_loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype)
+        compute_and_print_metrics(test_true, test_pred, train_ds.scaler_glucose, "test", run_dir, test_ds)
 
-    # Save config
-    config = {k: str(v) if isinstance(v, Path) else v
-              for k, v in vars(args).items()}
     with open(run_dir / "config.json", "w") as f:
-        json.dump(config, f, indent=2)
+        json.dump(cfg or {}, f, indent=2)
 
     return model
 
 
-def mode_global(train_df, val_df, test_df, args, device):
+# ============================================================================
+#  TRAINING MODES
+# ============================================================================
+
+def mode_global(
+    train_df: pl.DataFrame,
+    val_df: pl.DataFrame,
+    test_df: pl.DataFrame,
+    out_dir: Path,
+    horizon: int,
+    input_steps: int,
+    d_model: int,
+    n_heads: int,
+    ff_units: int,
+    n_blocks: int,
+    dropout: float,
+    compile_mode: str,
+    device: torch.device,
+    **train_kwargs,
+) -> None:
     """Train one model on all data."""
     print("\n=== MODE: GLOBAL ===")
-    train_ds, val_ds, test_ds = build_datasets(train_df, val_df, test_df, args)
-
+    train_ds, val_ds, test_ds = build_datasets(train_df, val_df, test_df, input_steps, horizon)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_name = f"glumind_global_h{args.horizon}_{ts}"
-    run_dir = args.out_dir / run_name
-    update_latest_symlink(run_dir, args.out_dir)
-
+    run_name = f"glumind_uni_global_h{horizon}_{ts}"
+    run_dir = out_dir / run_name
+    update_latest_symlink(run_dir, out_dir)
     print(f"--> Training global model (dir={run_dir})")
+    model = make_model(input_steps, d_model, n_heads, ff_units, n_blocks, horizon, dropout, device, compile_mode)
+    run_train_and_eval(model, train_ds, val_ds, test_ds, run_name, out_dir, device=device, **train_kwargs)
 
-    model = make_model(args, device)
-    run_train_and_eval(model, train_ds, val_ds, test_ds, args, device, run_name)
 
-
-def mode_per_group(train_df, val_df, test_df, args, device):
+def mode_per_group(
+    train_df: pl.DataFrame,
+    val_df: pl.DataFrame,
+    test_df: pl.DataFrame,
+    out_dir: Path,
+    horizon: int,
+    input_steps: int,
+    d_model: int,
+    n_heads: int,
+    ff_units: int,
+    n_blocks: int,
+    dropout: float,
+    compile_mode: str,
+    device: torch.device,
+    **train_kwargs,
+) -> None:
     """Train separate model per study group."""
     print("\n=== MODE: PER_GROUP ===")
     present = set(train_df["study_group"].unique().to_list())
     groups = [g for g in STUDY_GROUP_ORDER if g in present]
-
     for group in groups:
         print(f"\n--- Group: {group} ---")
         tr = train_df.filter(pl.col("study_group") == group)
         va = val_df.filter(pl.col("study_group") == group) if not val_df.is_empty() else val_df
         te = test_df.filter(pl.col("study_group") == group) if not test_df.is_empty() else test_df
-
         if tr.is_empty():
             print(f"  No training data for {group}, skipping.")
             continue
-
-        train_ds, val_ds, test_ds = build_datasets(tr, va, te, args)
-
+        train_ds, val_ds, test_ds = build_datasets(tr, va, te, input_steps, horizon)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_name = group.replace(" ", "_").replace("-", "_")
-        run_name = f"glumind_group_{safe_name}_h{args.horizon}_{ts}"
-
-        model = make_model(args, device)
-        run_train_and_eval(model, train_ds, val_ds, test_ds,
-                           args, device, run_name)
+        run_name = f"glumind_uni_group_{safe_name}_h{horizon}_{ts}"
+        model = make_model(input_steps, d_model, n_heads, ff_units, n_blocks, horizon, dropout, device, compile_mode)
+        run_train_and_eval(model, train_ds, val_ds, test_ds, run_name, out_dir, device=device, **train_kwargs)
 
 
-def mode_cohort_wise(train_df, val_df, test_df, args, device):
-    """Sequential fine-tuning across groups (reset between groups)."""
+def mode_cohort_wise(
+    train_df: pl.DataFrame,
+    val_df: pl.DataFrame,
+    test_df: pl.DataFrame,
+    out_dir: Path,
+    horizon: int,
+    input_steps: int,
+    d_model: int,
+    n_heads: int,
+    ff_units: int,
+    n_blocks: int,
+    dropout: float,
+    compile_mode: str,
+    device: torch.device,
+    **train_kwargs,
+) -> None:
+    """Sequential training across study groups, fresh model each time."""
     print("\n=== MODE: COHORT_WISE ===")
     present = set(train_df["study_group"].unique().to_list())
     groups = [g for g in STUDY_GROUP_ORDER if g in present]
-
     for group in groups:
         print(f"\n--- Cohort: {group} ---")
         tr = train_df.filter(pl.col("study_group") == group)
         va = val_df.filter(pl.col("study_group") == group) if not val_df.is_empty() else val_df
-        te = test_df  # evaluate on ALL test groups
-
         if tr.is_empty():
             print(f"  No training data for {group}, skipping.")
             continue
-
-        train_ds, val_ds, test_ds = build_datasets(tr, va, te, args)
-
+        train_ds, val_ds, test_ds = build_datasets(tr, va, test_df, input_steps, horizon)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_name = group.replace(" ", "_").replace("-", "_")
-        run_name = f"glumind_cohort_{safe_name}_h{args.horizon}_{ts}"
-
-        model = make_model(args, device)
-        run_train_and_eval(model, train_ds, val_ds, test_ds,
-                           args, device, run_name)
+        run_name = f"glumind_uni_cohort_{safe_name}_h{horizon}_{ts}"
+        model = make_model(input_steps, d_model, n_heads, ff_units, n_blocks, horizon, dropout, device, compile_mode)
+        run_train_and_eval(model, train_ds, val_ds, test_ds, run_name, out_dir, device=device, **train_kwargs)
 
 
-def mode_continual(train_df, val_df, test_df, args, device):
+def mode_continual(
+    train_df: pl.DataFrame,
+    val_df: pl.DataFrame,
+    test_df: pl.DataFrame,
+    out_dir: Path,
+    horizon: int,
+    input_steps: int,
+    d_model: int,
+    n_heads: int,
+    ff_units: int,
+    n_blocks: int,
+    dropout: float,
+    compile_mode: str,
+    device: torch.device,
+    lwf_lambda: float,
+    continual_order: str,
+    continual_val_scope: str,
+    **train_kwargs,
+) -> None:
     """Continual learning across cohorts with LwF knowledge retention."""
     print("\n=== MODE: CONTINUAL (LwF) ===")
     present = set(train_df["study_group"].unique().to_list())
     groups = [g for g in STUDY_GROUP_ORDER if g in present]
-    if args.continual_order == "reverse":
+    if continual_order == "reverse":
         groups = list(reversed(groups))
     print(f"Continual group order: {groups}")
 
     run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_parent = f"glumind_continual_h{args.horizon}_{run_ts}"
-    print(f"Continual parent run dir: {args.out_dir / run_parent}")
+    run_parent = f"glumind_uni_continual_h{horizon}_{run_ts}"
+    print(f"Continual parent run dir: {out_dir / run_parent}")
 
-    model = make_model(args, device)
-    teacher: GluMindModel | None = None
+    model = make_model(input_steps, d_model, n_heads, ff_units, n_blocks, horizon, dropout, device, compile_mode)
+    teacher: GluMindUniModel | None = None
 
-    all_train_ds = GlucoseWindowDataset(
-        train_df, args.input_steps, args.horizon, fit_scalers=True,
-    )
+    all_train_ds = GlucoseUniWindowDataset(train_df, input_steps, horizon, fit_scalers=True)
     global_scaler_g = all_train_ds.scaler_glucose
-    global_scaler_h = all_train_ds.scaler_hr
-    global_scaler_s = all_train_ds.scaler_steps
 
     for i, group in enumerate(groups):
         print(f"\n--- Continual step {i + 1}/{len(groups)}: {group} ---")
         tr = train_df.filter(pl.col("study_group") == group)
         if not val_df.is_empty():
-            if args.continual_val_scope == "all_groups":
-                va = val_df
-            else:
-                va = val_df.filter(pl.col("study_group") == group)
+            va = val_df if continual_val_scope == "all_groups" else val_df.filter(pl.col("study_group") == group)
         else:
             va = val_df
-
         if tr.is_empty():
             print(f"  No training data for {group}, skipping.")
             continue
 
-        train_ds = GlucoseWindowDataset(
-            tr, args.input_steps, args.horizon,
-            scaler_glucose=global_scaler_g,
-            scaler_hr=global_scaler_h,
-            scaler_steps=global_scaler_s,
-        )
-        val_ds = None
+        train_ds = GlucoseUniWindowDataset(tr, input_steps, horizon, scaler_glucose=global_scaler_g)
+        val_ds: GlucoseUniWindowDataset | None = None
         if not va.is_empty():
-            val_ds = GlucoseWindowDataset(
-                va, args.input_steps, args.horizon,
-                scaler_glucose=global_scaler_g,
-                scaler_hr=global_scaler_h,
-                scaler_steps=global_scaler_s,
-            )
-        test_ds = None
+            val_ds = GlucoseUniWindowDataset(va, input_steps, horizon, scaler_glucose=global_scaler_g)
+        test_ds: GlucoseUniWindowDataset | None = None
         if not test_df.is_empty():
-            test_ds = GlucoseWindowDataset(
-                test_df, args.input_steps, args.horizon,
-                scaler_glucose=global_scaler_g,
-                scaler_hr=global_scaler_h,
-                scaler_steps=global_scaler_s,
-            )
+            test_ds = GlucoseUniWindowDataset(test_df, input_steps, horizon, scaler_glucose=global_scaler_g)
 
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_name = group.replace(" ", "_").replace("-", "_")
         run_name = f"{run_parent}/step_{i + 1:02d}_{safe_name}_{ts}"
 
-        lwf = args.lwf_lambda if teacher is not None else 0.0
+        lwf = lwf_lambda if teacher is not None else 0.0
         model = run_train_and_eval(
-            model, train_ds, val_ds, test_ds, args, device, run_name,
-            teacher=teacher, lwf_lambda=lwf,
+            model, train_ds, val_ds, test_ds, run_name, out_dir, device=device,
+            teacher=teacher, lwf_lambda=lwf, **train_kwargs,
         )
 
         teacher = copy.deepcopy(model)
         teacher.eval()
         for p in teacher.parameters():
             p.requires_grad_(False)
-
         print(f"  Saved teacher snapshot after {group}")
 
 
@@ -1006,145 +945,59 @@ def mode_continual(train_df, val_df, test_df, args, device):
 #  CLI
 # ============================================================================
 
-def parse_args():
-    ap = argparse.ArgumentParser(
-        description="GluMind: Multimodal Parallel-Attention Transformer "
-                    "for Blood Glucose Forecasting",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-
-    # Data
-    ap.add_argument("--csv", type=Path, required=True,
-                    help="Path to processed dataset CSV.")
-    ap.add_argument("--unique_id", choices=["sequence_id", "user_id"],
-                    default="sequence_id")
-    ap.add_argument("--chunk_size", type=int, default=1_000_000)
-    ap.add_argument("--max_train_series", type=int, default=0,
-                    help="Limit training series (0 = all).")
-    ap.add_argument("--max_eval_series", type=int, default=0,
-                    help="Limit evaluation series (0 = all).")
-    ap.add_argument("--drop_interpolated", action="store_true")
-    ap.add_argument("--mask_interpolated_targets", action="store_true")
-    ap.add_argument("--study_groups", type=str, default="",
-                    help="Comma-separated list of Study Group values. "
-                         "Empty = all groups.")
-    ap.add_argument(
-        "--split_scheme",
-        choices=["classic", "trainval_test_as_val"],
-        default="classic",
-        help="Data split policy. 'classic' uses Recommended Split as-is. "
-             "'trainval_test_as_val' merges train+val for training and uses "
-             "test as validation (test eval is disabled).",
-    )
-
-    # Training mode
-    ap.add_argument("--mode",
-                    choices=["global", "per_group", "cohort_wise", "continual"],
-                    default="global")
-
-    # Forecast
-    ap.add_argument("--horizon", type=int, default=12,
-                    help="Prediction horizon in steps (12=60min, 6=30min, 1=5min).")
-    ap.add_argument("--input_steps", type=int, default=80,
-                    help="Input window in steps (80 = 400 min at 5-min freq).")
-
-    # Architecture
-    ap.add_argument("--d_model", type=int, default=32)
-    ap.add_argument("--n_heads", type=int, default=4)
-    ap.add_argument("--n_blocks", type=int, default=3)
-    ap.add_argument("--ff_units", type=int, default=128)
-    ap.add_argument("--dropout", type=float, default=0.1)
-
-    # Training
-    ap.add_argument("--epochs", type=int, default=200)
-    ap.add_argument("--batch_size", type=int, default=64)
-    ap.add_argument("--precision", choices=["fp32", "bf16", "fp16"], default="bf16",
-                    help="Mixed precision mode on CUDA.")
-    ap.add_argument("--compile_mode",
-                    choices=["none", "default", "reduce-overhead", "max-autotune"],
-                    default="none",
-                    help="Enable torch.compile for model graph optimization.")
-    ap.add_argument("--disable_tf32", action="store_true",
-                    help="Disable TF32 on CUDA matmul/cuDNN.")
-    ap.add_argument("--num_workers", type=int, default=-1,
-                    help="DataLoader workers (-1 = auto; cuda->cpu_count/2 capped at 8).")
-    ap.add_argument("--prefetch_factor", type=int, default=4,
-                    help="DataLoader prefetch factor (only when num_workers>0).")
-    ap.add_argument("--lr", type=float, default=1e-3)
-    ap.add_argument("--weight_decay", type=float, default=1e-4)
-    ap.add_argument("--patience", type=int, default=20,
-                    help="Early stopping patience (0 = disabled).")
-    ap.add_argument("--log_every", type=int, default=10,
-                    help="Print loss every N epochs.")
-    ap.add_argument("--ckpt_every_n_epochs", type=int, default=0,
-                    help="Save checkpoint + run full eval every N epochs "
-                         "(0 = disabled). Results saved to "
-                         "checkpoints/epoch_NNNN/ subdirs.")
-    ap.add_argument("--val_every_n_epochs", type=int, default=1,
-                    help="Run validation every N epochs (1 = every epoch).")
-    ap.add_argument("--resume_from", type=str, default="",
-                    help="Path to a checkpoint.pt file to resume training "
-                         "from. Restores model, optimizer, scheduler, and "
-                         "epoch number.")
-
-    # Continual learning
-    ap.add_argument("--lwf_lambda", type=float, default=0.5,
-                    help="LwF distillation weight for continual mode.")
-    ap.add_argument(
-        "--continual_order",
-        type=str,
-        choices=["default", "reverse"],
-        default="default",
-        help=(
-            "Group order in continual mode: 'default' follows "
-            "Healthy->Pre-T2DM->Oral-T2DM->Insulin-T2DM->T1DM; "
-            "'reverse' runs the opposite order."
-        ),
-    )
-    ap.add_argument(
-        "--continual_val_scope",
-        type=str,
-        choices=["current_group", "all_groups"],
-        default="current_group",
-        help=(
-            "Validation set scope in continual mode: 'current_group' validates "
-            "only on the active cohort; 'all_groups' validates on the full "
-            "validation split each step."
-        ),
-    )
-
-    # System
-    ap.add_argument("--device", choices=["cpu", "mps", "cuda"], default="cuda")
-    ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--out_dir", type=Path, default=Path("runs/glumind"))
-    ap.add_argument("--save_predictions", action="store_true")
-
-    return ap.parse_args()
-
-
-# ============================================================================
-#  MAIN
-# ============================================================================
-
-def main():
-    args = parse_args()
-
-    # Seed
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
+@app.command()
+def train(
+    csv: Path = typer.Option(..., help="Path to processed dataset CSV."),
+    unique_id: str = typer.Option("sequence_id", help="ID column: sequence_id or user_id."),
+    max_train_series: int = typer.Option(0, help="Limit training series (0 = all)."),
+    max_eval_series: int = typer.Option(0, help="Limit evaluation series (0 = all)."),
+    drop_interpolated: bool = typer.Option(False, help="Drop interpolated rows."),
+    study_groups: str = typer.Option("", help="Comma-separated study groups (empty = all)."),
+    split_scheme: str = typer.Option("classic", help="classic or trainval_test_as_val."),
+    mode: str = typer.Option("global", help="global | per_group | cohort_wise | continual."),
+    horizon: int = typer.Option(12, help="Prediction horizon in steps (12=60min)."),
+    input_steps: int = typer.Option(80, help="Input window steps (80=400min at 5-min freq)."),
+    d_model: int = typer.Option(32, help="Model embedding dimension."),
+    n_heads: int = typer.Option(4, help="Number of attention heads."),
+    n_blocks: int = typer.Option(3, help="Number of transformer blocks."),
+    ff_units: int = typer.Option(128, help="Feed-forward hidden units."),
+    dropout: float = typer.Option(0.1, help="Dropout rate."),
+    epochs: int = typer.Option(200, help="Training epochs."),
+    batch_size: int = typer.Option(64, help="Batch size."),
+    precision: str = typer.Option("bf16", help="Mixed precision: fp32 | bf16 | fp16."),
+    compile_mode: str = typer.Option("none", help="torch.compile mode: none | default | reduce-overhead | max-autotune."),
+    disable_tf32: bool = typer.Option(False, help="Disable TF32 on CUDA."),
+    num_workers: int = typer.Option(-1, help="DataLoader workers (-1 = auto)."),
+    prefetch_factor: int = typer.Option(4, help="DataLoader prefetch factor."),
+    lr: float = typer.Option(1e-3, help="Learning rate."),
+    weight_decay: float = typer.Option(1e-4, help="Weight decay."),
+    patience: int = typer.Option(20, help="Early stopping patience (0 = disabled)."),
+    log_every: int = typer.Option(10, help="Print loss every N epochs."),
+    ckpt_every_n_epochs: int = typer.Option(0, help="Save checkpoint every N epochs (0=off)."),
+    val_every_n_epochs: int = typer.Option(1, help="Run validation every N epochs."),
+    resume_from: str = typer.Option("", help="Path to checkpoint.pt to resume from."),
+    lwf_lambda: float = typer.Option(0.5, help="LwF distillation weight for continual mode."),
+    continual_order: str = typer.Option("default", help="Continual mode group order: default | reverse."),
+    continual_val_scope: str = typer.Option("current_group", help="current_group | all_groups."),
+    device_name: str = typer.Option("cuda", "--device", help="Device: cpu | mps | cuda."),
+    seed: int = typer.Option(42, help="Random seed."),
+    out_dir: Path = typer.Option(Path("runs/glumind_uni"), help="Output directory."),
+) -> None:
+    """Train GluMindUni on glucose-only data."""
+    torch.manual_seed(seed)
+    np.random.seed(seed)
     if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(args.seed)
+        torch.cuda.manual_seed_all(seed)
 
-    # Device
-    if args.device == "mps" and not torch.backends.mps.is_available():
+    if device_name == "mps" and not torch.backends.mps.is_available():
         print("MPS not available, falling back to CPU.")
-        args.device = "cpu"
-    if args.device == "cuda" and not torch.cuda.is_available():
+        device_name = "cpu"
+    if device_name == "cuda" and not torch.cuda.is_available():
         print("CUDA not available, falling back to CPU.")
-        args.device = "cpu"
-    device = torch.device(args.device)
+        device_name = "cpu"
+    device = torch.device(device_name)
     if device.type == "cuda":
-        if not args.disable_tf32:
+        if not disable_tf32:
             torch.backends.cuda.matmul.allow_tf32 = True
             torch.backends.cudnn.allow_tf32 = True
             print("TF32 enabled.")
@@ -1152,62 +1005,92 @@ def main():
         torch.set_float32_matmul_precision("high")
     print(f"Device: {device}")
 
-    # Load data
-    train_df, val_df, test_df = load_splits_streaming(
-        args.csv, args.unique_id, args.drop_interpolated,
-    )
-    print(f"Loaded: train={len(train_df):,} | val={len(val_df):,} | "
-          f"test={len(test_df):,}")
+    train_df, val_df, test_df = load_splits_streaming(csv, unique_id, drop_interpolated)
+    print(f"Loaded: train={len(train_df):,} | val={len(val_df):,} | test={len(test_df):,}")
 
-    # Normalize cohort labels so per-group/cohort/continual modes work across
-    # dataset naming variants (e.g., lowercase and long-form labels).
     train_df = normalize_study_groups_column(train_df)
     val_df = normalize_study_groups_column(val_df)
     test_df = normalize_study_groups_column(test_df)
 
-    # Filter study groups if requested
-    if args.study_groups:
-        groups = [normalize_study_group_label(g.strip())
-                  for g in args.study_groups.split(",") if g.strip()]
-        train_df = train_df.filter(pl.col("study_group").is_in(groups))
-        val_df = val_df.filter(pl.col("study_group").is_in(groups))
-        test_df = test_df.filter(pl.col("study_group").is_in(groups))
-        print(f"Filtered to groups {groups}: train={len(train_df):,} | "
+    if study_groups:
+        groups_list = [normalize_study_group_label(g.strip()) for g in study_groups.split(",") if g.strip()]
+        train_df = train_df.filter(pl.col("study_group").is_in(groups_list))
+        val_df = val_df.filter(pl.col("study_group").is_in(groups_list))
+        test_df = test_df.filter(pl.col("study_group").is_in(groups_list))
+        print(f"Filtered to groups {groups_list}: train={len(train_df):,} | "
               f"val={len(val_df):,} | test={len(test_df):,}")
 
-    # Optional split remapping for tuning variants.
-    train_df, val_df, test_df = apply_split_scheme(
-        train_df, val_df, test_df, args.split_scheme
-    )
+    train_df, val_df, test_df = apply_split_scheme(train_df, val_df, test_df, split_scheme)
 
-    # Impute and sort
     train_df = impute_and_sort(train_df)
     val_df = impute_and_sort(val_df)
     test_df = impute_and_sort(test_df)
 
-    # Limit series
-    if args.max_train_series > 0:
-        train_df = limit_series(train_df, args.max_train_series)
-    if args.max_eval_series > 0:
-        val_df = limit_series(val_df, args.max_eval_series)
-        test_df = limit_series(test_df, args.max_eval_series)
+    if max_train_series > 0:
+        train_df = limit_series(train_df, max_train_series)
+    if max_eval_series > 0:
+        val_df = limit_series(val_df, max_eval_series)
+        test_df = limit_series(test_df, max_eval_series)
 
-    print(f"After limits: train={len(train_df):,} | val={len(val_df):,} | "
-          f"test={len(test_df):,}")
-    print(f"Study groups in train: "
-          f"{sorted(train_df['study_group'].unique().to_list())}")
+    print(f"After limits: train={len(train_df):,} | val={len(val_df):,} | test={len(test_df):,}")
+    print(f"Study groups in train: {sorted(train_df['study_group'].unique().to_list())}")
 
-    # Dispatch to training mode
-    mode_fn = {
+    cfg = {
+        "csv": str(csv), "mode": mode, "horizon": horizon, "input_steps": input_steps,
+        "d_model": d_model, "n_heads": n_heads, "n_blocks": n_blocks, "ff_units": ff_units,
+        "dropout": dropout, "epochs": epochs, "batch_size": batch_size, "precision": precision,
+        "lr": lr, "weight_decay": weight_decay, "patience": patience, "seed": seed,
+        "out_dir": str(out_dir),
+    }
+
+    common_train_kwargs = dict(
+        out_dir=out_dir,
+        horizon=horizon,
+        input_steps=input_steps,
+        d_model=d_model,
+        n_heads=n_heads,
+        ff_units=ff_units,
+        n_blocks=n_blocks,
+        dropout=dropout,
+        compile_mode=compile_mode,
+        batch_size=batch_size,
+        epochs=epochs,
+        patience=patience,
+        lr=lr,
+        weight_decay=weight_decay,
+        num_workers=num_workers,
+        prefetch_factor=prefetch_factor,
+        precision=precision,
+        log_every=log_every,
+        ckpt_every_n_epochs=ckpt_every_n_epochs,
+        val_every_n_epochs=val_every_n_epochs,
+        resume_from=resume_from,
+        lwf_lambda=lwf_lambda,
+        cfg=cfg,
+    )
+
+    mode_fns = {
         "global": mode_global,
         "per_group": mode_per_group,
         "cohort_wise": mode_cohort_wise,
-        "continual": mode_continual,
-    }[args.mode]
+    }
 
-    mode_fn(train_df, val_df, test_df, args, device)
+    if mode == "continual":
+        mode_continual(
+            train_df, val_df, test_df,
+            device=device,
+            lwf_lambda=lwf_lambda,
+            continual_order=continual_order,
+            continual_val_scope=continual_val_scope,
+            **common_train_kwargs,
+        )
+    elif mode in mode_fns:
+        mode_fns[mode](train_df, val_df, test_df, device=device, **common_train_kwargs)
+    else:
+        raise typer.BadParameter(f"Unknown mode: {mode}")
+
     print("\nDone.")
 
 
 if __name__ == "__main__":
-    main()
+    app()

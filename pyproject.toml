@@ -10,6 +10,7 @@ dependencies = [
     "numpy>=2.4.0",
     "nvitop>=1.5.3",
     "pandas>=2.0",
+    "polars>=1.38.1",
     "pyarrow>=22.0.0",
     "scikit-learn>=1.8.0",
     "scipy>=1.16.3",
