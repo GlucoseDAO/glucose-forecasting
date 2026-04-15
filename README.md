@@ -187,6 +187,27 @@ model.load_state_dict(state)
 model.eval()
 ```
 
+## Evaluate on `test_data/livia_glumind_ready.csv`
+
+The evaluation script loads metadata from the run folder (`tuning_meta.json` or `config.json`), restores `GluMindModel`, fits or applies scalers per script logic, and computes **MAE, RMSE, MARD** on the supplied CSV.
+
+**Minimal command** (repo root; paths as requested):
+
+```powershell
+uv run scripts/glumind/evaluate_glumind.py `
+  --run-dir test_model `
+  --test-csv test_data/livia_glumind_ready.csv
+```
+
+**Useful options** (see `scripts/glumind/evaluate_glumind.py` Typer `main`):
+
+- `--device cpu` — force CPU if CUDA is unavailable or undesired.
+- `--train-csv <path>` — override the training CSV used for scaler fitting (default: path inside downloaded `tuning_meta.json` / metadata); use if you must point to a local file for scaler statistics.
+- `--test-split test` — only if the CSV has `Recommended Split` and you want to filter rows.
+- `--glucose-only` — ablation: zero (or mean/median) HR and steps for inference.
+
+The script docstring at the top of `evaluate_glumind.py` documents three ways to point at a model (`--registry-dir`, `--run-dir`, `--checkpoint`); for Hugging Face–downloaded artifacts, **`--run-dir test_model`** is the intended path.
+
 ## Outputs
 
 Typical run artifacts:
