@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "asitop>=0.0.24",
+    "huggingface-hub>=0.30.0",
     "neuralforecast>=3",
     "numpy>=2.4.0",
     "nvitop>=1.5.3",
@@ -16,8 +17,22 @@ dependencies = [
     "scipy>=1.16.3",
     "torch>=2.9.1",
     "transformers>=5.1.0",
+    "typer>=0.15.0",
     "utilsforecast>=0.2.15",
 ]
+
+[project.scripts]
+train-glumind = "scripts.glumind.train_glumind:main"
+evaluate-glumind = "scripts.glumind.evaluate_glumind:app"
+inference-glumind = "scripts.glumind.inference_glumind:app"
+download-glumind-hf = "scripts.glumind.download_from_huggingface:app"
+
+[build-system]
+requires = ["hatchling>=1.26.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["scripts"]
 
 [tool.uv.sources]
 torch = [

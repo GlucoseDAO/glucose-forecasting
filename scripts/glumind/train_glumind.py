@@ -25,7 +25,7 @@ import torch
 import torch.nn as nn
 from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader, Dataset
-from glumind_model import GluMindModel
+from scripts.glumind.glumind_model import GluMindModel
 
 # ---------------------------------------------------------------------------
 # Source CSV columns (same conventions as tune_nf_baselines_by_group.py)
