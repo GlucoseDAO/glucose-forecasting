@@ -32,7 +32,12 @@ import torch.nn as nn
 import typer
 from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader, Dataset
-from glumind_ic_model import GluMindICModel
+try:
+    from scripts.glumind_ic.console_log import echo_plain
+    from scripts.glumind_ic.glumind_ic_model import GluMindICModel
+except ModuleNotFoundError:
+    from console_log import echo_plain
+    from glumind_ic_model import GluMindICModel
 
 app = typer.Typer(
     name="train_glumind_ic",
@@ -370,10 +375,15 @@ def train_one_epoch(
     use_amp: bool = False,
     amp_dtype: torch.dtype = torch.float32,
     scaler: torch.amp.GradScaler | None = None,
+    batch_log_every: int = 0,
+    epoch: int = 0,
 ) -> float:
     model.train()
     total_loss = 0.0
     n_batches = 0
+    n_batches_total = len(loader)
+    t_epoch = time.perf_counter()
+
     for x, y in loader:
         x, y = x.to(device), y.to(device)
         optimizer.zero_grad()
@@ -399,8 +409,24 @@ def train_one_epoch(
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
 
-        total_loss += loss.item()
         n_batches += 1
+        total_loss += loss.item()
+
+        if batch_log_every > 0 and (
+            n_batches == 1
+            or n_batches % batch_log_every == 0
+            or n_batches == n_batches_total
+        ):
+            elapsed = time.perf_counter() - t_epoch
+            batches_per_sec = n_batches / elapsed if elapsed > 0 else 0.0
+            remaining = n_batches_total - n_batches
+            eta_s = remaining / batches_per_sec if batches_per_sec > 0 else 0.0
+            avg_loss = total_loss / n_batches
+            echo_plain(
+                f"  train epoch {epoch:3d} | batch {n_batches:,}/{n_batches_total:,} | "
+                f"{batches_per_sec:.2f} batch/s | loss={avg_loss:.6f} | "
+                f"epoch ETA {timedelta(seconds=int(eta_s))}"
+            )
 
     return total_loss / max(n_batches, 1)
 
@@ -413,11 +439,16 @@ def evaluate(
     device: torch.device,
     use_amp: bool = False,
     amp_dtype: torch.dtype = torch.float32,
+    batch_log_every: int = 0,
+    split_label: str = "eval",
 ) -> tuple[float, np.ndarray, np.ndarray]:
     model.eval()
     total_loss = 0.0
     n_batches = 0
     all_true, all_pred = [], []
+    n_batches_total = len(loader)
+    t_eval = time.perf_counter()
+
     for x, y in loader:
         x, y = x.to(device), y.to(device)
         with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=use_amp):
@@ -426,6 +457,21 @@ def evaluate(
         n_batches += 1
         all_true.append(y.float().cpu().numpy())
         all_pred.append(pred.float().cpu().numpy())
+
+        if batch_log_every > 0 and (
+            n_batches == 1
+            or n_batches % batch_log_every == 0
+            or n_batches == n_batches_total
+        ):
+            elapsed = time.perf_counter() - t_eval
+            batches_per_sec = n_batches / elapsed if elapsed > 0 else 0.0
+            remaining = n_batches_total - n_batches
+            eta_s = remaining / batches_per_sec if batches_per_sec > 0 else 0.0
+            echo_plain(
+                f"  {split_label} | batch {n_batches:,}/{n_batches_total:,} | "
+                f"{batches_per_sec:.2f} batch/s | "
+                f"ETA {timedelta(seconds=int(eta_s))}"
+            )
 
     avg_loss = total_loss / max(n_batches, 1)
     true_arr = np.concatenate(all_true, axis=0) if all_true else np.array([])
@@ -468,7 +514,11 @@ def compute_and_print_metrics(
                          "mae": m, "rmse": r, "mard": md})
         by_group = pl.DataFrame(rows).sort("mae")
         typer.echo(f"\n=== {split_name.upper()} METRICS (by Study Group) ===")
-        typer.echo(str(by_group))
+        for row in by_group.iter_rows(named=True):
+            echo_plain(
+                f"  {row['study_group']}: n={row['n_windows']} "
+                f"mae={row['mae']:.4f} rmse={row['rmse']:.4f} mard={row['mard']:.2f}%"
+            )
         by_group.write_csv(run_dir / f"{split_name}_metrics_by_study_group.csv")
 
     return mae, rmse, mard
@@ -557,17 +607,27 @@ def train_loop(
     amp_dtype: torch.dtype = torch.float32,
     scaler: torch.amp.GradScaler | None = None,
     val_every_n_epochs: int = 1,
+    batch_log_every: int = 0,
+    eval_batch_log_every: int = 0,
 ) -> GluMindICModel:
     wait = 0
     best_epoch = start_epoch - 1
     total_time = 0.0
+    train_batches = len(train_loader)
 
     for epoch in range(start_epoch, epochs + 1):
         t0 = time.time()
+        if epoch == start_epoch and batch_log_every > 0:
+            echo_plain(
+                f"  Epoch {epoch}/{epochs}: {train_batches:,} train batches "
+                f"(batch_size={train_loader.batch_size})"
+            )
         train_loss = train_one_epoch(
             model, train_loader, optimizer, loss_fn, device,
             teacher=teacher, lwf_lambda=lwf_lambda,
             use_amp=use_amp, amp_dtype=amp_dtype, scaler=scaler,
+            batch_log_every=batch_log_every,
+            epoch=epoch,
         )
 
         val_loss_str = "SKIP"
@@ -576,8 +636,12 @@ def train_loop(
             and (epoch == start_epoch or epoch % val_every_n_epochs == 0 or epoch == epochs)
         )
         if should_eval:
-            val_loss, _, _ = evaluate(model, val_loader, loss_fn, device,
-                                      use_amp=use_amp, amp_dtype=amp_dtype)
+            val_loss, _, _ = evaluate(
+                model, val_loader, loss_fn, device,
+                use_amp=use_amp, amp_dtype=amp_dtype,
+                batch_log_every=eval_batch_log_every,
+                split_label="val",
+            )
             val_loss_str = f"{val_loss:.6f}"
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
@@ -586,7 +650,7 @@ def train_loop(
                 torch.save(model.state_dict(), run_dir / "best_model.pt")
                 with open(run_dir / "best_info.json", "w") as f:
                     json.dump({"epoch": epoch, "val_loss": best_val_loss}, f)
-                typer.echo(f"  ★ New best at epoch {epoch} (val_loss={val_loss:.6f})")
+                echo_plain(f"  New best at epoch {epoch} (val_loss={val_loss:.6f})")
             else:
                 wait += 1
                 if patience > 0 and wait >= patience:
@@ -624,7 +688,7 @@ def train_loop(
                 ckpt_dir / "checkpoint.pt", model, optimizer, scheduler,
                 epoch, best_val_loss, cfg,
             )
-            typer.echo(f"  [Checkpoint] Saved at epoch {epoch} → {ckpt_dir}")
+            echo_plain(f"  Checkpoint saved at epoch {epoch} -> {ckpt_dir}")
             if ckpt_eval_callback is not None:
                 ckpt_eval_callback(model, epoch, ckpt_dir)
 
@@ -763,6 +827,13 @@ def run_train_and_eval(
         else None
     )
 
+    echo_plain(
+        f"  DataLoader: train_batches/epoch={len(train_loader):,} | "
+        f"val_batches={len(val_loader) if val_loader else 0:,} | "
+        f"test_batches={len(test_loader) if test_loader else 0:,} | "
+        f"batch_size={cfg['batch_size']} | num_workers={num_workers}"
+    )
+
     optimizer, scheduler = make_optimizer_and_scheduler(
         model, cfg["lr"], cfg["weight_decay"], cfg["epochs"]
     )
@@ -793,12 +864,21 @@ def run_train_and_eval(
     )
     typer.echo(f"{'=' * 60}")
 
+    batch_log_every = int(cfg.get("batch_log_every", 0))
+    eval_batch_log_every = int(cfg.get("eval_batch_log_every", 0))
+
     def ckpt_eval_callback(mdl: GluMindICModel, epoch: int, ckpt_dir: Path) -> None:
         if val_loader is not None:
-            _, vt, vp = evaluate(mdl, val_loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype)
+            _, vt, vp = evaluate(
+                mdl, val_loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype,
+                batch_log_every=eval_batch_log_every, split_label="val",
+            )
             compute_and_print_metrics(vt, vp, train_ds.scaler_glucose, f"val_epoch{epoch:04d}", ckpt_dir, val_ds)
         if test_loader is not None:
-            _, tt, tp = evaluate(mdl, test_loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype)
+            _, tt, tp = evaluate(
+                mdl, test_loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype,
+                batch_log_every=eval_batch_log_every, split_label="test",
+            )
             compute_and_print_metrics(tt, tp, train_ds.scaler_glucose, f"test_epoch{epoch:04d}", ckpt_dir, test_ds)
 
     model = train_loop(
@@ -814,14 +894,22 @@ def run_train_and_eval(
         amp_dtype=amp_dtype,
         scaler=grad_scaler,
         val_every_n_epochs=cfg["val_every_n_epochs"],
+        batch_log_every=batch_log_every,
+        eval_batch_log_every=eval_batch_log_every,
     )
 
     if val_loader is not None:
-        _, vt, vp = evaluate(model, val_loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype)
+        _, vt, vp = evaluate(
+            model, val_loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype,
+            batch_log_every=eval_batch_log_every, split_label="val",
+        )
         compute_and_print_metrics(vt, vp, train_ds.scaler_glucose, "val", run_dir, val_ds)
 
     if test_loader is not None:
-        _, tt, tp = evaluate(model, test_loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype)
+        _, tt, tp = evaluate(
+            model, test_loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype,
+            batch_log_every=eval_batch_log_every, split_label="test",
+        )
         compute_and_print_metrics(tt, tp, train_ds.scaler_glucose, "test", run_dir, test_ds)
 
     with open(run_dir / "config.json", "w") as f:
@@ -1115,6 +1203,7 @@ def main(
         "lr": lr, "weight_decay": weight_decay, "patience": patience,
         "log_every": log_every, "ckpt_every_n_epochs": ckpt_every_n_epochs,
         "val_every_n_epochs": val_every_n_epochs, "resume_from": resume_from,
+        "batch_log_every": 0, "eval_batch_log_every": 0,
         "lwf_lambda": lwf_lambda, "continual_order": continual_order,
         "continual_val_scope": continual_val_scope,
         "device": device_name, "seed": seed, "out_dir": str(out_dir),

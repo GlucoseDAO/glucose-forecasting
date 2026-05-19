@@ -1,0 +1,60 @@
+# Dev / laptop random search. Run:
+#   uv run tune-glumind-ic
+#   uv run tune-glumind-ic -c scripts/glumind_ic/tune_glumind_ic_dev.toml
+#
+# Search space biased from explore_dev runs (13 OK): lr 0.0007, wd 1e-5,
+# batch 128–512, n_heads 8 / n_blocks 4 / input_steps 96; avoid batch 64 and lr 0.001.
+
+[paths]
+csv = "data/loop_and_ai_ready/loop_ai_ready_joined_dev.csv"
+output_dir = "runs/glumind_ic_tune/explore_dev"
+
+[dataset]
+unique_id = "sequence_id"
+drop_interpolated = false
+study_groups = ""
+split_scheme = "classic"
+max_train_series = 400
+max_eval_series = 150
+
+# Used when a key is not in [tune.space] (best trial 15 region).
+[defaults]
+d_model = 32
+n_heads = 8
+n_blocks = 4
+ff_units = 128
+dropout = 0.1
+input_steps = 96
+horizon = 12
+lr = 0.0007
+weight_decay = 0.00001
+batch_size = 256
+
+[tune]
+n_trials = 24
+random_seed = 42
+max_random_draws = 2000
+resume_from = ""
+epochs = 30
+patience = 10
+log_every = 1
+val_every_n_epochs = 5
+ckpt_every_n_epochs = 0
+precision = "bf16"
+compile_mode = "none"
+disable_tf32 = false
+num_workers = 4
+prefetch_factor = 4
+batch_log_every = 500
+eval_batch_log_every = 200
+
+[tune.space]
+lr = [0.0007, 0.0005]
+weight_decay = [0.00001, 0.0001]
+batch_size = [128, 256, 512]
+d_model = [32, 64]
+n_heads = [4, 8]
+n_blocks = [3, 4]
+ff_units = [128, 256]
+dropout = [0.05, 0.1]
+input_steps = [80, 96]
