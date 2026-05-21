@@ -2,8 +2,11 @@
 #   uv run tune-glumind-ic
 #   uv run tune-glumind-ic -c scripts/glumind_ic/tune_glumind_ic_dev.toml
 #
-# Search space biased from explore_dev runs (13 OK): lr 0.0007, wd 1e-5,
-# batch 128–512, n_heads 8 / n_blocks 4 / input_steps 96; avoid batch 64 and lr 0.001.
+# Focused run: batch 1024 only (~2x faster than 128 when d_model=32 on 6 GB GPU).
+# LR grid scaled from best trial 15 (lr=0.0007 @ batch 256):
+#   linear 4x -> 0.0028, sqrt 2x -> 0.0014, step down/up -> 0.0021 / 0.0035.
+# Architecture locked to trial 15 (d_model=32); do NOT sample d_model=64 with batch 1024
+# on 6 GB VRAM — it thrashes (~0.05 batch/s, ~48 min/epoch vs ~2 min/epoch).
 
 [paths]
 csv = "data/loop_and_ai_ready/loop_ai_ready_joined_dev.csv"
@@ -17,7 +20,7 @@ split_scheme = "classic"
 max_train_series = 400
 max_eval_series = 150
 
-# Used when a key is not in [tune.space] (best trial 15 region).
+# Trial 15 best region + batch 1024 + linear-scaled default lr.
 [defaults]
 d_model = 32
 n_heads = 8
@@ -26,9 +29,9 @@ ff_units = 128
 dropout = 0.1
 input_steps = 96
 horizon = 12
-lr = 0.0007
+lr = 0.0028
 weight_decay = 0.00001
-batch_size = 256
+batch_size = 1024
 
 [tune]
 n_trials = 24
@@ -36,22 +39,23 @@ random_seed = 42
 max_random_draws = 2000
 resume_from = ""
 epochs = 30
-patience = 10
+patience = 3
 log_every = 1
 val_every_n_epochs = 5
 ckpt_every_n_epochs = 0
 precision = "bf16"
 compile_mode = "none"
 disable_tf32 = false
-num_workers = 4
+# 0 on Windows avoids worker spawn stalls; GPU is the bottleneck anyway.
+num_workers = 0
 prefetch_factor = 4
-batch_log_every = 500
-eval_batch_log_every = 200
+batch_log_every = 200
+eval_batch_log_every = 300
 
 [tune.space]
+batch_size = [256]
 lr = [0.0007, 0.0005]
 weight_decay = [0.00001, 0.0001]
-batch_size = [128, 256, 512]
 d_model = [32, 64]
 n_heads = [4, 8]
 n_blocks = [3, 4]
