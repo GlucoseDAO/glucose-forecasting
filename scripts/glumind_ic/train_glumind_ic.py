@@ -532,18 +532,24 @@ def save_full_checkpoint(
     epoch: int,
     best_val_loss: float,
     cfg: dict,
+    *,
+    wait: int = 0,
+    best_epoch: int = 0,
 ) -> None:
-    torch.save(
-        {
-            "epoch": epoch,
-            "best_val_loss": best_val_loss,
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "scheduler_state_dict": scheduler.state_dict() if scheduler else None,
-            "config": cfg,
-        },
-        path,
-    )
+    payload = {
+        "epoch": epoch,
+        "best_epoch": best_epoch,
+        "best_val_loss": best_val_loss,
+        "wait": wait,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "scheduler_state_dict": scheduler.state_dict() if scheduler else None,
+        "config": cfg,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    torch.save(payload, tmp)
+    tmp.replace(path)
 
 
 def load_full_checkpoint(
@@ -552,17 +558,37 @@ def load_full_checkpoint(
     optimizer: torch.optim.Optimizer | None = None,
     scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
     device: torch.device | None = None,
-) -> tuple[int, float]:
+) -> tuple[int, float, int, int]:
+    """Return (last_completed_epoch, best_val_loss, patience_wait, best_epoch)."""
     ckpt = torch.load(path, map_location=device or "cpu", weights_only=False)
     model.load_state_dict(ckpt["model_state_dict"])
     if optimizer is not None and "optimizer_state_dict" in ckpt:
         optimizer.load_state_dict(ckpt["optimizer_state_dict"])
     if scheduler is not None and ckpt.get("scheduler_state_dict"):
         scheduler.load_state_dict(ckpt["scheduler_state_dict"])
-    epoch = ckpt.get("epoch", 0)
-    best_val = ckpt.get("best_val_loss", float("inf"))
-    typer.echo(f"  Resumed from checkpoint: epoch={epoch}, best_val_loss={best_val:.6f}")
-    return epoch, best_val
+    epoch = int(ckpt.get("epoch", 0))
+    best_val = float(ckpt.get("best_val_loss", float("inf")))
+    wait = int(ckpt.get("wait", 0))
+    best_epoch = int(ckpt.get("best_epoch", epoch))
+    echo_plain(
+        f"  Loaded checkpoint: last_completed_epoch={epoch} | "
+        f"next_epoch={epoch + 1} | best_epoch={best_epoch} | "
+        f"best_val_loss={best_val:.6f} | patience_wait={wait}"
+    )
+    return epoch, best_val, wait, best_epoch
+
+
+def read_checkpoint_meta(path: Path) -> dict[str, int | float] | None:
+    """Lightweight read of last_checkpoint.pt for tuning state (no model load)."""
+    if not path.is_file():
+        return None
+    ckpt = torch.load(path, map_location="cpu", weights_only=False)
+    return {
+        "epoch": int(ckpt.get("epoch", 0)),
+        "best_epoch": int(ckpt.get("best_epoch", 0)),
+        "best_val_loss": float(ckpt.get("best_val_loss", float("inf"))),
+        "wait": int(ckpt.get("wait", 0)),
+    }
 
 
 def update_latest_symlink(run_dir: Path, out_dir: Path) -> None:
@@ -603,6 +629,8 @@ def train_loop(
     ckpt_eval_callback=None,
     start_epoch: int = 1,
     best_val_loss: float = float("inf"),
+    start_wait: int = 0,
+    start_best_epoch: int = 0,
     use_amp: bool = False,
     amp_dtype: torch.dtype = torch.float32,
     scaler: torch.amp.GradScaler | None = None,
@@ -610,8 +638,9 @@ def train_loop(
     batch_log_every: int = 0,
     eval_batch_log_every: int = 0,
 ) -> GluMindICModel:
-    wait = 0
-    best_epoch = start_epoch - 1
+    wait = start_wait
+    best_epoch = start_best_epoch if start_best_epoch > 0 else max(0, start_epoch - 1)
+    last_completed_epoch = max(0, start_epoch - 1)
     total_time = 0.0
     train_batches = len(train_loader)
 
@@ -681,23 +710,54 @@ def train_loop(
                 f"{dt:.1f}s/epoch | ETA: {eta_str}"
             )
 
+        save_full_checkpoint(
+            run_dir / "last_checkpoint.pt",
+            model,
+            optimizer,
+            scheduler,
+            epoch,
+            best_val_loss,
+            cfg,
+            wait=wait,
+            best_epoch=best_epoch,
+        )
+
         if ckpt_every_n_epochs > 0 and epoch % ckpt_every_n_epochs == 0:
             ckpt_dir = run_dir / "checkpoints" / f"epoch_{epoch:04d}"
             ckpt_dir.mkdir(parents=True, exist_ok=True)
             save_full_checkpoint(
-                ckpt_dir / "checkpoint.pt", model, optimizer, scheduler,
-                epoch, best_val_loss, cfg,
+                ckpt_dir / "checkpoint.pt",
+                model,
+                optimizer,
+                scheduler,
+                epoch,
+                best_val_loss,
+                cfg,
+                wait=wait,
+                best_epoch=best_epoch,
             )
             echo_plain(f"  Checkpoint saved at epoch {epoch} -> {ckpt_dir}")
             if ckpt_eval_callback is not None:
                 ckpt_eval_callback(model, epoch, ckpt_dir)
 
+        last_completed_epoch = epoch
+
     save_full_checkpoint(
-        run_dir / "last_checkpoint.pt", model, optimizer, scheduler,
-        epoch, best_val_loss, cfg,
+        run_dir / "last_checkpoint.pt",
+        model,
+        optimizer,
+        scheduler,
+        last_completed_epoch,
+        best_val_loss,
+        cfg,
+        wait=wait,
+        best_epoch=best_epoch,
     )
     torch.save(model.state_dict(), run_dir / "last_model.pt")
-    typer.echo(f"\n  Summary: best_model.pt = epoch {best_epoch} | last_model.pt = epoch {epoch}")
+    echo_plain(
+        f"\n  Summary: best_model.pt = epoch {best_epoch} | "
+        f"last_checkpoint.pt = epoch {last_completed_epoch}"
+    )
 
     best_path = run_dir / "best_model.pt"
     if best_path.exists():
@@ -846,14 +906,22 @@ def run_train_and_eval(
 
     start_epoch = 1
     best_val_loss = float("inf")
+    start_wait = 0
+    start_best_epoch = 0
     if cfg.get("resume_from"):
         resume_path = Path(cfg["resume_from"])
         if not resume_path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {resume_path}")
-        start_epoch, best_val_loss = load_full_checkpoint(
+        last_done, best_val_loss, start_wait, start_best_epoch = load_full_checkpoint(
             resume_path, model, optimizer, scheduler, device
         )
-        start_epoch += 1
+        start_epoch = last_done + 1
+        if start_epoch > cfg["epochs"]:
+            echo_plain(
+                f"  Checkpoint already at epoch {last_done} >= max {cfg['epochs']}; "
+                "skipping training loop."
+            )
+            start_epoch = cfg["epochs"] + 1
 
     typer.echo(f"\n{'=' * 60}")
     typer.echo(
@@ -890,6 +958,8 @@ def run_train_and_eval(
         ckpt_eval_callback=ckpt_eval_callback,
         start_epoch=start_epoch,
         best_val_loss=best_val_loss,
+        start_wait=start_wait,
+        start_best_epoch=start_best_epoch,
         use_amp=use_amp,
         amp_dtype=amp_dtype,
         scaler=grad_scaler,

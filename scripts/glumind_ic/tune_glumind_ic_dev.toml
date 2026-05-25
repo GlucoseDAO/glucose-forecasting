@@ -29,12 +29,12 @@ ff_units = 128
 dropout = 0.1
 input_steps = 96
 horizon = 12
-lr = 0.0028
+lr = 0.0007
 weight_decay = 0.00001
-batch_size = 1024
+batch_size = 256
 
 [tune]
-n_trials = 24
+n_trials = 1024
 random_seed = 42
 max_random_draws = 2000
 resume_from = ""
@@ -53,12 +53,7 @@ batch_log_every = 200
 eval_batch_log_every = 300
 
 [tune.space]
-batch_size = [256]
-lr = [0.0007, 0.0005]
-weight_decay = [0.00001, 0.0001]
-d_model = [32, 64]
-n_heads = [4, 8]
-n_blocks = [3, 4]
-ff_units = [128, 256]
-dropout = [0.05, 0.1]
-input_steps = [80, 96]
+lr = [0.0004, 0.0006]
+weight_decay = [0.000005, 0.00001, 0.00003]
+input_steps = [112, 128]
+n_blocks = [4, 5]
