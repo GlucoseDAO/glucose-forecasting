@@ -1,5 +1,4 @@
 # Dev / laptop random search. Run:
-#   uv run tune-glumind-ic
 #   uv run tune-glumind-ic -c scripts/glumind_ic/tune_glumind_ic_dev.toml
 #
 # Focused run: batch 1024 only (~2x faster than 128 when d_model=32 on 6 GB GPU).
@@ -9,16 +8,16 @@
 # on 6 GB VRAM — it thrashes (~0.05 batch/s, ~48 min/epoch vs ~2 min/epoch).
 
 [paths]
-csv = "data/loop_and_ai_ready/loop_ai_ready_joined_dev.csv"
-output_dir = "runs/glumind_ic_tune/explore_dev"
+csv = "data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv"
+output_dir = "runs/glumind_ic_tune/explore_dev2"
 
 [dataset]
 unique_id = "sequence_id"
 drop_interpolated = false
 study_groups = ""
 split_scheme = "classic"
-max_train_series = 400
-max_eval_series = 150
+max_train_series = 0
+max_eval_series = 0
 
 # Trial 15 best region + batch 1024 + linear-scaled default lr.
 [defaults]
@@ -27,10 +26,10 @@ n_heads = 8
 n_blocks = 4
 ff_units = 128
 dropout = 0.1
-input_steps = 96
+input_steps = 128
 horizon = 12
-lr = 0.0007
-weight_decay = 0.00001
+lr = 0.0004
+weight_decay = 0.00003
 batch_size = 256
 
 [tune]
@@ -53,7 +52,4 @@ batch_log_every = 200
 eval_batch_log_every = 300
 
 [tune.space]
-lr = [0.0004, 0.0006]
-weight_decay = [0.000005, 0.00001, 0.00003]
-input_steps = [112, 128]
 n_blocks = [4, 5]

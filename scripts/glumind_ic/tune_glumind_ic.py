@@ -3,7 +3,8 @@
 Random-search tuner for GluMindIC (global training only).
 
 One code path; behaviour comes entirely from the TOML config file.
-Shipped configs: tune_glumind_ic_dev.toml (laptop) and tune_glumind_ic_full.toml (production).
+Shipped configs: tune_glumind_ic_full.toml (default, production) and
+tune_glumind_ic_dev.toml (laptop search; pass -c explicitly).
 """
 from __future__ import annotations
 
@@ -50,7 +51,7 @@ NON_RETRYABLE_ERROR_MARKERS = (
 )
 
 # Default config when --config is omitted: file next to this script, else cwd fallback.
-DEFAULT_CONFIG_FILENAME = "tune_glumind_ic_dev.toml"
+DEFAULT_CONFIG_FILENAME = "tune_glumind_ic_full.toml"
 _SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = _SCRIPT_DIR / DEFAULT_CONFIG_FILENAME
 
@@ -545,7 +546,7 @@ def build_tune_context(
     paths = user_cfg["paths"]
     dataset = user_cfg["dataset"]
     tune = user_cfg["tune"]
-    space_raw = tune["space"]
+    space_raw = tune.get("space", {})
     param_defaults: dict[str, Any] = dict(user_cfg.get("defaults", {}))
     runtime = runtime_from_tune_section(tune)
 
@@ -554,8 +555,14 @@ def build_tune_context(
     out_root.mkdir(parents=True, exist_ok=True)
 
     space: dict[str, list[Any]] = {k: list(v) for k, v in space_raw.items()}
-    if not space:
-        raise typer.BadParameter("[tune.space] must not be empty.")
+    if not space and not param_defaults:
+        raise typer.BadParameter(
+            "Config must define [defaults] when [tune.space] is omitted."
+        )
+
+    n_trials_target = int(tune["n_trials"])
+    if not space and n_trials_target > 1:
+        n_trials_target = 1
 
     return TuneContext(
         user_cfg=user_cfg,
@@ -571,7 +578,7 @@ def build_tune_context(
         runtime=runtime,
         dataset=dict(dataset),
         report_param_keys=sorted({*space.keys(), *param_defaults.keys()}),
-        n_trials_target=int(tune["n_trials"]),
+        n_trials_target=n_trials_target,
         max_draws=int(tune["max_random_draws"]),
         rng_seed=int(seed_override if seed_override is not None else tune["random_seed"]),
         resume_from=str(tune.get("resume_from", "")),
@@ -727,7 +734,11 @@ def claim_next_trial(ctx: TuneContext) -> ClaimedTrial | None:
         trial_rng = derive_rng(ctx.rng_seed, draw_idx)
         draw_idx += 1
         attempts += 1
-        sampled = sample_from_space(trial_rng, ctx.space)
+        sampled = (
+            sample_from_space(trial_rng, ctx.space)
+            if ctx.space
+            else {}
+        )
         trial_params = merge_defaults_and_sample(ctx.param_defaults, sampled)
         ch = combo_hash(trial_params)
         if _hash_blocked_for_new_draw(trials, ch):
@@ -930,11 +941,22 @@ def tune_loop(
     echo_plain(f"Device: {device}")
     echo_plain(f"CSV: {ctx.csv_path}")
     echo_plain(f"Output: {ctx.out_root}")
-    searched = sorted(ctx.space.keys())
-    fixed_keys = sorted(k for k in ctx.param_defaults if k not in ctx.space)
-    echo_plain(f"Search space ({len(searched)} keys): {', '.join(searched)}")
-    if fixed_keys:
-        echo_plain(f"Defaults (not in .space): {', '.join(fixed_keys)}")
+    if ctx.space:
+        searched = sorted(ctx.space.keys())
+        fixed_keys = sorted(k for k in ctx.param_defaults if k not in ctx.space)
+        echo_plain(f"Search space ({len(searched)} keys): {', '.join(searched)}")
+        if fixed_keys:
+            echo_plain(f"Defaults (not in .space): {', '.join(fixed_keys)}")
+    else:
+        echo_plain(
+            "No [tune.space]; single trial using [defaults] only "
+            f"({len(ctx.param_defaults)} keys)."
+        )
+        if int(tune["n_trials"]) > 1:
+            echo_plain(
+                f"[tune].n_trials={tune['n_trials']} ignored without search space; "
+                "running 1 trial."
+            )
 
     ensure_state_initialized(ctx)
     n_reconciled = reconcile_trial_state(ctx)
@@ -1022,8 +1044,8 @@ def cli(
     """Random hyperparameter search for GluMindIC (global mode)."""
     config_path = resolve_config_path(config)
     user_cfg = load_user_config(config_path)
-    if "tune" not in user_cfg or "space" not in user_cfg.get("tune", {}):
-        raise typer.BadParameter("Config must define [tune] and [tune.space].")
+    if "tune" not in user_cfg:
+        raise typer.BadParameter("Config must define [tune].")
     tune_loop(
         user_cfg=user_cfg,
         config_path=config_path,
