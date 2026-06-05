@@ -9,6 +9,8 @@ Supports cross-model / cross-dataset comparison:
               loop_ai_ready (Glucose, Basal Rate, Bolus, Carbs)
 
 Missing covariates are filled with 0.0 before imputation.
+Use --zero-cov to force all non-glucose covariates to 0.0 after imputation
+(for fair comparison with models trained without covariates on the same dataset).
 If the CSV has a 'Recommended Split' column, rows with split == --test-split
 (default: test) are evaluated; otherwise all rows are used.
 
@@ -214,6 +216,16 @@ def _canonical_feature_cols(model_kind: ModelKind) -> list[str]:
     if model_kind == "glumind":
         return ["glucose", "hr", "steps"]
     return ["glucose", "basal", "bolus", "carbs"]
+
+
+def _non_glucose_covariate_cols(model_kind: ModelKind) -> list[str]:
+    return [c for c in _canonical_feature_cols(model_kind) if c != "glucose"]
+
+
+def _zero_non_glucose_covariates(df: pl.DataFrame, model_kind: ModelKind) -> pl.DataFrame:
+    """Replace all non-glucose covariates with 0.0 (applied after imputation)."""
+    cov_cols = _non_glucose_covariate_cols(model_kind)
+    return df.with_columns([pl.lit(0.0).cast(pl.Float32).alias(c) for c in cov_cols])
 
 
 def _load_csv_flexible(
@@ -592,6 +604,14 @@ def main(
         "--log-interval",
         help="Seconds between inference progress log lines (0 = log first and last only).",
     ),
+    zero_cov: bool = typer.Option(
+        False,
+        "--zero-cov",
+        help=(
+            "Zero all non-glucose covariates at evaluation time (after imputation). "
+            "Use for fair comparison with models that had no covariates on this dataset."
+        ),
+    ),
 ) -> None:
     if run_dir is None and registry_dir is None:
         typer.echo("Error: Provide at least one of --run-dir or --registry-dir.", err=True)
@@ -646,6 +666,10 @@ def main(
         train_only=False,
     )
     eval_df = impute(eval_df)
+    if zero_cov:
+        zeroed = _non_glucose_covariate_cols(resolved_kind)
+        eval_df = _zero_non_glucose_covariates(eval_df, resolved_kind)
+        typer.echo(f"  --zero-cov: covariates set to 0.0: {', '.join(zeroed)}")
 
     if eval_df.is_empty():
         typer.echo("Error: Evaluation dataframe is empty after loading/filtering.", err=True)
@@ -692,6 +716,7 @@ def main(
     typer.echo(f"  Model type : {resolved_kind}")
     typer.echo(f"  Test CSV   : {test_path}")
     typer.echo(f"  Split used : {split_used}")
+    typer.echo(f"  Zero cov   : {zero_cov}")
     typer.echo(f"  Checkpoint : {ckpt_path}")
     typer.echo(f"  Windows    : {len(eval_ds):,}")
     typer.echo("-" * 50)
@@ -707,6 +732,7 @@ def main(
             "run_dir": str(resolved_run_dir),
             "checkpoint": str(ckpt_path),
             "split_used": split_used,
+            "zero_cov": zero_cov,
             "windows": len(eval_ds),
             "mae": mae,
             "rmse": rmse,
