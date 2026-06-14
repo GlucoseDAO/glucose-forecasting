@@ -11,6 +11,8 @@ Supports cross-model / cross-dataset comparison:
 Missing covariates are filled with 0.0 before imputation.
 Use --zero-cov to force all non-glucose covariates to 0.0 after imputation
 (for fair comparison with models trained without covariates on the same dataset).
+Use --include-cov / --exclude-cov for finer-grained covariate ablation at inference.
+Use --covariates to inspect which covariate columns exist in a CSV (no model run).
 If the CSV has a 'Recommended Split' column, rows with split == --test-split
 (default: test) are evaluated; otherwise all rows are used.
 
@@ -91,6 +93,15 @@ IC_COVARIATES: dict[str, list[str]] = {
     "basal": ["Basal Rate (U/h)"],
     "bolus": ["Bolus Insulin (U)"],
     "carbs": ["Carbohydrates (g)"],
+}
+
+# User-facing names accepted by --include-cov / --exclude-cov (case-insensitive).
+COVARIATE_NAME_ALIASES: dict[str, list[str]] = {
+    "hr": ["hr", "heart_rate", "heart rate", "heartrate"],
+    "steps": ["steps", "step", "step_count", "step count", "stepcount"],
+    "basal": ["basal", "basal_rate", "basal rate", "basalrate"],
+    "bolus": ["bolus", "bolus_insulin", "bolus insulin", "insulin", "bolusinsulin"],
+    "carbs": ["carbs", "carb", "carbohydrates", "carbohydrate", "carbohydrate_g"],
 }
 
 TS_ALIASES = [GLUMIND_COL_TS, IC_COL_TS]
@@ -222,10 +233,177 @@ def _non_glucose_covariate_cols(model_kind: ModelKind) -> list[str]:
     return [c for c in _canonical_feature_cols(model_kind) if c != "glucose"]
 
 
+def _normalize_covariate_token(token: str) -> str:
+    return token.strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _alias_to_canonical(name: str, model_kind: ModelKind) -> str:
+    """Map a user token to a canonical covariate name for the model kind."""
+    normalized = _normalize_covariate_token(name)
+    valid = set(_non_glucose_covariate_cols(model_kind))
+    if normalized in valid:
+        return normalized
+    for canonical, aliases in COVARIATE_NAME_ALIASES.items():
+        alias_norms = {_normalize_covariate_token(a) for a in aliases}
+        if normalized in alias_norms or normalized == canonical:
+            if canonical in valid:
+                return canonical
+    valid_list = ", ".join(sorted(valid))
+    raise ValueError(
+        f"Unknown covariate {name!r} for model {model_kind!r}. "
+        f"Valid names: {valid_list}"
+    )
+
+
+def _split_cov_arg(value: str | None) -> list[str]:
+    if value is None or not value.strip():
+        return []
+    return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def _parse_covariate_names(raw: str | None, model_kind: ModelKind) -> list[str]:
+    tokens = _split_cov_arg(raw)
+    if not tokens:
+        return []
+    canonical: list[str] = []
+    seen: set[str] = set()
+    for token in tokens:
+        name = _alias_to_canonical(token, model_kind)
+        if name not in seen:
+            canonical.append(name)
+            seen.add(name)
+    return canonical
+
+
+def _resolve_covariate_zeroing(
+    model_kind: ModelKind,
+    *,
+    zero_cov: bool,
+    include_cov: str | None,
+    exclude_cov: str | None,
+) -> tuple[list[str], list[str]]:
+    """Return (active_non_glucose_covariates, zeroed_non_glucose_covariates)."""
+    all_cov = _non_glucose_covariate_cols(model_kind)
+    include_tokens = _split_cov_arg(include_cov)
+    exclude_tokens = _split_cov_arg(exclude_cov)
+
+    if zero_cov and (include_tokens or exclude_tokens):
+        raise ValueError(
+            "Use either --zero-cov or --include-cov / --exclude-cov, not both."
+        )
+    if include_tokens and exclude_tokens:
+        raise ValueError("Use either --include-cov or --exclude-cov, not both.")
+
+    if zero_cov:
+        return [], list(all_cov)
+
+    if include_tokens:
+        included = _parse_covariate_names(include_cov, model_kind)
+        if not included:
+            raise ValueError("--include-cov requires at least one covariate name.")
+        included_set = set(included)
+        zeroed = [c for c in all_cov if c not in included_set]
+        return included, zeroed
+
+    if exclude_tokens:
+        excluded = _parse_covariate_names(exclude_cov, model_kind)
+        if not excluded:
+            raise ValueError("--exclude-cov requires at least one covariate name.")
+        excluded_set = set(excluded)
+        active = [c for c in all_cov if c not in excluded_set]
+        return active, excluded
+
+    return list(all_cov), []
+
+
+def _zero_covariates(df: pl.DataFrame, covariates: list[str]) -> pl.DataFrame:
+    """Replace named covariates with 0.0 (applied after imputation)."""
+    if not covariates:
+        return df
+    present = [c for c in covariates if c in df.columns]
+    if not present:
+        return df
+    return df.with_columns([pl.lit(0.0).cast(pl.Float32).alias(c) for c in present])
+
+
 def _zero_non_glucose_covariates(df: pl.DataFrame, model_kind: ModelKind) -> pl.DataFrame:
     """Replace all non-glucose covariates with 0.0 (applied after imputation)."""
-    cov_cols = _non_glucose_covariate_cols(model_kind)
-    return df.with_columns([pl.lit(0.0).cast(pl.Float32).alias(c) for c in cov_cols])
+    return _zero_covariates(df, _non_glucose_covariate_cols(model_kind))
+
+
+def _is_filled_expr(source_col: str) -> pl.Expr:
+    return pl.col(source_col).is_not_null() & (
+        pl.col(source_col).cast(pl.Utf8).str.strip_chars() != ""
+    )
+
+
+def _read_csv_header(csv_path: Path) -> list[str]:
+    with open(csv_path, newline="") as f:
+        return next(csv.reader(f))
+
+
+def _covariate_column_stats(
+    csv_path: Path,
+    source_col: str,
+    eval_split: str | None,
+) -> tuple[int, int]:
+    """Return (total_rows, filled_rows) optionally filtered by split."""
+    header = _read_csv_header(csv_path)
+    has_split = COL_SPLIT in header
+    lf = pl.scan_csv(
+        csv_path,
+        infer_schema_length=10_000,
+        schema_overrides={source_col: pl.Utf8},
+    )
+    if eval_split and has_split:
+        lf = lf.filter(pl.col(COL_SPLIT) == eval_split)
+    stats = lf.select([
+        pl.len().alias("total"),
+        _is_filled_expr(source_col).sum().alias("filled"),
+    ]).collect()
+    return int(stats["total"][0]), int(stats["filled"][0])
+
+
+def _print_dataset_covariates(
+    csv_path: Path,
+    model_kind: ModelKind | None,
+    eval_split: str | None,
+) -> None:
+    """Print covariate column mapping and fill stats for the target CSV."""
+    header = _read_csv_header(csv_path)
+    kinds: list[ModelKind] = (
+        [model_kind] if model_kind is not None else ["glumind", "glumind_ic"]
+    )
+    split_label = eval_split if eval_split else "all rows"
+    typer.echo(f"Dataset : {csv_path}")
+    typer.echo(f"Split   : {split_label}")
+    typer.echo("")
+
+    for kind in kinds:
+        cov_map = _covariate_map(kind)
+        typer.echo(f"Model type: {kind}")
+        typer.echo(f"  Feature channels: {', '.join(_canonical_feature_cols(kind))}")
+        typer.echo(
+            f"  Non-glucose covariates (--include-cov / --exclude-cov): "
+            f"{', '.join(_non_glucose_covariate_cols(kind))}"
+        )
+        typer.echo("  Columns:")
+        for canonical, aliases in cov_map.items():
+            source_col = _pick_header_column(header, aliases)
+            if source_col is None:
+                typer.echo(f"    {canonical:8s}  missing  (loaded as 0.0)")
+                continue
+            total, filled = _covariate_column_stats(csv_path, source_col, eval_split)
+            pct = 100.0 * filled / total if total else 0.0
+            typer.echo(
+                f"    {canonical:8s}  {source_col!r}  "
+                f"filled {filled:,}/{total:,} ({pct:.1f}%)"
+            )
+        typer.echo("  Accepted aliases:")
+        for canonical in _non_glucose_covariate_cols(kind):
+            aliases = COVARIATE_NAME_ALIASES.get(canonical, [canonical])
+            typer.echo(f"    {canonical}: {', '.join(aliases)}")
+        typer.echo("")
 
 
 def _load_csv_flexible(
@@ -609,10 +787,48 @@ def main(
         "--zero-cov",
         help=(
             "Zero all non-glucose covariates at evaluation time (after imputation). "
-            "Use for fair comparison with models that had no covariates on this dataset."
+            "Equivalent to excluding every non-glucose covariate. "
+            "Mutually exclusive with --include-cov / --exclude-cov."
+        ),
+    ),
+    include_cov: str | None = typer.Option(
+        None,
+        "--include-cov",
+        help=(
+            "Comma-separated covariates to keep at inference; all other "
+            "non-glucose covariates are zeroed after imputation. "
+            "Example: --include-cov basal,bolus"
+        ),
+    ),
+    exclude_cov: str | None = typer.Option(
+        None,
+        "--exclude-cov",
+        help=(
+            "Comma-separated covariates to zero at inference; remaining "
+            "non-glucose covariates are kept. Example: --exclude-cov carbs"
+        ),
+    ),
+    covariates: bool = typer.Option(
+        False,
+        "--covariates",
+        help=(
+            "Print covariate columns available in --test-csv and exit "
+            "(no checkpoint or inference required)."
         ),
     ),
 ) -> None:
+    test_path = _resolve_csv_path(test_csv)
+    eval_split = test_split if test_split else None
+
+    if covariates:
+        resolved_kind: ModelKind | None
+        if model_type == ModelTypeChoice.auto:
+            resolved_kind = None
+        else:
+            resolved_kind = model_type.value  # type: ignore[assignment]
+        _print_dataset_covariates(test_path, resolved_kind, eval_split)
+        raise typer.Exit(0)
+
     if run_dir is None and registry_dir is None:
         typer.echo("Error: Provide at least one of --run-dir or --registry-dir.", err=True)
         raise typer.Exit(1)
@@ -628,7 +844,6 @@ def main(
 
     meta = _load_meta(resolved_run_dir)
     ckpt_path = _resolve_checkpoint(resolved_run_dir, checkpoint)
-    test_path = _resolve_csv_path(test_csv)
 
     typer.echo(f"Run directory: {resolved_run_dir}")
     typer.echo(f"Checkpoint   : {ckpt_path}")
@@ -642,7 +857,30 @@ def main(
 
     typer.echo(f"Model type   : {resolved_kind}")
 
-    eval_split = test_split if test_split else None
+    try:
+        active_cov, zeroed_cov = _resolve_covariate_zeroing(
+            resolved_kind,
+            zero_cov=zero_cov,
+            include_cov=include_cov,
+            exclude_cov=exclude_cov,
+        )
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    if zeroed_cov:
+        if zero_cov:
+            typer.echo(f"  --zero-cov: covariates set to 0.0: {', '.join(zeroed_cov)}")
+        elif include_cov:
+            typer.echo(
+                f"  --include-cov {include_cov}: active={', '.join(active_cov)}; "
+                f"zeroed={', '.join(zeroed_cov)}"
+            )
+        else:
+            typer.echo(
+                f"  --exclude-cov {exclude_cov}: active={', '.join(active_cov)}; "
+                f"zeroed={', '.join(zeroed_cov)}"
+            )
 
     train_df = _load_train_for_scalers(
         test_path,
@@ -666,10 +904,8 @@ def main(
         train_only=False,
     )
     eval_df = impute(eval_df)
-    if zero_cov:
-        zeroed = _non_glucose_covariate_cols(resolved_kind)
-        eval_df = _zero_non_glucose_covariates(eval_df, resolved_kind)
-        typer.echo(f"  --zero-cov: covariates set to 0.0: {', '.join(zeroed)}")
+    if zeroed_cov:
+        eval_df = _zero_covariates(eval_df, zeroed_cov)
 
     if eval_df.is_empty():
         typer.echo("Error: Evaluation dataframe is empty after loading/filtering.", err=True)
@@ -717,6 +953,10 @@ def main(
     typer.echo(f"  Test CSV   : {test_path}")
     typer.echo(f"  Split used : {split_used}")
     typer.echo(f"  Zero cov   : {zero_cov}")
+    if active_cov:
+        typer.echo(f"  Active cov : {', '.join(active_cov)}")
+    if zeroed_cov:
+        typer.echo(f"  Zeroed cov : {', '.join(zeroed_cov)}")
     typer.echo(f"  Checkpoint : {ckpt_path}")
     typer.echo(f"  Windows    : {len(eval_ds):,}")
     typer.echo("-" * 50)
@@ -733,6 +973,10 @@ def main(
             "checkpoint": str(ckpt_path),
             "split_used": split_used,
             "zero_cov": zero_cov,
+            "include_cov": _split_cov_arg(include_cov) or None,
+            "exclude_cov": _split_cov_arg(exclude_cov) or None,
+            "active_covariates": active_cov,
+            "zeroed_covariates": zeroed_cov,
             "windows": len(eval_ds),
             "mae": mae,
             "rmse": rmse,
