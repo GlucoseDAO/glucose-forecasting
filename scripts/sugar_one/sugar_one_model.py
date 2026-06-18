@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-GluMindIC architecture module — Insulin & Carb extension of GluMind.
+SugarOne architecture module — Insulin & Carb extension of GluMind.
 
 Covariates: Basal Rate (U/h), Bolus Insulin (U), Carbohydrates (g).
 
@@ -39,7 +39,7 @@ class PositionalEncoding(nn.Module):
         return x + self.pe[:, : x.size(1)]
 
 
-class CrossAttentionICBlock(nn.Module):
+class CrossAttentionSugarOneBlock(nn.Module):
     """
     Three-stream cross-attention: glucose (Q) attends to basal, bolus, and
     carbs (each as K/V) via separate attention heads.
@@ -153,9 +153,9 @@ class MultiScaleAttentionBlock(nn.Module):
         return self.ln2(fused + self.dropout(ff))
 
 
-class GluMindICParallelBlock(nn.Module):
+class SugarOneParallelBlock(nn.Module):
     """
-    One GluMindIC block: cross-attention (3-aux) and multi-scale run IN PARALLEL,
+    One SugarOne block: cross-attention (3-aux) and multi-scale run IN PARALLEL,
     outputs summed — same philosophy as base GluMind.
     """
 
@@ -167,7 +167,7 @@ class GluMindICParallelBlock(nn.Module):
         dropout: float = 0.1,
     ):
         super().__init__()
-        self.cross_attn = CrossAttentionICBlock(d_model, n_heads, ff_units, dropout)
+        self.cross_attn = CrossAttentionSugarOneBlock(d_model, n_heads, ff_units, dropout)
         self.multiscale = MultiScaleAttentionBlock(d_model, n_heads, ff_units, dropout)
         self.ln_fuse = nn.LayerNorm(d_model)
 
@@ -184,16 +184,16 @@ class GluMindICParallelBlock(nn.Module):
         return self.ln_fuse(cross_out + ms_out)
 
 
-class GluMindICModel(nn.Module):
+class SugarOneModel(nn.Module):
     """
-    GluMindIC: Multimodal Parallel-Attention Transformer with Insulin & Carb covariates.
+    SugarOne: Multimodal Parallel-Attention Transformer with Insulin & Carb covariates.
 
     Input:  (batch, seq_len, 4)  — [glucose, basal_rate, bolus_insulin, carbohydrates]
     Output: (batch, horizon)     — predicted glucose values
 
     Differences vs base GluMind:
       - 4 input channels instead of 3 (basal/bolus/carbs replaces HR/steps).
-      - CrossAttentionICBlock uses 3 auxiliaries with learnable mixing weights
+      - CrossAttentionSugarOneBlock uses 3 auxiliaries with learnable mixing weights
         so the model can autonomously prioritise the pharmacologically more
         relevant channels at each training step.
     """
@@ -223,7 +223,7 @@ class GluMindICModel(nn.Module):
 
         self.blocks = nn.ModuleList(
             [
-                GluMindICParallelBlock(d_model, n_heads, ff_units, dropout)
+                SugarOneParallelBlock(d_model, n_heads, ff_units, dropout)
                 for _ in range(n_blocks)
             ]
         )

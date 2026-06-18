@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-GluMindIC — Insulin & Carb Parallel-Attention Transformer for Blood Glucose Forecasting.
+SugarOne — Insulin & Carb Parallel-Attention Transformer for Blood Glucose Forecasting.
 
 Covariates: Basal Rate (U/h), Bolus Insulin (U), Carbohydrates (g).
 Dataset:    data/loop_and_ai_ready/loop_ai_ready_joined_loop_columns.csv
 
-Architecture: GluMindICModel (see glumind_ic_model.py).
+Architecture: SugarOneModel (see sugar_one_model.py).
   - Identical parallel cross-attention + multi-scale self-attention structure
     as base GluMind, extended to 3 auxiliaries with learnable mixing weights.
 
@@ -33,16 +33,16 @@ import typer
 from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader, Dataset
 try:
-    from scripts.glumind_ic.console_log import echo_plain
-    from scripts.glumind_ic.glumind_ic_model import GluMindICModel
+    from scripts.sugar_one.console_log import echo_plain
+    from scripts.sugar_one.sugar_one_model import SugarOneModel
 except ModuleNotFoundError:
     from console_log import echo_plain
-    from glumind_ic_model import GluMindICModel
+    from sugar_one_model import SugarOneModel
 
 app = typer.Typer(
-    name="train_glumind_ic",
+    name="train_sugar_one",
     add_completion=False,
-    help="GluMindIC: Parallel-Attention Transformer with Insulin & Carb covariates.",
+    help="SugarOne: Parallel-Attention Transformer with Insulin & Carb covariates.",
 )
 
 # ---------------------------------------------------------------------------
@@ -234,8 +234,8 @@ def limit_series(df: pl.DataFrame, max_series: int) -> pl.DataFrame:
 #  SLIDING-WINDOW DATASET
 # ============================================================================
 
-class GlucoseICWindowDataset(Dataset):
-    """Lazy sliding-window dataset for GluMindIC.
+class SugarOneWindowDataset(Dataset):
+    """Lazy sliding-window dataset for SugarOne.
 
     Each window is (input_steps, 4) — [glucose, basal, bolus, carbs].
     Target is (horizon,) of future glucose values.
@@ -365,12 +365,12 @@ def mae_rmse_mard(
 # ============================================================================
 
 def train_one_epoch(
-    model: GluMindICModel,
+    model: SugarOneModel,
     loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     loss_fn: nn.Module,
     device: torch.device,
-    teacher: GluMindICModel | None = None,
+    teacher: SugarOneModel | None = None,
     lwf_lambda: float = 0.0,
     use_amp: bool = False,
     amp_dtype: torch.dtype = torch.float32,
@@ -433,7 +433,7 @@ def train_one_epoch(
 
 @torch.no_grad()
 def evaluate(
-    model: GluMindICModel,
+    model: SugarOneModel,
     loader: DataLoader,
     loss_fn: nn.Module,
     device: torch.device,
@@ -485,7 +485,7 @@ def compute_and_print_metrics(
     scaler_glucose: MinMaxScaler,
     split_name: str,
     run_dir: Path,
-    dataset: GlucoseICWindowDataset | None = None,
+    dataset: SugarOneWindowDataset | None = None,
 ) -> tuple[float, float, float]:
     t_inv = scaler_glucose.inverse_transform(true_arr.ravel().reshape(-1, 1)).ravel()
     p_inv = scaler_glucose.inverse_transform(pred_arr.ravel().reshape(-1, 1)).ravel()
@@ -526,7 +526,7 @@ def compute_and_print_metrics(
 
 def save_full_checkpoint(
     path: Path,
-    model: GluMindICModel,
+    model: SugarOneModel,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler.LRScheduler | None,
     epoch: int,
@@ -554,7 +554,7 @@ def save_full_checkpoint(
 
 def load_full_checkpoint(
     path: Path,
-    model: GluMindICModel,
+    model: SugarOneModel,
     optimizer: torch.optim.Optimizer | None = None,
     scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
     device: torch.device | None = None,
@@ -598,7 +598,7 @@ def update_latest_symlink(run_dir: Path, out_dir: Path) -> None:
 
 
 def make_optimizer_and_scheduler(
-    model: GluMindICModel,
+    model: SugarOneModel,
     lr: float,
     weight_decay: float,
     epochs: int,
@@ -611,7 +611,7 @@ def make_optimizer_and_scheduler(
 
 
 def train_loop(
-    model: GluMindICModel,
+    model: SugarOneModel,
     train_loader: DataLoader,
     val_loader: DataLoader | None,
     optimizer: torch.optim.Optimizer,
@@ -622,7 +622,7 @@ def train_loop(
     patience: int,
     run_dir: Path,
     cfg: dict,
-    teacher: GluMindICModel | None = None,
+    teacher: SugarOneModel | None = None,
     lwf_lambda: float = 0.0,
     verbose_every: int = 10,
     ckpt_every_n_epochs: int = 0,
@@ -637,7 +637,7 @@ def train_loop(
     val_every_n_epochs: int = 1,
     batch_log_every: int = 0,
     eval_batch_log_every: int = 0,
-) -> GluMindICModel:
+) -> SugarOneModel:
     wait = start_wait
     best_epoch = start_best_epoch if start_best_epoch > 0 else max(0, start_epoch - 1)
     last_completed_epoch = max(0, start_epoch - 1)
@@ -779,8 +779,8 @@ def make_model(
     dropout: float,
     compile_mode: str,
     device: torch.device,
-) -> GluMindICModel:
-    model = GluMindICModel(
+) -> SugarOneModel:
+    model = SugarOneModel(
         n_time_steps=input_steps,
         n_features=N_FEATURES,
         d_model=d_model,
@@ -803,15 +803,15 @@ def build_datasets(
     input_steps: int,
     horizon: int,
 ) -> tuple[
-    GlucoseICWindowDataset,
-    GlucoseICWindowDataset | None,
-    GlucoseICWindowDataset | None,
+    SugarOneWindowDataset,
+    SugarOneWindowDataset | None,
+    SugarOneWindowDataset | None,
 ]:
-    train_ds = GlucoseICWindowDataset(
+    train_ds = SugarOneWindowDataset(
         train_df, input_steps, horizon, fit_scalers=True,
     )
     val_ds = (
-        GlucoseICWindowDataset(
+        SugarOneWindowDataset(
             val_df, input_steps, horizon,
             scaler_glucose=train_ds.scaler_glucose,
             scaler_basal=train_ds.scaler_basal,
@@ -822,7 +822,7 @@ def build_datasets(
         else None
     )
     test_ds = (
-        GlucoseICWindowDataset(
+        SugarOneWindowDataset(
             test_df, input_steps, horizon,
             scaler_glucose=train_ds.scaler_glucose,
             scaler_basal=train_ds.scaler_basal,
@@ -836,17 +836,17 @@ def build_datasets(
 
 
 def run_train_and_eval(
-    model: GluMindICModel,
-    train_ds: GlucoseICWindowDataset,
-    val_ds: GlucoseICWindowDataset | None,
-    test_ds: GlucoseICWindowDataset | None,
+    model: SugarOneModel,
+    train_ds: SugarOneWindowDataset,
+    val_ds: SugarOneWindowDataset | None,
+    test_ds: SugarOneWindowDataset | None,
     cfg: dict,
     device: torch.device,
     run_name: str,
     out_dir: Path,
-    teacher: GluMindICModel | None = None,
+    teacher: SugarOneModel | None = None,
     lwf_lambda: float = 0.0,
-) -> GluMindICModel:
+) -> SugarOneModel:
     run_dir = out_dir / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
     typer.echo(f"Run directory: {run_dir}")
@@ -935,7 +935,7 @@ def run_train_and_eval(
     batch_log_every = int(cfg.get("batch_log_every", 0))
     eval_batch_log_every = int(cfg.get("eval_batch_log_every", 0))
 
-    def ckpt_eval_callback(mdl: GluMindICModel, epoch: int, ckpt_dir: Path) -> None:
+    def ckpt_eval_callback(mdl: SugarOneModel, epoch: int, ckpt_dir: Path) -> None:
         if val_loader is not None:
             _, vt, vp = evaluate(
                 mdl, val_loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype,
@@ -1005,7 +1005,7 @@ def _mode_global(
         train_df, val_df, test_df, cfg["input_steps"], cfg["horizon"]
     )
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_name = f"glumind_ic_global_h{cfg['horizon']}_{ts}"
+    run_name = f"sugar_one_global_h{cfg['horizon']}_{ts}"
     update_latest_symlink(out_dir / run_name, out_dir)
 
     model = make_model(**_model_kwargs(cfg), device=device)
@@ -1035,7 +1035,7 @@ def _mode_per_group(
         train_ds, val_ds, test_ds = build_datasets(tr, va, te, cfg["input_steps"], cfg["horizon"])
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe = group.replace(" ", "_").replace("-", "_")
-        run_name = f"glumind_ic_group_{safe}_h{cfg['horizon']}_{ts}"
+        run_name = f"sugar_one_group_{safe}_h{cfg['horizon']}_{ts}"
         model = make_model(**_model_kwargs(cfg), device=device)
         run_train_and_eval(model, train_ds, val_ds, test_ds, cfg, device, run_name, out_dir)
 
@@ -1062,7 +1062,7 @@ def _mode_cohort_wise(
         train_ds, val_ds, test_ds = build_datasets(tr, va, test_df, cfg["input_steps"], cfg["horizon"])
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe = group.replace(" ", "_").replace("-", "_")
-        run_name = f"glumind_ic_cohort_{safe}_h{cfg['horizon']}_{ts}"
+        run_name = f"sugar_one_cohort_{safe}_h{cfg['horizon']}_{ts}"
         model = make_model(**_model_kwargs(cfg), device=device)
         run_train_and_eval(model, train_ds, val_ds, test_ds, cfg, device, run_name, out_dir)
 
@@ -1083,9 +1083,9 @@ def _mode_continual(
     typer.echo(f"Continual group order: {groups}")
 
     run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_parent = f"glumind_ic_continual_h{cfg['horizon']}_{run_ts}"
+    run_parent = f"sugar_one_continual_h{cfg['horizon']}_{run_ts}"
 
-    all_train_ds = GlucoseICWindowDataset(
+    all_train_ds = SugarOneWindowDataset(
         train_df, cfg["input_steps"], cfg["horizon"], fit_scalers=True
     )
     global_sg = all_train_ds.scaler_glucose
@@ -1094,7 +1094,7 @@ def _mode_continual(
     global_sc = all_train_ds.scaler_carbs
 
     model = make_model(**_model_kwargs(cfg), device=device)
-    teacher: GluMindICModel | None = None
+    teacher: SugarOneModel | None = None
 
     for i, group in enumerate(groups):
         typer.echo(f"\n--- Continual step {i + 1}/{len(groups)}: {group} ---")
@@ -1109,13 +1109,13 @@ def _mode_continual(
         else:
             va = val_df
 
-        train_ds = GlucoseICWindowDataset(
+        train_ds = SugarOneWindowDataset(
             tr, cfg["input_steps"], cfg["horizon"],
             scaler_glucose=global_sg, scaler_basal=global_sb,
             scaler_bolus=global_sbo, scaler_carbs=global_sc,
         )
         val_ds = (
-            GlucoseICWindowDataset(
+            SugarOneWindowDataset(
                 va, cfg["input_steps"], cfg["horizon"],
                 scaler_glucose=global_sg, scaler_basal=global_sb,
                 scaler_bolus=global_sbo, scaler_carbs=global_sc,
@@ -1124,7 +1124,7 @@ def _mode_continual(
             else None
         )
         test_ds = (
-            GlucoseICWindowDataset(
+            SugarOneWindowDataset(
                 test_df, cfg["input_steps"], cfg["horizon"],
                 scaler_glucose=global_sg, scaler_basal=global_sb,
                 scaler_bolus=global_sbo, scaler_carbs=global_sc,
@@ -1164,7 +1164,7 @@ def _model_kwargs(cfg: dict) -> dict:
 
 
 # ============================================================================
-#  CLI  (single root command — run: python train_glumind_ic.py --csv ...  no "train" word)
+#  CLI  (single root command — run: python train_sugar_one.py --csv ...  no "train" word)
 # ============================================================================
 
 @app.command()
@@ -1203,9 +1203,9 @@ def main(
     continual_val_scope: str = typer.Option("current_group", help="current_group | all_groups."),
     device_name: str = typer.Option("cuda", "--device", help="cpu | mps | cuda."),
     seed: int = typer.Option(42, help="Random seed."),
-    out_dir: Path = typer.Option(Path("runs/glumind_ic"), help="Output directory."),
+    out_dir: Path = typer.Option(Path("runs/sugar_one"), help="Output directory."),
 ) -> None:
-    """Train GluMindIC on insulin + carb covariate data (root CLI; do not pass a subcommand)."""
+    """Train SugarOne on insulin + carb covariate data (root CLI; do not pass a subcommand)."""
     torch.manual_seed(seed)
     np.random.seed(seed)
     if torch.cuda.is_available():

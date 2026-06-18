@@ -1,8 +1,8 @@
-# T1DM Covariate Ablation Report — GluMindIC on Loop Test Data
+# T1DM Covariate Ablation Report — SugarOne on Loop Test Data
 
 **Date:** 2026-06-13  
-**Evaluation tool:** `uv run evaluate-model` (`scripts/glumind_ic/evaluate_model.py`)  
-**Model checkpoint:** `runs/glumind_ic_tune/production/trial_0000_bcd3813f` (`best_model.pt`)  
+**Evaluation tool:** `uv run evaluate-model` (`scripts/sugar_one/evaluate_model.py`)  
+**Model checkpoint:** `runs/sugar_one_tune/production/trial_0000_bcd3813f` (`best_model.pt`)  
 **Test dataset:** `data/loop_and_ai_ready/ablation_test.csv`  
 **Scaler fitting:** `data/loop_and_ai_ready/loop_ai_ready_joined2.csv` (train split)
 
@@ -63,7 +63,7 @@ Covariates are sparse at the row level (pump events vs continuous EGV), but impu
 
 ### Benchmark alignment
 
-The full-covariate run on this file (MAE **13.08**, 819,013 windows) matches the saved **T1DM study-group** metrics from the same checkpoint on the full joined2 test split (MAE **13.09**, 819,013 windows in `docs/GLUMIND_VS_GLUMIND_IC_COMPARISON.md`). This confirms `ablation_test.csv` is the loop/T1DM portion of the joined benchmark test set.
+The full-covariate run on this file (MAE **13.08**, 819,013 windows) matches the saved **T1DM study-group** metrics from the same checkpoint on the full joined2 test split (MAE **13.09**, 819,013 windows in `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`). This confirms `ablation_test.csv` is the loop/T1DM portion of the joined benchmark test set.
 
 ---
 
@@ -71,7 +71,7 @@ The full-covariate run on this file (MAE **13.08**, 819,013 windows) matches the
 
 | Setting | Value |
 |---------|-------|
-| Architecture | GluMindIC — `input_steps=128`, `horizon=12`, `d_model=32`, `n_heads=8`, `n_blocks=5` |
+| Architecture | SugarOne — `input_steps=128`, `horizon=12`, `d_model=32`, `n_heads=8`, `n_blocks=5` |
 | Unique ID | `sequence_id` |
 | Batch size | 256 |
 | Device | CUDA (when available) |
@@ -172,8 +172,8 @@ RMSE spreads are larger than MAE spreads (e.g. All → None: **+0.85 RMSE** vs *
 ```bash
 # Example: all covariates (best)
 uv run evaluate-model \
-  --run-dir runs/glumind_ic_tune/production/trial_0000_bcd3813f \
-  --model-type glumind_ic \
+  --run-dir runs/sugar_one_tune/production/trial_0000_bcd3813f \
+  --model-type sugar_one \
   --test-csv data/loop_and_ai_ready/ablation_test.csv \
   --train-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --test-split "" \
@@ -187,7 +187,7 @@ uv run evaluate-model ... --include-cov bolus --output-json runs/ablation_t1dm/i
 uv run evaluate-model ... --zero-cov --output-json runs/ablation_t1dm/none_cov.json
 ```
 
-Full flag reference: `scripts/glumind_ic/README.md`
+Full flag reference: `scripts/sugar_one/README.md`
 
 ---
 
@@ -197,5 +197,5 @@ Full flag reference: `scripts/glumind_ic/README.md`
 |------|-------------|
 | `data/loop_and_ai_ready/ablation_test.csv` | T1DM test subset used here |
 | `runs/ablation_t1dm/*.json` | Machine-readable metrics for all 8 runs |
-| `docs/GLUMIND_VS_GLUMIND_IC_COMPARISON.md` | Cross-model benchmark on full joined2 test split |
-| `scripts/glumind_ic/README.md` | `evaluate-model` CLI documentation |
+| `docs/GLUMIND_VS_SUGARONE_COMPARISON.md` | Cross-model benchmark on full joined2 test split |
+| `scripts/sugar_one/README.md` | `evaluate-model` CLI documentation |

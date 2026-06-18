@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Random-search tuner for GluMindIC (global training only).
+Random-search tuner for SugarOne (global training only).
 
 One code path; behaviour comes entirely from the TOML config file.
-Shipped configs: tune_glumind_ic_full.toml (default, production) and
-tune_glumind_ic_dev.toml (laptop search; pass -c explicitly).
+Shipped configs: tune_sugar_one_full.toml (default, production) and
+tune_sugar_one_dev.toml (laptop search; pass -c explicitly).
 """
 from __future__ import annotations
 
@@ -25,13 +25,13 @@ import tomllib
 import torch
 import typer
 
-from scripts.glumind_ic import train_glumind_ic as tg
-from scripts.glumind_ic.console_log import echo_plain
+from scripts.sugar_one import train_sugar_one as tg
+from scripts.sugar_one.console_log import echo_plain
 
 app = typer.Typer(
-    name="tune-glumind-ic",
+    name="tune-sugar-one",
     add_completion=False,
-    help="Random hyperparameter search for GluMindIC (global mode).",
+    help="Random hyperparameter search for SugarOne (global mode).",
 )
 
 STATE_VERSION = 1
@@ -51,7 +51,7 @@ NON_RETRYABLE_ERROR_MARKERS = (
 )
 
 # Default config when --config is omitted: file next to this script, else cwd fallback.
-DEFAULT_CONFIG_FILENAME = "tune_glumind_ic_full.toml"
+DEFAULT_CONFIG_FILENAME = "tune_sugar_one_full.toml"
 _SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = _SCRIPT_DIR / DEFAULT_CONFIG_FILENAME
 
@@ -68,12 +68,12 @@ def resolve_config_path(explicit: Path | None) -> Path:
         return path
     if DEFAULT_CONFIG_PATH.is_file():
         return DEFAULT_CONFIG_PATH
-    cwd_fallback = Path.cwd() / "scripts" / "glumind_ic" / DEFAULT_CONFIG_FILENAME
+    cwd_fallback = Path.cwd() / "scripts" / "sugar_one" / DEFAULT_CONFIG_FILENAME
     if cwd_fallback.is_file():
         return cwd_fallback.resolve()
     raise typer.BadParameter(
         f"Config not found. Pass --config PATH or place {DEFAULT_CONFIG_FILENAME} in "
-        f"{_SCRIPT_DIR} (or scripts/glumind_ic/ under the repo root)."
+        f"{_SCRIPT_DIR} (or scripts/sugar_one/ under the repo root)."
     )
 
 
@@ -388,7 +388,7 @@ def write_tune_report(
     report_param_keys: list[str] | None = None,
 ) -> None:
     lines: list[str] = []
-    lines.append("# GluMindIC tuning report")
+    lines.append("# SugarOne tuning report")
     lines.append("")
     lines.append(f"- Config: `{config_path}`")
     lines.append(f"- Generated: `{datetime.now().isoformat()}`")
@@ -1041,7 +1041,7 @@ def cli(
         help="Override [tune].random_seed.",
     ),
 ) -> None:
-    """Random hyperparameter search for GluMindIC (global mode)."""
+    """Random hyperparameter search for SugarOne (global mode)."""
     config_path = resolve_config_path(config)
     user_cfg = load_user_config(config_path)
     if "tune" not in user_cfg:

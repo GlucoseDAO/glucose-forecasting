@@ -1,5 +1,5 @@
 # Dev / laptop random search. Run:
-#   uv run tune-glumind-ic -c scripts/glumind_ic/tune_glumind_ic_dev.toml
+#   uv run tune-sugar-one -c scripts/sugar_one/tune_sugar_one_dev.toml
 #
 # Focused run: batch 1024 only (~2x faster than 128 when d_model=32 on 6 GB GPU).
 # LR grid scaled from best trial 15 (lr=0.0007 @ batch 256):
@@ -9,7 +9,7 @@
 
 [paths]
 csv = "data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv"
-output_dir = "runs/glumind_ic_tune/explore_dev2"
+output_dir = "runs/sugar_one_tune/explore_dev2"
 
 [dataset]
 unique_id = "sequence_id"

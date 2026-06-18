@@ -33,9 +33,5 @@
   "continual_val_scope": "current_group",
   "device": "cuda",
   "seed": 43,
-  "out_dir": "D:\\01_1_LIVIA\\LIVIA_DOCS\\CODING\\sources\\glucose-forecasting\\runs\\glumind_ic_tune\\production",
-  "train_samples": 7543701,
-  "val_samples": 1635766,
-  "test_samples": 1667437,
-  "start_time": "2026-05-26T18:34:26.769358"
+  "out_dir": "D:\\01_1_LIVIA\\LIVIA_DOCS\\CODING\\sources\\glucose-forecasting\\runs\\sugar_one_tune\\production"
 }

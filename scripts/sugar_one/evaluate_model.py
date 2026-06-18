@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-evaluate_model.py — Evaluate GluMind or GluMindIC checkpoints on arbitrary CSV data.
+evaluate_model.py — Evaluate GluMind or SugarOne checkpoints on arbitrary CSV data.
 
 Supports cross-model / cross-dataset comparison:
   - Models: scripts/glumind/glumind_model.py (HR + steps) or
-            scripts/glumind_ic/glumind_ic_model.py (basal + bolus + carbs)
+            scripts/sugar_one/sugar_one_model.py (basal + bolus + carbs)
   - Datasets: ai_ready (Glucose Value, HR, Step Count) or
               loop_ai_ready (Glucose, Basal Rate, Bolus, Carbs)
 
@@ -27,8 +27,8 @@ Examples:
       --test-csv data/actual/with_complex_steps_processing/ai_ready_plus_type1_v1_val_in_val_and_test.csv
 
   uv run evaluate-model \\
-      --run-dir runs/glumind_ic_tune/production/trial_0 \\
-      --model-type glumind_ic \\
+      --run-dir runs/sugar_one_tune/production/trial_0 \\
+      --model-type sugar_one \\
       --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv
 """
 from __future__ import annotations
@@ -67,10 +67,10 @@ from scripts.glumind.train_glumind import (
     load_splits_streaming as load_splits_glumind,
     mae_rmse_mard,
 )
-from scripts.glumind_ic.glumind_ic_model import GluMindICModel
-from scripts.glumind_ic.train_glumind_ic import (
+from scripts.sugar_one.sugar_one_model import SugarOneModel
+from scripts.sugar_one.train_sugar_one import (
     COL_TS as IC_COL_TS,
-    GlucoseICWindowDataset,
+    SugarOneWindowDataset,
     apply_split_scheme as apply_split_scheme_ic,
     impute_and_sort as impute_and_sort_ic,
     load_splits_streaming as load_splits_ic,
@@ -78,7 +78,7 @@ from scripts.glumind_ic.train_glumind_ic import (
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
-ModelKind = Literal["glumind", "glumind_ic"]
+ModelKind = Literal["glumind", "sugar_one"]
 
 COL_EVENT = "Event Type"
 
@@ -88,7 +88,7 @@ GLUMIND_COVARIATES: dict[str, list[str]] = {
     "steps": ["Step Count"],
 }
 
-IC_COVARIATES: dict[str, list[str]] = {
+SUGAR_ONE_COVARIATES: dict[str, list[str]] = {
     "glucose": ["Glucose Value (mg/dL)", "Glucose (mg/dL)"],
     "basal": ["Basal Rate (U/h)"],
     "bolus": ["Bolus Insulin (U)"],
@@ -110,7 +110,7 @@ TS_ALIASES = [GLUMIND_COL_TS, IC_COL_TS]
 class ModelTypeChoice(str, Enum):
     auto = "auto"
     glumind = "glumind"
-    glumind_ic = "glumind_ic"
+    sugar_one = "sugar_one"
 
 
 # ---------------------------------------------------------------------------
@@ -192,20 +192,24 @@ def _resolve_csv_path(csv_value: str | Path) -> Path:
 
 def _detect_model_kind(meta: dict, state: dict[str, torch.Tensor]) -> ModelKind:
     explicit = meta.get("model_type") or meta.get("model")
-    if explicit in ("glumind", "glumind_ic", "GluMind", "GluMindIC"):
-        return "glumind_ic" if "ic" in str(explicit).lower() else "glumind"
+    if explicit is not None:
+        explicit_norm = str(explicit).lower().replace("_", "").replace("-", "")
+        if explicit_norm in ("sugarone", "glumindic"):
+            return "sugar_one"
+        if explicit_norm in ("glumind",):
+            return "glumind"
 
     normalized_keys = {k.removeprefix("_orig_mod.") for k in state}
     ic_keys = ("embed_basal.weight", "embed_bolus.weight", "embed_carbs.weight")
     glumind_keys = ("embed_hr.weight", "embed_steps.weight")
     if any(k in normalized_keys for k in ic_keys):
-        return "glumind_ic"
+        return "sugar_one"
     if any(k in normalized_keys for k in glumind_keys):
         return "glumind"
 
     typer.echo(
         "Error: Could not auto-detect model type from checkpoint. "
-        "Pass --model-type glumind or glumind_ic.",
+        "Pass --model-type glumind or sugar_one.",
         err=True,
     )
     raise typer.Exit(1)
@@ -220,7 +224,7 @@ def _pick_header_column(header: list[str], aliases: list[str]) -> str | None:
 
 
 def _covariate_map(model_kind: ModelKind) -> dict[str, list[str]]:
-    return GLUMIND_COVARIATES if model_kind == "glumind" else IC_COVARIATES
+    return GLUMIND_COVARIATES if model_kind == "glumind" else SUGAR_ONE_COVARIATES
 
 
 def _canonical_feature_cols(model_kind: ModelKind) -> list[str]:
@@ -372,7 +376,7 @@ def _print_dataset_covariates(
     """Print covariate column mapping and fill stats for the target CSV."""
     header = _read_csv_header(csv_path)
     kinds: list[ModelKind] = (
-        [model_kind] if model_kind is not None else ["glumind", "glumind_ic"]
+        [model_kind] if model_kind is not None else ["glumind", "sugar_one"]
     )
     split_label = eval_split if eval_split else "all rows"
     typer.echo(f"Dataset : {csv_path}")
@@ -587,7 +591,7 @@ def _build_train_dataset(
     train_df: pl.DataFrame,
     model_kind: ModelKind,
     meta: dict,
-) -> GlucoseWindowDataset | GlucoseICWindowDataset:
+) -> GlucoseWindowDataset | SugarOneWindowDataset:
     if model_kind == "glumind":
         return GlucoseWindowDataset(
             train_df,
@@ -595,7 +599,7 @@ def _build_train_dataset(
             horizon=meta["horizon"],
             fit_scalers=True,
         )
-    return GlucoseICWindowDataset(
+    return SugarOneWindowDataset(
         train_df,
         input_steps=meta["input_steps"],
         horizon=meta["horizon"],
@@ -605,10 +609,10 @@ def _build_train_dataset(
 
 def _build_eval_dataset(
     eval_df: pl.DataFrame,
-    train_ds: GlucoseWindowDataset | GlucoseICWindowDataset,
+    train_ds: GlucoseWindowDataset | SugarOneWindowDataset,
     model_kind: ModelKind,
     meta: dict,
-) -> GlucoseWindowDataset | GlucoseICWindowDataset:
+) -> GlucoseWindowDataset | SugarOneWindowDataset:
     if model_kind == "glumind":
         assert isinstance(train_ds, GlucoseWindowDataset)
         return GlucoseWindowDataset(
@@ -620,8 +624,8 @@ def _build_eval_dataset(
             scaler_steps=train_ds.scaler_steps,
             fit_scalers=False,
         )
-    assert isinstance(train_ds, GlucoseICWindowDataset)
-    return GlucoseICWindowDataset(
+    assert isinstance(train_ds, SugarOneWindowDataset)
+    return SugarOneWindowDataset(
         eval_df,
         input_steps=meta["input_steps"],
         horizon=meta["horizon"],
@@ -645,7 +649,7 @@ def _build_model(model_kind: ModelKind, meta: dict) -> nn.Module:
     )
     if model_kind == "glumind":
         return GluMindModel(n_features=3, **common)
-    return GluMindICModel(n_features=4, **common)
+    return SugarOneModel(n_features=4, **common)
 
 
 def _load_model_weights(
@@ -753,7 +757,7 @@ def main(
     model_type: ModelTypeChoice = typer.Option(
         ModelTypeChoice.auto,
         "--model-type",
-        help="Model architecture: glumind (HR+steps) or glumind_ic (insulin+carbs).",
+        help="Model architecture: glumind (HR+steps) or sugar_one (insulin+carbs).",
     ),
     test_split: str | None = typer.Option(
         "test",

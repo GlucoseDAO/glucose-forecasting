@@ -1,13 +1,13 @@
-# evaluate-model — unified GluMind / GluMindIC evaluation CLI
+# evaluate-model — unified GluMind / SugarOne evaluation CLI
 
-`scripts/glumind_ic/evaluate_model.py` is registered as **`uv run evaluate-model`**.
+`scripts/sugar_one/evaluate_model.py` is registered as **`uv run evaluate-model`**.
 
 It loads a trained checkpoint, fits MinMax scalers on training rows, runs sliding-window inference on a CSV, and reports **MAE, RMSE, and MARD**. The same entry point works for:
 
 | Model | Covariate channels | Typical CSV schema |
 |-------|-------------------|-------------------|
 | **GluMind** | glucose, heart rate, steps | `ai_ready` wearable export |
-| **GluMindIC** | glucose, basal, bolus, carbs | loop / pump export (`loop_ai_ready_joined2.csv`) |
+| **SugarOne** | glucose, basal, bolus, carbs | loop / pump export (`loop_ai_ready_joined2.csv`) |
 
 ---
 
@@ -20,26 +20,26 @@ From the repository root (after `uv sync`):
 uv run evaluate-model \
   --test-csv data/loop_and_ai_ready/ablation_test.csv \
   --covariates \
-  --model-type glumind_ic
+  --model-type sugar_one
 
-# Evaluate GluMindIC on the loop benchmark test split
+# Evaluate SugarOne on the loop benchmark test split
 uv run evaluate-model \
-  --run-dir runs/glumind_ic_tune/production/trial_0000_bcd3813f \
-  --model-type glumind_ic \
+  --run-dir runs/sugar_one_tune/production/trial_0000_bcd3813f \
+  --model-type sugar_one \
   --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --train-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --batch-size 256 \
-  --output-json runs/comparison_loop/glumind_ic_trial0.json
+  --output-json runs/comparison_loop/sugar_one_trial0.json
 ```
 
 Bundled reviewer checkpoints:
 
 ```bash
 uv run evaluate-model \
-  --run-dir test_model_glumind_ic \
-  --model-type glumind_ic \
-  --test-csv test_data/livia_glumind_ic_ready.csv \
-  --train-csv test_data/livia_glumind_ic_ready.csv \
+  --run-dir test_model_sugar_one \
+  --model-type sugar_one \
+  --test-csv test_data/livia_sugar_one_ready.csv \
+  --train-csv test_data/livia_sugar_one_ready.csv \
   --zero-cov
 ```
 
@@ -61,7 +61,7 @@ uv run evaluate-model \
 | `--run-dir` | — | Folder with `tuning_meta.json` / `config.json` and `best_model.pt`. |
 | `--registry-dir` | — | Folder with `_analysis_registry.csv`; picks lowest `val_mae` run. |
 | `--checkpoint` | `best_model.pt` | Explicit `.pt` weights; still needs `--run-dir` for architecture metadata. |
-| `--model-type` | `auto` | `glumind`, `glumind_ic`, or auto-detect from checkpoint keys. |
+| `--model-type` | `auto` | `glumind`, `sugar_one`, or auto-detect from checkpoint keys. |
 | `--train-csv` | metadata `csv` field | CSV used to fit MinMax scalers (override when training file is not on disk). |
 
 ---
@@ -76,7 +76,7 @@ Column names are resolved automatically (see [Covariate mapping](#covariate-mapp
 
 Imputation matches training:
 
-- **GluMindIC:** basal forward/back-fill; bolus and carbs event-only (null → 0).
+- **SugarOne:** basal forward/back-fill; bolus and carbs event-only (null → 0).
 - **GluMind:** glucose forward/back-fill; HR and steps forward/back-fill.
 
 ---
@@ -89,10 +89,10 @@ Print which covariate columns exist in `--test-csv`, how many rows have non-empt
 uv run evaluate-model \
   --test-csv data/loop_and_ai_ready/ablation_test.csv \
   --covariates \
-  --model-type glumind_ic
+  --model-type sugar_one
 ```
 
-With `--model-type auto` (default), both GluMind and GluMindIC mappings are shown.
+With `--model-type auto` (default), both GluMind and SugarOne mappings are shown.
 
 No checkpoint or GPU is needed. Respects `--test-split` when counting filled rows.
 
@@ -111,7 +111,7 @@ Covariates are zeroed **after imputation** so forward-filled basal rates on loop
 
 `--zero-cov` is mutually exclusive with `--include-cov` and `--exclude-cov`.
 
-### GluMindIC canonical names
+### SugarOne canonical names
 
 `basal`, `bolus`, `carbs`
 
@@ -131,7 +131,7 @@ Covariates are zeroed **after imputation** so forward-filled basal rates on loop
 
 Glucose is always required and cannot be included/excluded.
 
-### Ablation examples (GluMindIC)
+### Ablation examples (SugarOne)
 
 ```bash
 # Glucose only (same as --zero-cov)
@@ -151,8 +151,8 @@ Typical T1DM ablation workflow on `data/loop_and_ai_ready/ablation_test.csv`:
 
 ```bash
 uv run evaluate-model \
-  --run-dir runs/glumind_ic_tune/production/trial_0000_bcd3813f \
-  --model-type glumind_ic \
+  --run-dir runs/sugar_one_tune/production/trial_0000_bcd3813f \
+  --model-type sugar_one \
   --test-csv data/loop_and_ai_ready/ablation_test.csv \
   --train-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --test-split '' \
@@ -189,7 +189,7 @@ JSON payload fields include `active_covariates`, `zeroed_covariates`, `include_c
 | hr | `Heart Rate` |
 | steps | `Step Count` |
 
-### GluMindIC
+### SugarOne
 
 | Channel | CSV column aliases |
 |---------|-------------------|
@@ -207,10 +207,10 @@ Optional columns: `Recommended Split`, `Study Group`, `Event Type` (use `--drop_
 ## Cross-domain notes
 
 - **GluMind on loop CSV:** no HR/steps columns → channels are 0-filled; use `--zero-cov` for an explicit glucose-only baseline.
-- **GluMindIC on wearable CSV:** no insulin columns → basal/bolus/carbs are 0-filled; `--zero-cov` ablates any residual signal after imputation.
+- **SugarOne on wearable CSV:** no insulin columns → basal/bolus/carbs are 0-filled; `--zero-cov` ablates any residual signal after imputation.
 - Scalers should be fit on the **same domain** as training when possible (`--train-csv` override).
 
-See also `docs/GLUMIND_VS_GLUMIND_IC_COMPARISON.md` for benchmark numbers and interpretation.
+See also `docs/GLUMIND_VS_SUGARONE_COMPARISON.md` for benchmark numbers and interpretation.
 
 ---
 

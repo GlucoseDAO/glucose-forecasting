@@ -23,9 +23,9 @@ dependencies = [
 
 [project.scripts]
 train-glumind = "scripts.glumind.train_glumind:main"
-tune-glumind-ic = "scripts.glumind_ic.tune_glumind_ic:app"
+tune-sugar-one = "scripts.sugar_one.tune_sugar_one:app"
 evaluate-glumind = "scripts.glumind.evaluate_glumind:app"
-evaluate-model = "scripts.glumind_ic.evaluate_model:app"
+evaluate-model = "scripts.sugar_one.evaluate_model:app"
 inference-glumind = "scripts.glumind.inference_glumind:app"
 download-glumind-hf = "scripts.glumind.download_from_huggingface:app"
 

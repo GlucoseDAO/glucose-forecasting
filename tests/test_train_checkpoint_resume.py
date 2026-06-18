@@ -5,8 +5,8 @@ from pathlib import Path
 
 import torch
 
-from scripts.glumind_ic.glumind_ic_model import GluMindICModel
-from scripts.glumind_ic.train_glumind_ic import (
+from scripts.sugar_one.sugar_one_model import SugarOneModel
+from scripts.sugar_one.train_sugar_one import (
     load_full_checkpoint,
     read_checkpoint_meta,
     save_full_checkpoint,
@@ -17,7 +17,7 @@ def test_checkpoint_stores_wait_and_resumes_next_epoch(tmp_path: Path) -> None:
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     cfg = {"lr": 0.001, "epochs": 10}
-    model = GluMindICModel(
+    model = SugarOneModel(
         n_time_steps=8,
         d_model=16,
         n_heads=4,
@@ -48,7 +48,7 @@ def test_checkpoint_stores_wait_and_resumes_next_epoch(tmp_path: Path) -> None:
     assert meta["best_epoch"] == 5
     assert meta["wait"] == 2
 
-    model2 = GluMindICModel(
+    model2 = SugarOneModel(
         n_time_steps=8,
         d_model=16,
         n_heads=4,

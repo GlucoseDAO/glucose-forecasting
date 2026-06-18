@@ -1,4 +1,4 @@
-"""Smoke tests for GluMindIC random tuner (global mode)."""
+"""Smoke tests for SugarOne random tuner (global mode)."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import polars as pl
 
-from scripts.glumind_ic.tune_glumind_ic import (
+from scripts.sugar_one.tune_sugar_one import (
     DEFAULT_CONFIG_FILENAME,
     STATUS_FAILED,
     STATUS_INTERRUPTED,
@@ -29,7 +29,7 @@ from scripts.glumind_ic.tune_glumind_ic import (
 
 
 def _write_loop_ic_csv(path: Path) -> None:
-    """Minimal CSV compatible with train_glumind_ic loaders + sliding windows."""
+    """Minimal CSV compatible with train_sugar_one loaders + sliding windows."""
     base = datetime(2020, 1, 1, 0, 0, 0)
     rows: list[dict[str, object]] = []
 
@@ -321,14 +321,14 @@ def test_build_tune_context_defaults_only_no_space(tmp_path: Path) -> None:
 
 
 def test_default_config_is_production_full() -> None:
-    assert DEFAULT_CONFIG_FILENAME == "tune_glumind_ic_full.toml"
+    assert DEFAULT_CONFIG_FILENAME == "tune_sugar_one_full.toml"
     cfg_path = resolve_config_path(None)
-    assert cfg_path.name == "tune_glumind_ic_full.toml"
+    assert cfg_path.name == "tune_sugar_one_full.toml"
 
 
 def test_full_toml_production_defaults() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    cfg_path = repo_root / "scripts" / "glumind_ic" / "tune_glumind_ic_full.toml"
+    cfg_path = repo_root / "scripts" / "sugar_one" / "tune_sugar_one_full.toml"
     cfg = load_user_config(cfg_path)
     assert cfg["paths"]["csv"].endswith("loop_ai_ready_joined2.csv")
     assert "space" not in cfg.get("tune", {})
@@ -342,7 +342,7 @@ def test_full_toml_production_defaults() -> None:
 
 def test_dev_toml_loads_without_tune_space() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    cfg_path = repo_root / "scripts" / "glumind_ic" / "tune_glumind_ic_dev.toml"
+    cfg_path = repo_root / "scripts" / "sugar_one" / "tune_sugar_one_dev.toml"
     cfg = load_user_config(cfg_path)
     assert "tune" in cfg
     assert "space" in cfg.get("tune", {})
