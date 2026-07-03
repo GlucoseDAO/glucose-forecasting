@@ -26,6 +26,24 @@ import torch.nn as nn
 from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader, Dataset
 from scripts.glumind.glumind_model import GluMindModel
+from scripts.common.data_loading import (
+    STUDY_GROUP_ALIASES as STUDY_GROUP_ALIASES,
+    STUDY_GROUP_ORDER as STUDY_GROUP_ORDER,
+    limit_series as limit_series,
+    normalize_study_group_label as normalize_study_group_label,
+    normalize_study_groups_column as normalize_study_groups_column,
+    resolve_num_workers as resolve_num_workers,
+)
+from scripts.common.data_loading import apply_split_scheme as apply_split_scheme
+from scripts.common.data_loading import impute_and_sort as _common_impute_and_sort
+from scripts.common.data_loading import load_splits_streaming as _common_load_splits_streaming
+from scripts.common.metrics import mae_rmse_mard as mae_rmse_mard
+from scripts.common.checkpoint import (
+    load_full_checkpoint as _common_load_full_checkpoint,
+    read_checkpoint_meta as read_checkpoint_meta,
+    save_full_checkpoint as _common_save_full_checkpoint,
+    update_latest_symlink as update_latest_symlink,
+)
 
 # ---------------------------------------------------------------------------
 # Source CSV columns (same conventions as tune_nf_baselines_by_group.py)
@@ -43,50 +61,6 @@ COL_STEPS = "Step Count"
 
 TS_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
-STUDY_GROUP_ORDER = ["Healthy", "Pre-T2DM", "Oral-T2DM", "Insulin-T2DM", "T1DM"]
-
-STUDY_GROUP_ALIASES = {
-    "healthy": "Healthy",
-    "pre_t2dm": "Pre-T2DM",
-    "prediabetes": "Pre-T2DM",
-    "pre_diabetes": "Pre-T2DM",
-    "pre_diabetes_lifestyle_controlled": "Pre-T2DM",
-    "oral_t2dm": "Oral-T2DM",
-    "oral_medication": "Oral-T2DM",
-    "oral_medication_and_or_non_insulin_injectable_medication_controlled": "Oral-T2DM",
-    "insulin_t2dm": "Insulin-T2DM",
-    "insulin_dependent": "Insulin-T2DM",
-}
-
-
-def normalize_study_group_label(value: str) -> str:
-    """Map raw dataset cohort labels to canonical study-group names."""
-    raw = str(value).strip()
-    key = re.sub(r"[^a-z0-9]+", "_", raw.lower()).strip("_")
-    return STUDY_GROUP_ALIASES.get(key, raw)
-
-
-def normalize_study_groups_column(df: pl.DataFrame) -> pl.DataFrame:
-    """Normalize study_group labels in-place-safe form."""
-    if df.is_empty():
-        return df
-    return df.with_columns(
-        pl.col("study_group")
-        .cast(pl.Utf8)
-        .map_elements(normalize_study_group_label, return_dtype=pl.Utf8)
-    )
-
-
-def resolve_num_workers(num_workers: int, device: torch.device) -> int:
-    """Resolve DataLoader workers with an auto mode tuned for GPU training."""
-    if num_workers >= 0:
-        return num_workers
-    if device.type != "cuda":
-        return 0
-    cpu_count = os.cpu_count() or 1
-    return min(8, max(2, cpu_count // 2))
-
-
 # ============================================================================
 #  DATA LOADING
 # ============================================================================
@@ -97,102 +71,26 @@ def load_splits_streaming(
     drop_interpolated: bool,
 ) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
     """Lazy CSV scan via Polars — returns (train, val, test) DataFrames."""
-    uid_col = COL_SEQ if unique_id_choice == "sequence_id" else COL_USER
-    print("Loading train/val/test splits (streaming)...")
-
-    lf = (
-        pl.scan_csv(
-            csv_path,
-            infer_schema_length=10_000,
-            schema_overrides={COL_SEQ: pl.Utf8, COL_USER: pl.Utf8},
-        )
-        .select([uid_col, COL_TS, COL_SPLIT, COL_GROUP, COL_EVENT,
-                 COL_GLU, COL_HR, COL_STEPS])
-        .rename({
-            uid_col: "unique_id",
-            COL_TS: "ds",
-            COL_GLU: "glucose",
-            COL_HR: "hr",
-            COL_STEPS: "steps",
-            COL_GROUP: "study_group",
-            COL_SPLIT: "split",
-            COL_EVENT: "event_type",
-        })
-        .with_columns([
-            pl.col("ds").str.strptime(pl.Datetime, TS_FORMAT, strict=False),
-            pl.col("glucose").cast(pl.Float32, strict=False),
-            pl.col("hr").cast(pl.Float32, strict=False),
-            pl.col("steps").cast(pl.Float32, strict=False),
-        ])
-        .drop_nulls(subset=["unique_id", "ds", "split", "study_group"])
+    return _common_load_splits_streaming(
+        csv_path,
+        unique_id_choice,
+        drop_interpolated,
+        col_seq=COL_SEQ,
+        col_user=COL_USER,
+        col_ts=COL_TS,
+        col_split=COL_SPLIT,
+        col_group=COL_GROUP,
+        col_event=COL_EVENT,
+        value_columns={"glucose": COL_GLU, "hr": COL_HR, "steps": COL_STEPS},
+        ts_format=TS_FORMAT,
     )
-
-    if drop_interpolated:
-        lf = lf.filter(pl.col("event_type") != "Interpolated")
-
-    df = lf.collect()
-    print(f"  ... loaded {len(df):,} rows total")
-
-    train_df = df.filter(pl.col("split") == "train")
-    val_df   = df.filter(pl.col("split") == "val")
-    test_df  = df.filter(pl.col("split") == "test")
-    return train_df, val_df, test_df
-
-
-def apply_split_scheme(
-    train_df: pl.DataFrame,
-    val_df: pl.DataFrame,
-    test_df: pl.DataFrame,
-    split_scheme: str,
-) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
-    """Apply optional split remapping while preserving classic defaults."""
-    if split_scheme == "classic":
-        return train_df, val_df, test_df
-
-    if split_scheme == "trainval_test_as_val":
-        if test_df.is_empty():
-            raise ValueError(
-                "split_scheme=trainval_test_as_val requires a non-empty test split."
-            )
-        merged_train = pl.concat([train_df, val_df]) if not val_df.is_empty() else train_df
-        remapped_val = test_df
-        remapped_test = test_df.clear()
-        print(
-            "Applied split scheme: train <- train+val | val <- test | "
-            "test disabled."
-        )
-        print(
-            "Note: this mode is for tuning only and does not produce held-out "
-            "test metrics."
-        )
-        return merged_train, remapped_val, remapped_test
-
-    raise ValueError(f"Unknown split_scheme: {split_scheme}")
 
 
 def impute_and_sort(df: pl.DataFrame) -> pl.DataFrame:
     """Sort by (unique_id, ds), forward-fill then back-fill numeric columns per series."""
-    if df.is_empty():
-        return df
-    return (
-        df.sort(["unique_id", "ds"])
-        .with_columns([
-            pl.col(c)
-            .forward_fill()
-            .backward_fill()
-            .fill_null(0.0)
-            .cast(pl.Float32)
-            .over("unique_id")
-            for c in ["glucose", "hr", "steps"]
-        ])
+    return _common_impute_and_sort(
+        df, ffill_bfill_columns=["glucose", "hr", "steps"],
     )
-
-
-def limit_series(df: pl.DataFrame, max_series: int) -> pl.DataFrame:
-    if df.is_empty() or max_series <= 0:
-        return df
-    keep = df["unique_id"].unique(maintain_order=True).head(max_series)
-    return df.filter(pl.col("unique_id").is_in(keep))
 
 
 # ============================================================================
@@ -298,25 +196,6 @@ class GlucoseWindowDataset(Dataset):
 #  MODEL ARCHITECTURE
 # ============================================================================
 # Kept in separate module for cleaner inference/evaluation reuse.
-
-
-# ============================================================================
-#  METRICS
-# ============================================================================
-
-def mae_rmse_mard(
-    y_true: np.ndarray, y_pred: np.ndarray
-) -> tuple[float, float, float]:
-    """Compute MAE, RMSE, MARD (same formula as tune_nf_baselines_by_group)."""
-    err = y_true - y_pred
-    mae = float(np.mean(np.abs(err)))
-    rmse = float(np.sqrt(np.mean(err * err)))
-    nonzero = y_true != 0
-    if nonzero.any():
-        mard = float(np.mean(np.abs(err[nonzero]) / np.abs(y_true[nonzero])) * 100)
-    else:
-        mard = float("nan")
-    return mae, rmse, mard
 
 
 # ============================================================================
@@ -456,16 +335,10 @@ def save_full_checkpoint(
     args,
 ):
     """Save a full checkpoint: model + optimizer + scheduler + metadata."""
-    ckpt = {
-        "epoch": epoch,
-        "best_val_loss": best_val_loss,
-        "model_state_dict": model.state_dict(),
-        "optimizer_state_dict": optimizer.state_dict(),
-        "scheduler_state_dict": scheduler.state_dict() if scheduler else None,
-        "args": {k: str(v) if isinstance(v, Path) else v
-                 for k, v in vars(args).items()},
-    }
-    torch.save(ckpt, path)
+    _common_save_full_checkpoint(
+        path, model, optimizer, scheduler, epoch, best_val_loss,
+        vars(args), config_key="args", stringify_paths=True,
+    )
 
 
 def load_full_checkpoint(
@@ -476,17 +349,7 @@ def load_full_checkpoint(
     device: torch.device | None = None,
 ) -> int:
     """Load a full checkpoint. Returns the epoch number to resume from."""
-    ckpt = torch.load(path, map_location=device or "cpu", weights_only=False)
-    model.load_state_dict(ckpt["model_state_dict"])
-    if optimizer is not None and "optimizer_state_dict" in ckpt:
-        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
-    if scheduler is not None and ckpt.get("scheduler_state_dict"):
-        scheduler.load_state_dict(ckpt["scheduler_state_dict"])
-    resume_epoch = ckpt.get("epoch", 0)
-    best_val = ckpt.get("best_val_loss", float("inf"))
-    print(f"  Resumed from checkpoint: epoch={resume_epoch}, "
-          f"best_val_loss={best_val:.6f}")
-    return resume_epoch, best_val
+    return _common_load_full_checkpoint(path, model, optimizer, scheduler, device)
 
 
 def train_loop(
@@ -643,19 +506,6 @@ def make_model(args, device: torch.device) -> GluMindModel:
         except Exception as e:
             print(f"Warning: torch.compile failed, using eager mode ({e})")
     return model
-
-
-def update_latest_symlink(run_dir: Path, out_dir: Path):
-    """Write a 'latest.txt' pointer to the most recent run directory.
-
-    Using a plain text file instead of a symlink avoids the Windows privilege
-    requirement (WinError 1314) that blocks symlink creation for non-admin users
-    without Developer Mode enabled.
-    """
-    out_dir.mkdir(parents=True, exist_ok=True)
-    latest_txt = out_dir / "latest.txt"
-    latest_txt.write_text(str(run_dir) + "\n", encoding="utf-8")
-    print(f"Latest run pointer: {latest_txt} -> {run_dir}")
 
 
 def make_optimizer_and_scheduler(model, args):

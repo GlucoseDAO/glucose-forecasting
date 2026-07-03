@@ -39,6 +39,25 @@ except ModuleNotFoundError:
     from console_log import echo_plain
     from sugar_one_model import SugarOneModel
 
+from scripts.common.data_loading import (
+    STUDY_GROUP_ALIASES as STUDY_GROUP_ALIASES,
+    STUDY_GROUP_ORDER as STUDY_GROUP_ORDER,
+    limit_series as limit_series,
+    normalize_study_group_label as normalize_study_group_label,
+    normalize_study_groups_column as normalize_study_groups_column,
+    resolve_num_workers as resolve_num_workers,
+)
+from scripts.common.data_loading import apply_split_scheme as _common_apply_split_scheme
+from scripts.common.data_loading import impute_and_sort as _common_impute_and_sort
+from scripts.common.data_loading import load_splits_streaming as _common_load_splits_streaming
+from scripts.common.metrics import mae_rmse_mard as mae_rmse_mard
+from scripts.common.checkpoint import (
+    read_checkpoint_meta as read_checkpoint_meta,
+    update_latest_symlink as _common_update_latest_symlink,
+)
+from scripts.common.checkpoint import load_full_checkpoint as _common_load_full_checkpoint
+from scripts.common.checkpoint import save_full_checkpoint as _common_save_full_checkpoint
+
 app = typer.Typer(
     name="train_sugar_one",
     add_completion=False,
@@ -64,47 +83,6 @@ TS_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 N_FEATURES = 4  # glucose, basal, bolus, carbs
 
-STUDY_GROUP_ORDER = ["Healthy", "Pre-T2DM", "Oral-T2DM", "Insulin-T2DM", "T1DM"]
-
-STUDY_GROUP_ALIASES = {
-    "healthy": "Healthy",
-    "pre_t2dm": "Pre-T2DM",
-    "prediabetes": "Pre-T2DM",
-    "pre_diabetes": "Pre-T2DM",
-    "pre_diabetes_lifestyle_controlled": "Pre-T2DM",
-    "oral_t2dm": "Oral-T2DM",
-    "oral_medication": "Oral-T2DM",
-    "oral_medication_and_or_non_insulin_injectable_medication_controlled": "Oral-T2DM",
-    "insulin_t2dm": "Insulin-T2DM",
-    "insulin_dependent": "Insulin-T2DM",
-}
-
-
-def normalize_study_group_label(value: str) -> str:
-    raw = str(value).strip()
-    key = re.sub(r"[^a-z0-9]+", "_", raw.lower()).strip("_")
-    return STUDY_GROUP_ALIASES.get(key, raw)
-
-
-def normalize_study_groups_column(df: pl.DataFrame) -> pl.DataFrame:
-    if df.is_empty():
-        return df
-    return df.with_columns(
-        pl.col("study_group")
-        .cast(pl.Utf8)
-        .map_elements(normalize_study_group_label, return_dtype=pl.Utf8)
-    )
-
-
-def resolve_num_workers(num_workers: int, device: torch.device) -> int:
-    if num_workers >= 0:
-        return num_workers
-    if device.type != "cuda":
-        return 0
-    cpu_count = os.cpu_count() or 1
-    return min(8, max(2, cpu_count // 2))
-
-
 # ============================================================================
 #  DATA LOADING
 # ============================================================================
@@ -115,54 +93,24 @@ def load_splits_streaming(
     drop_interpolated: bool,
 ) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
     """Lazy CSV scan — returns (train, val, test) DataFrames."""
-    uid_col = COL_SEQ if unique_id_choice == "sequence_id" else COL_USER
-    typer.echo("Loading train/val/test splits (streaming)...")
-
-    lf = (
-        pl.scan_csv(
-            csv_path,
-            infer_schema_length=10_000,
-            schema_overrides={
-                COL_SEQ: pl.Utf8,
-                COL_USER: pl.Utf8,
-                COL_BASAL: pl.Utf8,   # may be empty string in loop data
-                COL_BOLUS: pl.Utf8,
-                COL_CARB: pl.Utf8,
-            },
-        )
-        .select([uid_col, COL_TS, COL_SPLIT, COL_GROUP, COL_EVENT,
-                 COL_GLU, COL_BASAL, COL_BOLUS, COL_CARB])
-        .rename({
-            uid_col: "unique_id",
-            COL_TS: "ds",
-            COL_GLU: "glucose",
-            COL_BASAL: "basal",
-            COL_BOLUS: "bolus",
-            COL_CARB: "carbs",
-            COL_GROUP: "study_group",
-            COL_SPLIT: "split",
-            COL_EVENT: "event_type",
-        })
-        .with_columns([
-            pl.col("ds").str.strptime(pl.Datetime, TS_FORMAT, strict=False),
-            pl.col("glucose").cast(pl.Float32, strict=False),
-            pl.col("basal").cast(pl.Float32, strict=False),
-            pl.col("bolus").cast(pl.Float32, strict=False),
-            pl.col("carbs").cast(pl.Float32, strict=False),
-        ])
-        .drop_nulls(subset=["unique_id", "ds", "split", "study_group"])
+    return _common_load_splits_streaming(
+        csv_path,
+        unique_id_choice,
+        drop_interpolated,
+        col_seq=COL_SEQ,
+        col_user=COL_USER,
+        col_ts=COL_TS,
+        col_split=COL_SPLIT,
+        col_group=COL_GROUP,
+        col_event=COL_EVENT,
+        value_columns={
+            "glucose": COL_GLU, "basal": COL_BASAL,
+            "bolus": COL_BOLUS, "carbs": COL_CARB,
+        },
+        ts_format=TS_FORMAT,
+        utf8_value_columns=("basal", "bolus", "carbs"),
+        log_fn=typer.echo,
     )
-
-    if drop_interpolated:
-        lf = lf.filter(pl.col("event_type") != "Interpolated")
-
-    df = lf.collect()
-    typer.echo(f"  ... loaded {len(df):,} rows total")
-
-    train_df = df.filter(pl.col("split") == "train")
-    val_df = df.filter(pl.col("split") == "val")
-    test_df = df.filter(pl.col("split") == "test")
-    return train_df, val_df, test_df
 
 
 def apply_split_scheme(
@@ -171,20 +119,13 @@ def apply_split_scheme(
     test_df: pl.DataFrame,
     split_scheme: str,
 ) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
-    if split_scheme == "classic":
-        return train_df, val_df, test_df
-
-    if split_scheme == "trainval_test_as_val":
-        if test_df.is_empty():
-            raise ValueError(
-                "split_scheme=trainval_test_as_val requires a non-empty test split."
-            )
-        merged_train = pl.concat([train_df, val_df]) if not val_df.is_empty() else train_df
-        typer.echo("Applied split scheme: train <- train+val | val <- test | test disabled.")
-        typer.echo("Note: tuning-only mode; no held-out test metrics.")
-        return merged_train, test_df, test_df.clear()
-
-    raise ValueError(f"Unknown split_scheme: {split_scheme!r}")
+    return _common_apply_split_scheme(
+        train_df, val_df, test_df, split_scheme,
+        log_fn=typer.echo,
+        applied_message="Applied split scheme: train <- train+val | val <- test | test disabled.",
+        note_message="Note: tuning-only mode; no held-out test metrics.",
+        error_repr=True,
+    )
 
 
 def impute_and_sort(df: pl.DataFrame) -> pl.DataFrame:
@@ -194,40 +135,11 @@ def impute_and_sort(df: pl.DataFrame) -> pl.DataFrame:
     Bolus / Carbs: fill_null(0.0) only (discrete events; must not carry over).
     Glucose: forward-fill → back-fill → 0.0 fallback.
     """
-    if df.is_empty():
-        return df
-    sorted_df = df.sort(["unique_id", "ds"])
-    return sorted_df.with_columns(
-        [
-            pl.col("glucose")
-            .forward_fill()
-            .backward_fill()
-            .fill_null(0.0)
-            .cast(pl.Float32)
-            .over("unique_id"),
-            pl.col("basal")
-            .forward_fill()
-            .backward_fill()
-            .fill_null(0.0)
-            .cast(pl.Float32)
-            .over("unique_id"),
-            pl.col("bolus")
-            .fill_null(0.0)
-            .cast(pl.Float32)
-            .over("unique_id"),
-            pl.col("carbs")
-            .fill_null(0.0)
-            .cast(pl.Float32)
-            .over("unique_id"),
-        ]
+    return _common_impute_and_sort(
+        df,
+        ffill_bfill_columns=["glucose", "basal"],
+        zero_fill_columns=["bolus", "carbs"],
     )
-
-
-def limit_series(df: pl.DataFrame, max_series: int) -> pl.DataFrame:
-    if df.is_empty() or max_series <= 0:
-        return df
-    keep = df["unique_id"].unique(maintain_order=True).head(max_series)
-    return df.filter(pl.col("unique_id").is_in(keep))
 
 
 # ============================================================================
@@ -340,24 +252,6 @@ class SugarOneWindowDataset(Dataset):
         y = g[end : end + self.horizon]  # (horizon,)
         return torch.from_numpy(x), torch.from_numpy(y)
 
-
-# ============================================================================
-#  METRICS
-# ============================================================================
-
-def mae_rmse_mard(
-    y_true: np.ndarray, y_pred: np.ndarray
-) -> tuple[float, float, float]:
-    err = y_true - y_pred
-    mae = float(np.mean(np.abs(err)))
-    rmse = float(np.sqrt(np.mean(err * err)))
-    nonzero = y_true != 0
-    mard = (
-        float(np.mean(np.abs(err[nonzero]) / np.abs(y_true[nonzero])) * 100)
-        if nonzero.any()
-        else float("nan")
-    )
-    return mae, rmse, mard
 
 
 # ============================================================================
@@ -536,20 +430,10 @@ def save_full_checkpoint(
     wait: int = 0,
     best_epoch: int = 0,
 ) -> None:
-    payload = {
-        "epoch": epoch,
-        "best_epoch": best_epoch,
-        "best_val_loss": best_val_loss,
-        "wait": wait,
-        "model_state_dict": model.state_dict(),
-        "optimizer_state_dict": optimizer.state_dict(),
-        "scheduler_state_dict": scheduler.state_dict() if scheduler else None,
-        "config": cfg,
-    }
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    torch.save(payload, tmp)
-    tmp.replace(path)
+    _common_save_full_checkpoint(
+        path, model, optimizer, scheduler, epoch, best_val_loss, cfg,
+        config_key="config", wait=wait, best_epoch=best_epoch, atomic=True,
+    )
 
 
 def load_full_checkpoint(
@@ -560,41 +444,14 @@ def load_full_checkpoint(
     device: torch.device | None = None,
 ) -> tuple[int, float, int, int]:
     """Return (last_completed_epoch, best_val_loss, patience_wait, best_epoch)."""
-    ckpt = torch.load(path, map_location=device or "cpu", weights_only=False)
-    model.load_state_dict(ckpt["model_state_dict"])
-    if optimizer is not None and "optimizer_state_dict" in ckpt:
-        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
-    if scheduler is not None and ckpt.get("scheduler_state_dict"):
-        scheduler.load_state_dict(ckpt["scheduler_state_dict"])
-    epoch = int(ckpt.get("epoch", 0))
-    best_val = float(ckpt.get("best_val_loss", float("inf")))
-    wait = int(ckpt.get("wait", 0))
-    best_epoch = int(ckpt.get("best_epoch", epoch))
-    echo_plain(
-        f"  Loaded checkpoint: last_completed_epoch={epoch} | "
-        f"next_epoch={epoch + 1} | best_epoch={best_epoch} | "
-        f"best_val_loss={best_val:.6f} | patience_wait={wait}"
+    return _common_load_full_checkpoint(
+        path, model, optimizer, scheduler, device,
+        return_wait_and_best_epoch=True, log_fn=echo_plain,
     )
-    return epoch, best_val, wait, best_epoch
-
-
-def read_checkpoint_meta(path: Path) -> dict[str, int | float] | None:
-    """Lightweight read of last_checkpoint.pt for tuning state (no model load)."""
-    if not path.is_file():
-        return None
-    ckpt = torch.load(path, map_location="cpu", weights_only=False)
-    return {
-        "epoch": int(ckpt.get("epoch", 0)),
-        "best_epoch": int(ckpt.get("best_epoch", 0)),
-        "best_val_loss": float(ckpt.get("best_val_loss", float("inf"))),
-        "wait": int(ckpt.get("wait", 0)),
-    }
 
 
 def update_latest_symlink(run_dir: Path, out_dir: Path) -> None:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "latest.txt").write_text(str(run_dir) + "\n", encoding="utf-8")
-    typer.echo(f"Latest run pointer: {out_dir / 'latest.txt'} -> {run_dir}")
+    _common_update_latest_symlink(run_dir, out_dir, log_fn=typer.echo)
 
 
 def make_optimizer_and_scheduler(
