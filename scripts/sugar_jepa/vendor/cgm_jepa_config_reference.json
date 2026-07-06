@@ -1,0 +1,15 @@
+{
+  "attn_drop_rate": 0.0,
+  "dim_in": 12,
+  "drop_rate": 0.0,
+  "embed_bias": true,
+  "embed_dim": 96,
+  "jepa": false,
+  "kernel_size": 3,
+  "mlp_ratio": 4.0,
+  "nhead": 6,
+  "num_layers": 3,
+  "qk_scale": null,
+  "qkv_bias": true,
+  "time_inp_dim": 5
+}

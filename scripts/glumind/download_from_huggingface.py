@@ -19,6 +19,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from scripts.common.network import apply_windows_tls_workarounds
+
+apply_windows_tls_workarounds()
+
 import typer
 from huggingface_hub import HfApi, hf_hub_download, list_repo_files
 
