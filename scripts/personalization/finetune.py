@@ -1,0 +1,407 @@
+#!/usr/bin/env python3
+"""Fine-tune a SugarOne-family global checkpoint on one person's data.
+
+Personal-only fine-tuning with optional Learning without Forgetting (LwF):
+the frozen global model acts as a teacher to reduce catastrophic forgetting
+while adapting to one person's CGM/pump timeline.
+"""
+from __future__ import annotations
+
+import copy
+import json
+import random
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Optional
+
+import numpy as np
+import polars as pl
+import torch
+import torch.nn as nn
+import typer
+from torch.utils.data import DataLoader
+
+from scripts.common.data_loading import resolve_num_workers
+from scripts.personalization.constants import (
+    DEFAULT_BASE_RUN_DIR,
+    DEFAULT_SEED,
+    SUGAR_ONE_VALUE_COLUMNS,
+)
+from scripts.personalization.registry import build_model_from_meta, load_base_checkpoint
+from scripts.personalization.sweep_utils import default_patience_from_base
+from scripts.sugar_one.train_sugar_one import (
+    SugarOneWindowDataset,
+    compute_and_print_metrics,
+    evaluate,
+    impute_and_sort,
+    load_splits_streaming,
+    make_optimizer_and_scheduler,
+    train_loop,
+)
+
+app = typer.Typer(
+    add_completion=False,
+    pretty_exceptions_enable=False,
+    help="Fine-tune SugarOne-family models on personal CGM/pump data.",
+)
+
+
+def _set_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def _load_split_frames(csv_path: Path) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
+    train_df, val_df, test_df = load_splits_streaming(
+        csv_path, unique_id_choice="sequence_id", drop_interpolated=False
+    )
+    return impute_and_sort(train_df), impute_and_sort(val_df), impute_and_sort(test_df)
+
+
+def _make_lwf_teacher(model: nn.Module) -> nn.Module:
+    """Frozen copy of the global model for LwF distillation."""
+    teacher = copy.deepcopy(model)
+    teacher.eval()
+    for param in teacher.parameters():
+        param.requires_grad = False
+    return teacher
+
+
+def _metrics_dict(mae: float, rmse: float, mard: float) -> dict[str, float]:
+    return {"mae": float(mae), "rmse": float(rmse), "mard": float(mard)}
+
+
+def _eval_split(
+    model: nn.Module,
+    ds: SugarOneWindowDataset | None,
+    scaler_ds: SugarOneWindowDataset,
+    device: torch.device,
+    batch_size: int,
+    num_workers: int,
+    run_dir: Path,
+    split_name: str,
+    use_amp: bool,
+    amp_dtype: torch.dtype,
+) -> dict[str, float] | None:
+    if ds is None or len(ds) == 0:
+        return None
+    loader = DataLoader(
+        ds,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=device.type == "cuda",
+    )
+    loss_fn = nn.MSELoss()
+    _, true_arr, pred_arr = evaluate(
+        model, loader, loss_fn, device, use_amp=use_amp, amp_dtype=amp_dtype, split_label=split_name
+    )
+    mae, rmse, mard = compute_and_print_metrics(
+        true_arr, pred_arr, scaler_ds.scaler_glucose, split_name, run_dir, ds
+    )
+    return _metrics_dict(mae, rmse, mard)
+
+
+def run_finetune(
+    *,
+    base_run_dir: Path,
+    personal_csv: Path,
+    out_dir: Path,
+    run_name: str | None = None,
+    personal_days: int | None = None,
+    model_type: str | None = None,
+    lwf_lambda: float = 0.5,
+    epochs: int = 40,
+    lr: float | None = None,
+    weight_decay: float | None = None,
+    patience: int | None = None,
+    batch_size: int = 256,
+    seed: int = DEFAULT_SEED,
+    device: str = "cpu",
+    precision: str = "fp32",
+    num_workers: int = 0,
+    eval_zero_shot: bool = True,
+    from_scratch: bool = False,
+) -> tuple[Path, dict[str, Any]]:
+    """Fine-tune on personal train split; return ``(run_dir, results)``."""
+    base_run_dir = Path(base_run_dir)
+    personal_csv = Path(personal_csv)
+    out_dir = Path(out_dir)
+
+    if not base_run_dir.exists():
+        raise ValueError(f"base run dir not found: {base_run_dir}")
+    if not personal_csv.exists():
+        raise ValueError(f"personal CSV not found: {personal_csv}")
+    if not 0.0 <= lwf_lambda <= 1.0:
+        raise ValueError(f"lwf_lambda must be in [0, 1], got {lwf_lambda}")
+
+    _set_seed(seed)
+    torch_device = torch.device(device if device != "cuda" or torch.cuda.is_available() else "cpu")
+    if device == "cuda" and torch_device.type != "cuda":
+        typer.echo("Warning: CUDA requested but unavailable; using CPU.", err=True)
+
+    model, base_meta, resolved_type, ckpt_path = load_base_checkpoint(
+        base_run_dir, model_type=model_type, device=torch_device
+    )
+    if from_scratch:
+        model = build_model_from_meta(resolved_type, base_meta, torch_device)
+        typer.echo("Training from scratch (base weights discarded).")
+
+    resolved_lr = float(lr if lr is not None else base_meta.get("lr", 4e-4))
+    resolved_wd = float(weight_decay if weight_decay is not None else base_meta.get("weight_decay", 3e-5))
+    resolved_patience = int(patience if patience is not None else default_patience_from_base(base_run_dir))
+
+    input_steps = int(base_meta.get("input_steps", 128))
+    horizon = int(base_meta.get("horizon", 12))
+
+    p_train, p_val, p_test = _load_split_frames(personal_csv)
+    if personal_days is not None:
+        if p_train.is_empty():
+            raise ValueError("personal train split is empty")
+        t0 = p_train.select(pl.col("ds").min()).item()
+        t_end = t0 + timedelta(days=personal_days)
+        p_train = p_train.filter(pl.col("ds") < t_end)
+        if p_train.is_empty():
+            raise ValueError(f"personal_days={personal_days} left no train rows")
+
+    scaler_ds = SugarOneWindowDataset(p_train, input_steps, horizon, fit_scalers=True)
+
+    def _make_ds(df: pl.DataFrame) -> SugarOneWindowDataset | None:
+        if df.is_empty():
+            return None
+        return SugarOneWindowDataset(
+            df,
+            input_steps,
+            horizon,
+            scaler_glucose=scaler_ds.scaler_glucose,
+            scaler_basal=scaler_ds.scaler_basal,
+            scaler_bolus=scaler_ds.scaler_bolus,
+            scaler_carbs=scaler_ds.scaler_carbs,
+        )
+
+    personal_train_ds = _make_ds(p_train)
+    personal_val_ds = _make_ds(p_val)
+    personal_test_ds = _make_ds(p_test)
+    if personal_train_ds is None or len(personal_train_ds) == 0:
+        raise ValueError("no personal train windows (check days / input_steps)")
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    resolved_run_name = run_name or (
+        f"ft_{resolved_type}_d{personal_days or 'all'}_lwf{lwf_lambda:g}_{stamp}"
+    )
+    run_dir = out_dir / resolved_run_name
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    cfg: dict[str, Any] = {
+        "personalization": True,
+        "model_type": resolved_type,
+        "base_run_dir": str(base_run_dir),
+        "base_checkpoint": str(ckpt_path),
+        "personal_csv": str(personal_csv),
+        "personal_days": personal_days,
+        "lwf_lambda": lwf_lambda,
+        "from_scratch": from_scratch,
+        "value_columns": dict(SUGAR_ONE_VALUE_COLUMNS),
+        "input_steps": input_steps,
+        "horizon": horizon,
+        "d_model": int(base_meta.get("d_model", 32)),
+        "n_heads": int(base_meta.get("n_heads", 8)),
+        "ff_units": int(base_meta.get("ff_units", 128)),
+        "n_blocks": int(base_meta.get("n_blocks", 5)),
+        "dropout": float(base_meta.get("dropout", 0.1)),
+        "epochs": epochs,
+        "lr": resolved_lr,
+        "weight_decay": resolved_wd,
+        "patience": resolved_patience,
+        "batch_size": batch_size,
+        "seed": seed,
+        "device": str(torch_device),
+        "precision": precision,
+        "num_workers": num_workers,
+        "prefetch_factor": 2,
+        "log_every": 1,
+        "ckpt_every_n_epochs": 0,
+        "val_every_n_epochs": 1,
+        "batch_log_every": 0,
+        "eval_batch_log_every": 0,
+        "resume_from": "",
+        "train_windows": len(personal_train_ds),
+        "val_windows": len(personal_val_ds) if personal_val_ds else 0,
+        "test_windows": len(personal_test_ds) if personal_test_ds else 0,
+        "start_time": datetime.now().isoformat(),
+    }
+    with (run_dir / "tuning_meta.json").open("w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+    with (run_dir / "config.json").open("w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+
+    workers = resolve_num_workers(num_workers, torch_device)
+    use_amp = torch_device.type == "cuda" and precision in ("bf16", "fp16")
+    amp_dtype = torch.bfloat16 if precision == "bf16" else torch.float16
+
+    results: dict[str, Any] = {"config": cfg}
+
+    if eval_zero_shot and not from_scratch:
+        typer.echo("\n=== Zero-shot baseline (frozen base weights) ===")
+        zs_model, _, _, _ = load_base_checkpoint(
+            base_run_dir, model_type=resolved_type, device=torch_device
+        )
+        results["zero_shot_test"] = _eval_split(
+            zs_model,
+            personal_test_ds,
+            scaler_ds,
+            torch_device,
+            batch_size,
+            workers,
+            run_dir,
+            "zero_shot_test",
+            use_amp,
+            amp_dtype,
+        )
+
+    train_loader = DataLoader(
+        personal_train_ds,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=workers,
+        pin_memory=torch_device.type == "cuda",
+    )
+    val_loader = (
+        DataLoader(
+            personal_val_ds,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=workers,
+            pin_memory=torch_device.type == "cuda",
+        )
+        if personal_val_ds is not None and len(personal_val_ds) > 0
+        else None
+    )
+
+    teacher: nn.Module | None = None
+    if lwf_lambda > 0.0 and not from_scratch:
+        teacher = _make_lwf_teacher(model)
+        typer.echo(f"LwF enabled: lambda={lwf_lambda} (frozen global teacher)")
+
+    optimizer, scheduler = make_optimizer_and_scheduler(
+        model, resolved_lr, resolved_wd, epochs
+    )
+    loss_fn = nn.MSELoss()
+    grad_scaler = torch.amp.GradScaler(
+        "cuda", enabled=(torch_device.type == "cuda" and precision == "fp16")
+    )
+
+    typer.echo(
+        f"\nFine-tuning: train_windows={len(personal_train_ds):,} | "
+        f"val={len(personal_val_ds) if personal_val_ds else 0:,} | "
+        f"test={len(personal_test_ds) if personal_test_ds else 0:,} | "
+        f"days={personal_days or 'all'} | lwf={lwf_lambda} | lr={resolved_lr}"
+    )
+
+    model = train_loop(
+        model,
+        train_loader,
+        val_loader,
+        optimizer,
+        scheduler,
+        loss_fn,
+        torch_device,
+        epochs,
+        resolved_patience,
+        run_dir,
+        cfg,
+        teacher=teacher,
+        lwf_lambda=lwf_lambda if teacher is not None else 0.0,
+        verbose_every=1,
+        use_amp=use_amp,
+        amp_dtype=amp_dtype,
+        scaler=grad_scaler,
+        val_every_n_epochs=1,
+    )
+
+    results["finetuned_val"] = _eval_split(
+        model, personal_val_ds, scaler_ds, torch_device, batch_size, workers,
+        run_dir, "val", use_amp, amp_dtype,
+    )
+    results["finetuned_test"] = _eval_split(
+        model, personal_test_ds, scaler_ds, torch_device, batch_size, workers,
+        run_dir, "test", use_amp, amp_dtype,
+    )
+
+    with (run_dir / "personalization_metrics.json").open("w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2)
+
+    typer.echo(f"\nDone. Run dir: {run_dir}")
+    zs = results.get("zero_shot_test")
+    ft_test = results.get("finetuned_test")
+    if isinstance(zs, dict) and isinstance(ft_test, dict):
+        typer.echo(
+            f"Comparison test MAE: zero-shot={zs['mae']:.4f} → fine-tuned={ft_test['mae']:.4f}"
+        )
+    return run_dir, results
+
+
+@app.command()
+def main(
+    base_run_dir: Path = typer.Option(
+        Path(DEFAULT_BASE_RUN_DIR),
+        "--base-run-dir",
+    ),
+    personal_csv: Path = typer.Option(..., "--personal-csv"),
+    out_dir: Path = typer.Option(Path("runs/personalization"), "--out-dir"),
+    run_name: Optional[str] = typer.Option(None, "--run-name"),
+    personal_days: Optional[int] = typer.Option(
+        None,
+        "--personal-days",
+        help="Limit personal train to first N days. Default: all train rows.",
+    ),
+    lwf_lambda: float = typer.Option(0.5, "--lwf-lambda"),
+    model_type: Optional[str] = typer.Option(None, "--model-type"),
+    epochs: int = typer.Option(40, "--epochs"),
+    lr: Optional[float] = typer.Option(None, "--lr", help="Default: base model meta lr."),
+    weight_decay: Optional[float] = typer.Option(None, "--weight-decay"),
+    patience: Optional[int] = typer.Option(None, "--patience"),
+    batch_size: int = typer.Option(256, "--batch-size"),
+    seed: int = typer.Option(DEFAULT_SEED, "--seed"),
+    device: str = typer.Option("cpu", "--device"),
+    precision: str = typer.Option("fp32", "--precision"),
+    num_workers: int = typer.Option(0, "--num-workers"),
+    eval_zero_shot: bool = typer.Option(True, "--eval-zero-shot/--no-eval-zero-shot"),
+    from_scratch: bool = typer.Option(False, "--from-scratch/--no-from-scratch"),
+) -> None:
+    """Fine-tune a global checkpoint on one person's chronological splits."""
+    try:
+        run_finetune(
+            base_run_dir=base_run_dir,
+            personal_csv=personal_csv,
+            out_dir=out_dir,
+            run_name=run_name,
+            personal_days=personal_days,
+            lwf_lambda=lwf_lambda,
+            model_type=model_type,
+            epochs=epochs,
+            lr=lr,
+            weight_decay=weight_decay,
+            patience=patience,
+            batch_size=batch_size,
+            seed=seed,
+            device=device,
+            precision=precision,
+            num_workers=num_workers,
+            eval_zero_shot=eval_zero_shot,
+            from_scratch=from_scratch,
+        )
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+
+if __name__ == "__main__":
+    project_root = Path(__file__).resolve().parents[2]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+    app()
