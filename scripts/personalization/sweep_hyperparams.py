@@ -16,8 +16,10 @@ from typing import Optional
 
 import typer
 
+from scripts.common.console import init_cli_console, safe_echo
 from scripts.personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
+    DEFAULT_FT_PATIENCE,
     DEFAULT_LWF_LAMBDAS,
     DEFAULT_LR_MULTIPLIERS,
     DEFAULT_SEED,
@@ -26,7 +28,6 @@ from scripts.personalization.constants import (
 )
 from scripts.personalization.finetune import run_finetune
 from scripts.personalization.sweep_utils import (
-    default_patience_from_base,
     flatten_metrics,
     lr_grid_from_base,
     pick_best_row,
@@ -77,23 +78,24 @@ def main(
     subject: str = typer.Option("livia", "--subject"),
 ) -> None:
     """Grid over LwF × LR × weight_decay on full personal train data."""
+    init_cli_console()
     lwf_grid = _parse_floats(lwf_lambdas, DEFAULT_LWF_LAMBDAS)
     lr_mults = tuple(_parse_floats(lr_multipliers, DEFAULT_LR_MULTIPLIERS))
     wd_mults = tuple(_parse_floats(weight_decay_multipliers, DEFAULT_WEIGHT_DECAY_MULTIPLIERS))
     lr_grid = lr_grid_from_base(base_run_dir, multipliers=lr_mults)
     wd_grid = weight_decay_grid(wd_mults)
-    patience = default_patience_from_base(base_run_dir)
+    patience = DEFAULT_FT_PATIENCE
 
-    typer.echo(f"GluMind type-1 LwF starting point: {GLUMIND_BEST_LWF_TYPE1}")
-    typer.echo(f"LwF grid: {lwf_grid}")
-    typer.echo(f"LR grid: {lr_grid}")
-    typer.echo(f"weight_decay grid: {wd_grid}")
-    typer.echo(f"Patience (from base model): {patience}")
+    safe_echo(f"GluMind type-1 LwF starting point: {GLUMIND_BEST_LWF_TYPE1}")
+    safe_echo(f"LwF grid: {lwf_grid}")
+    safe_echo(f"LR grid: {lr_grid}")
+    safe_echo(f"weight_decay grid: {wd_grid}")
+    safe_echo(f"Patience: {patience}")
 
     rows: list[dict] = []
     for lwf, lr, wd in itertools.product(lwf_grid, lr_grid, wd_grid):
         label = f"lwf{lwf:g}_lr{lr:g}_wd{wd:g}"
-        typer.echo(f"\n===== hyperparams {label} (full train data) =====")
+        safe_echo(f"\n===== hyperparams {label} (full train data) =====")
         try:
             run_dir, results = run_finetune(
                 base_run_dir=base_run_dir,
@@ -112,7 +114,7 @@ def main(
                 eval_zero_shot=True,
             )
         except ValueError as exc:
-            typer.echo(f"Skipping {label}: {exc}", err=True)
+            safe_echo(f"Skipping {label}: {exc}", err=True)
             rows.append(
                 {
                     "subject": subject,
@@ -143,7 +145,7 @@ def main(
         rows.append(row)
 
     summary_path = write_summary(rows, out_dir)
-    typer.echo(f"Wrote {summary_path}")
+    safe_echo(f"Wrote {summary_path}")
 
     best = pick_best_row([r for r in rows if r.get("status") == "ok"])
     if best:
@@ -166,9 +168,9 @@ def main(
         write_best_recipe(recipe_path, recipe_out)
         subject_root = out_dir.parents[1] if out_dir.name == "hyperparams" else out_dir
         write_best_recipe(subject_root / "best_recipe.json", recipe_out)
-        typer.echo(
+        safe_echo(
             f"Best lwf={best['lwf_lambda']} lr={best['lr']} wd={best['weight_decay']} "
-            f"MAE={best.get('ft_test_mae')} → {recipe_path}"
+            f"MAE={best.get('ft_test_mae')} -> {recipe_path}"
         )
 
 

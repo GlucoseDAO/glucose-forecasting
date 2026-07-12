@@ -16,6 +16,7 @@ import typer
 from scripts.personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
     DEFAULT_DATA_SIZE_DAYS,
+    DEFAULT_FT_PATIENCE,
     DEFAULT_SEED,
 )
 from scripts.personalization.finetune import run_finetune
@@ -76,7 +77,7 @@ def main(
     lwf = float(recipe.get("lwf_lambda", 0.3))
     lr = float(recipe.get("lr", 4e-4))
     wd = float(recipe.get("weight_decay", 3e-5))
-    patience = int(recipe.get("patience", 10))
+    patience = int(recipe.get("patience", DEFAULT_FT_PATIENCE))
     recipe_epochs = int(epochs if epochs is not None else recipe.get("epochs", 30))
 
     typer.echo(

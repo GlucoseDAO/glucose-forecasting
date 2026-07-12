@@ -140,7 +140,55 @@ uv run aggregate-personal-results \
 | Transfer | Step 4 params + curve comparison |
 | Reproducible | Seeds, split_meta, best_recipe.json |
 
-## 8. Out of scope
+## 8. Hypothesis test — sparse train windows
+
+**Motivation:** With `input_steps=128` and `horizon=12`, dense sliding windows (stride=1)
+overlap almost completely — consecutive windows share 127/128 input steps and 11/12 targets.
+Training on every window is redundant.
+
+**Hypothesis:** Use **stride=6** (~30 minutes between window starts at 5-min sampling):
+- ~**6× fewer** train windows → ~6× faster epochs
+- Each target timestep still appears in **≥2** training windows (12-step horizon / 6-step stride = 2× coverage)
+- **Test MAE** should degrade only slightly vs dense stride=1
+
+**Protocol:**
+- **Train:** `train_window_stride=6` (sparse)
+- **Val / test:** always stride=1 (dense) for fair metrics
+- Compare sparse vs dense with same LwF/LR/wd recipe
+
+| Run | `train_window_stride` | ~train windows (Livia) | Expected epoch time (LwF=0.3) |
+|-----|----------------------|--------------------------|-------------------------------|
+| Sparse | 6 | ~13.5k | ~6–7 min |
+| Dense | 1 | ~81.5k | ~38–44 min |
+
+```bash
+# Sparse only (first)
+uv run finetune-personal \
+  --base-run-dir test_model_sugar_one \
+  --personal-csv data/personalization/prepared/livia_chronological.csv \
+  --out-dir runs/personalization/livia/window_stride_compare \
+  --run-name sparse_stride6 \
+  --train-window-stride 6 \
+  --lwf-lambda 0.3 --lr 0.0004 --weight-decay 0.00003 \
+  --epochs 30 --device cuda --precision bf16
+
+# Dense baseline (after sparse)
+uv run finetune-personal \
+  ... \
+  --run-name dense_stride1 \
+  --train-window-stride 1
+
+# Or both in one command:
+uv run compare-personal-window-stride \
+  --personal-csv data/personalization/prepared/livia_chronological.csv \
+  --out-dir runs/personalization/livia/window_stride_compare \
+  --device cuda --precision bf16 \
+  --run-sparse --no-run-dense
+```
+
+**Output:** `window_stride_comparison.json` with train window counts, wall time, test MAE.
+
+## 9. Out of scope
 
 - Personal vs general data mix
 - GluMind HR/steps personalization

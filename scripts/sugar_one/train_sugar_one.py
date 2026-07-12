@@ -163,9 +163,13 @@ class SugarOneWindowDataset(Dataset):
         scaler_bolus: MinMaxScaler | None = None,
         scaler_carbs: MinMaxScaler | None = None,
         fit_scalers: bool = False,
+        window_stride: int = 1,
     ):
         self.input_steps = input_steps
         self.horizon = horizon
+        if window_stride < 1:
+            raise ValueError(f"window_stride must be >= 1, got {window_stride}")
+        self.window_stride = window_stride
         window_len = input_steps + horizon
 
         raw_glucose: list[np.ndarray] = []
@@ -228,7 +232,7 @@ class SugarOneWindowDataset(Dataset):
             if n_windows <= 0:
                 n_skipped += 1
                 continue
-            for start in range(n_windows):
+            for start in range(0, n_windows, window_stride):
                 self._index.append((i, start))
                 self.series_ids.append(uid)
                 self.study_groups.append(sg)
@@ -270,6 +274,7 @@ def train_one_epoch(
     amp_dtype: torch.dtype = torch.float32,
     scaler: torch.amp.GradScaler | None = None,
     batch_log_every: int = 0,
+    log_interval_s: float = 0.0,
     epoch: int = 0,
 ) -> float:
     model.train()
@@ -277,6 +282,7 @@ def train_one_epoch(
     n_batches = 0
     n_batches_total = len(loader)
     t_epoch = time.perf_counter()
+    last_log_t = t_epoch
 
     for x, y in loader:
         x, y = x.to(device), y.to(device)
@@ -306,11 +312,24 @@ def train_one_epoch(
         n_batches += 1
         total_loss += loss.item()
 
-        if batch_log_every > 0 and (
+        should_log = False
+        if log_interval_s > 0:
+            now = time.perf_counter()
+            if (
+                n_batches == 1
+                or n_batches == n_batches_total
+                or now - last_log_t >= log_interval_s
+            ):
+                should_log = True
+                last_log_t = now
+        elif batch_log_every > 0 and (
             n_batches == 1
             or n_batches % batch_log_every == 0
             or n_batches == n_batches_total
         ):
+            should_log = True
+
+        if should_log:
             elapsed = time.perf_counter() - t_epoch
             batches_per_sec = n_batches / elapsed if elapsed > 0 else 0.0
             remaining = n_batches_total - n_batches
@@ -334,6 +353,7 @@ def evaluate(
     use_amp: bool = False,
     amp_dtype: torch.dtype = torch.float32,
     batch_log_every: int = 0,
+    log_interval_s: float = 0.0,
     split_label: str = "eval",
 ) -> tuple[float, np.ndarray, np.ndarray]:
     model.eval()
@@ -342,6 +362,7 @@ def evaluate(
     all_true, all_pred = [], []
     n_batches_total = len(loader)
     t_eval = time.perf_counter()
+    last_log_t = t_eval
 
     for x, y in loader:
         x, y = x.to(device), y.to(device)
@@ -352,11 +373,24 @@ def evaluate(
         all_true.append(y.float().cpu().numpy())
         all_pred.append(pred.float().cpu().numpy())
 
-        if batch_log_every > 0 and (
+        should_log = False
+        if log_interval_s > 0:
+            now = time.perf_counter()
+            if (
+                n_batches == 1
+                or n_batches == n_batches_total
+                or now - last_log_t >= log_interval_s
+            ):
+                should_log = True
+                last_log_t = now
+        elif batch_log_every > 0 and (
             n_batches == 1
             or n_batches % batch_log_every == 0
             or n_batches == n_batches_total
         ):
+            should_log = True
+
+        if should_log:
             elapsed = time.perf_counter() - t_eval
             batches_per_sec = n_batches / elapsed if elapsed > 0 else 0.0
             remaining = n_batches_total - n_batches
@@ -494,6 +528,7 @@ def train_loop(
     val_every_n_epochs: int = 1,
     batch_log_every: int = 0,
     eval_batch_log_every: int = 0,
+    log_interval_s: float = 0.0,
 ) -> SugarOneModel:
     wait = start_wait
     best_epoch = start_best_epoch if start_best_epoch > 0 else max(0, start_epoch - 1)
@@ -503,7 +538,7 @@ def train_loop(
 
     for epoch in range(start_epoch, epochs + 1):
         t0 = time.time()
-        if epoch == start_epoch and batch_log_every > 0:
+        if epoch == start_epoch and (batch_log_every > 0 or log_interval_s > 0):
             echo_plain(
                 f"  Epoch {epoch}/{epochs}: {train_batches:,} train batches "
                 f"(batch_size={train_loader.batch_size})"
@@ -513,6 +548,7 @@ def train_loop(
             teacher=teacher, lwf_lambda=lwf_lambda,
             use_amp=use_amp, amp_dtype=amp_dtype, scaler=scaler,
             batch_log_every=batch_log_every,
+            log_interval_s=log_interval_s,
             epoch=epoch,
         )
 
@@ -526,6 +562,7 @@ def train_loop(
                 model, val_loader, loss_fn, device,
                 use_amp=use_amp, amp_dtype=amp_dtype,
                 batch_log_every=eval_batch_log_every,
+                log_interval_s=log_interval_s,
                 split_label="val",
             )
             val_loss_str = f"{val_loss:.6f}"

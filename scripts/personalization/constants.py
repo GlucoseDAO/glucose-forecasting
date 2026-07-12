@@ -40,6 +40,15 @@ DEFAULT_LR_MULTIPLIERS: Final[tuple[float, ...]] = (0.5, 1.0, 2.0)
 DEFAULT_WEIGHT_DECAY: Final[float] = 3e-5
 DEFAULT_WEIGHT_DECAY_MULTIPLIERS: Final[tuple[float, ...]] = (0.5, 1.0, 2.0)
 
+# Personalization fine-tune defaults (Step 2+).
+DEFAULT_FT_PATIENCE: Final[int] = 3
+DEFAULT_VAL_EVERY_N_EPOCHS: Final[int] = 2
+DEFAULT_PROGRESS_LOG_INTERVAL_S: Final[float] = 10.0
+
+# Sliding-window stride for train windows (5-min CGM steps).
+DENSE_WINDOW_STRIDE: Final[int] = 1
+SPARSE_WINDOW_STRIDE: Final[int] = 6  # 6×5 min = 30 min between window starts
+
 DEFAULT_SEED: Final[int] = 43
 DEFAULT_HORIZON: Final[int] = 12
 DEFAULT_STUDY_GROUP: Final[str] = "T1DM"

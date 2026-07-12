@@ -9,7 +9,7 @@ import polars as pl
 import torch
 from typer.testing import CliRunner
 
-from scripts.personalization.constants import LOOP_HOLDOUT_QUALITY_USERS
+from scripts.personalization.constants import LOOP_HOLDOUT_QUALITY_USERS, SPARSE_WINDOW_STRIDE
 from scripts.personalization.finetune import run_finetune
 from scripts.personalization.prepare_personal_csv import app as prepare_app
 from scripts.personalization.registry import (
@@ -27,6 +27,7 @@ from scripts.personalization.sweep_utils import (
     weight_decay_grid,
     write_summary,
 )
+from scripts.sugar_one.train_sugar_one import SugarOneWindowDataset
 from scripts.sugar_one.sugar_one_model import SugarOneModel
 from tests.conftest import (
     TINY_D_MODEL,
@@ -139,6 +140,61 @@ def test_prepare_livia_cli(tmp_path: Path) -> None:
     assert (out_dir / "person.csv").exists()
 
 
+def test_window_stride_reduces_train_windows(tmp_path: Path) -> None:
+    raw = tmp_path / "raw.csv"
+    _write_continuous_person_csv(raw, n_rows=300)
+    prepared_dir = tmp_path / "prepared"
+    prep = runner.invoke(
+        prepare_app,
+        ["livia", "--input", str(raw), "--out-dir", str(prepared_dir), "--out-name", "p.csv"],
+    )
+    assert prep.exit_code == 0, prep.output
+    from scripts.personalization.finetune import _load_split_frames
+
+    train_df, _, _ = _load_split_frames(prepared_dir / "p.csv")
+    dense = SugarOneWindowDataset(train_df, TINY_INPUT_STEPS, TINY_HORIZON, fit_scalers=True)
+    sparse = SugarOneWindowDataset(
+        train_df,
+        TINY_INPUT_STEPS,
+        TINY_HORIZON,
+        scaler_glucose=dense.scaler_glucose,
+        scaler_basal=dense.scaler_basal,
+        scaler_bolus=dense.scaler_bolus,
+        scaler_carbs=dense.scaler_carbs,
+        window_stride=SPARSE_WINDOW_STRIDE,
+    )
+    assert len(sparse) < len(dense)
+    assert len(sparse) >= len(dense) // SPARSE_WINDOW_STRIDE - 1
+
+
+def test_finetune_sparse_stride_smoke(tmp_path: Path) -> None:
+    base = _make_tiny_base_run(tmp_path)
+    raw = tmp_path / "raw.csv"
+    _write_continuous_person_csv(raw, n_rows=300)
+    prepared_dir = tmp_path / "prepared"
+    runner.invoke(
+        prepare_app,
+        ["livia", "--input", str(raw), "--out-dir", str(prepared_dir), "--out-name", "p.csv"],
+    )
+    run_dir, results = run_finetune(
+        base_run_dir=base,
+        personal_csv=prepared_dir / "p.csv",
+        out_dir=tmp_path / "ft_sparse",
+        run_name="sparse_ft",
+        train_window_stride=SPARSE_WINDOW_STRIDE,
+        lwf_lambda=0.0,
+        epochs=1,
+        patience=0,
+        batch_size=8,
+        device="cpu",
+        num_workers=0,
+        eval_zero_shot=False,
+    )
+    assert results["config"]["train_window_stride"] == SPARSE_WINDOW_STRIDE
+    assert results["config"]["eval_window_stride"] == 1
+    assert (run_dir / "personalization_metrics.json").exists()
+
+
 def test_finetune_smoke(tmp_path: Path) -> None:
     base = _make_tiny_base_run(tmp_path)
     raw = tmp_path / "raw.csv"
@@ -233,6 +289,25 @@ def test_aggregate_cli(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     data = json.loads(out_json.read_text(encoding="utf-8"))
     assert data["sections"]["hyperparams"]["n_rows"] == 1
+
+
+def test_safe_echo_unicode_on_ascii_stdout() -> None:
+    import io
+    import sys
+
+    from scripts.common.console import safe_echo
+
+    buf = io.BytesIO()
+    text_io = io.TextIOWrapper(buf, encoding="ascii", errors="strict")
+    old_stdout = sys.stdout
+    sys.stdout = text_io
+    try:
+        safe_echo("zero-shot=19.32 -> fine-tuned=17.15")
+        safe_echo("arrow \u2192 test")
+    finally:
+        sys.stdout = old_stdout
+        text_io.detach()
+    assert b"fine-tuned" in buf.getvalue()
 
 
 def test_holdout_constants() -> None:
