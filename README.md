@@ -28,6 +28,9 @@ The project currently includes:
 - `scripts/sugar_one/tune_sugar_one.py`: random-search hyperparameter tuner (`tune-sugar-one`).
 - `scripts/sugar_one/sugar_one_model.py`: SugarOne architecture module.
 - `scripts/sugar_one/evaluate_model.py`: unified evaluation for GluMind and SugarOne (`evaluate-model`).
+- `scripts/sugar_jepa/train_sugar_jepa.py`: SugarJepa training — SugarOne + our own JEPA glucose encoder as a 4th cross-attention stream.
+- `scripts/sugar_jepa/jepa_pretrain.py`: self-supervised (JEPA) pretraining for that encoder; produces an `encoder.pt` for `--jepa-init`.
+- `scripts/sugar_jepa/sugar_jepa_model.py`, `evaluate_sugar_jepa.py`: SugarJepa architecture module and standalone evaluation.
 - `test_model_glumind/`: bundled GluMind checkpoint for reviewers (weights + metrics).
 - `test_model_sugar_one/`: bundled SugarOne checkpoint for reviewers (weights + metrics).
 - `test_data/livia_glumind_ready.csv`: self-contained demo CSV for quick end-to-end evaluation.
@@ -253,6 +256,72 @@ Expected loop-style columns (aliases are resolved automatically by `evaluate-mod
 - `Basal Rate (U/h)`
 - `Bolus Insulin (U)`
 - `Carbohydrates (g)`
+
+### `scripts/sugar_jepa/jepa_pretrain.py` (SugarJepa — SSL encoder pretraining)
+
+Self-supervised (JEPA) pretraining for the `JepaEncoder` that SugarJepa's 4th cross-attention stream uses. Masked latent prediction: an EMA target encoder encodes all patches, the context encoder sees only the unmasked ones, and a narrow predictor — given just the *positions* of the masked blocks — must reproduce their latents. The loss is smooth-L1 in **latent space**; nothing reconstructs glucose values.
+
+`uv run python scripts/sugar_jepa/jepa_pretrain.py --help`
+
+```bash
+uv run python scripts/sugar_jepa/jepa_pretrain.py \
+  --csv data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv --device cuda \
+  --window-stride 4 --epochs 50 --batch-size 256 \
+  --patch-size 8 --embed-dim 96 --n-layers 3 --n-heads 6
+```
+
+| Option | Meaning |
+|--------|---------|
+| `--input-steps` / `--patch-size` | Window and patch length; `input_steps` must divide by `patch_size` (default 128 / 8 = 16 patches). Must match the fine-tuning run. |
+| `--embed-dim` / `--n-layers` / `--n-heads` | Encoder shape (default 96 / 3 / 6). Must match the fine-tuning run. |
+| `--n-targets` / `--min-block` / `--max-block` | Masking: how many contiguous patch blocks to hide, and their size range. |
+| `--pred-dim` / `--pred-layers` / `--pred-heads` | Predictor shape (0 = `embed_dim // 2`). Discarded after SSL. |
+| `--ema-base` | Initial target-encoder momentum, cosine-ramped to 1.0 (default 0.996). |
+| `--window-stride` | Sliding-window stride; >1 cuts the overlap between adjacent windows. |
+| `--holdout-frac` | Fraction of **train** series held out to watch the objective (default 0.05). |
+| `--out-dir` | Parent directory (default `runs/jepa_encoder`). Each run gets its own timestamped subdirectory `jepa_encoder_w128_p8_d96_l3_h6_<timestamp>/`, so a second pretrain cannot overwrite the encoder an existing model was initialised from. A `latest.txt` in the parent names the most recent run. |
+
+Trains on the CSV's **train split only** — val/test rows never enter this stage, or every forecasting number downstream is leakage-contaminated. Each run writes `runs/jepa_encoder/jepa_encoder_w<steps>_p<patch>_d<dim>_l<layers>_h<heads>_<timestamp>/` holding `{config.json, encoder.pt, encoder_best.pt, pretrain_metrics.csv, plots/}`.
+
+**Judge the run by `latent_std` and `eff_rank`, not the loss.** Representation collapse (the encoder emitting nearly the same vector for every window) drives the loss toward zero and looks like success. Both print every epoch and land in the CSV. Reference: a random-init encoder at `embed_dim=96` gives `latent_std ≈ 0.67`; a monotone slide toward 0 is collapse.
+
+Fine-tune from the result by passing it to the trainer below:
+
+```bash
+uv run python scripts/sugar_jepa/train_sugar_jepa.py \
+  --csv data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv --device cuda \
+  --jepa-init runs/jepa_encoder/<run_name>/encoder.pt
+```
+
+### `scripts/sugar_jepa/train_sugar_jepa.py` (SugarJepa)
+
+SugarOne plus our own JEPA glucose encoder as a 4th cross-attention auxiliary (basal / bolus / carbs / **jepa**, learnable softmax mix). The branch reads glucose from `x[..., 0]` — the same 128-step lookback as the rest of the model — so the dataset contract is SugarOne's `(x, y)`. `global` mode only.
+
+`uv run python scripts/sugar_jepa/train_sugar_jepa.py --help`
+
+Shares SugarOne's flags, plus:
+
+| Option | Meaning |
+|--------|---------|
+| `--jepa-patch-size` / `--jepa-embed-dim` / `--jepa-layers` / `--jepa-heads` | Encoder shape (default 8 / 96 / 3 / 6). |
+| `--jepa-norm` | `instance` (per-window z-score, default) or `none`. |
+| `--jepa-lr` | LR for the encoder's own optimizer group (default 4e-5). The encoder **always trains** — there is no frozen mode. |
+| `--jepa-init` | Path to an SSL-pretrained `encoder.pt` (empty = random init). |
+
+Writes `<run_dir>/training_metrics.csv`, one row per epoch, including `mix_basal` / `mix_bolus` / `mix_carbs` / `mix_jepa` — the learned softmax weights, i.e. how much the model actually uses the JEPA stream.
+
+### `scripts/sugar_jepa/evaluate_sugar_jepa.py`
+
+Standalone eval for SugarJepa runs (not folded into `evaluate-model`). Reports MAE / RMSE / MARD overall and per Study Group, and prints the checkpoint's learned mix weights.
+
+```bash
+uv run python scripts/sugar_jepa/evaluate_sugar_jepa.py \
+  --run-dir runs/sugar_jepa/<run_name> \
+  --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv \
+  --test-split test --device cuda
+```
+
+See [`scripts/sugar_jepa/README.md`](scripts/sugar_jepa/README.md) for the full story, including why the old 288-step frozen-CGM-JEPA path was retired.
 
 ### `tune-sugar-one` — `scripts/sugar_one/tune_sugar_one.py`
 

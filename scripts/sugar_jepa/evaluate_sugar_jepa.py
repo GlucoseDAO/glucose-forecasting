@@ -3,12 +3,15 @@
 Standalone evaluation CLI for SugarJepa run directories.
 
 Not wired into the unified `evaluate-model` CLI (scripts/sugar_one/evaluate_model.py)
-— this is a deliberately separate script so the SugarJepa proof-of-concept
-doesn't touch any existing, shared evaluation code. Reuses the same
-model-reconstruction pattern as evaluate_model.py (scripts/common/registry.py)
-and the training script's own dataset/eval/metrics functions (no need to
-duplicate them — scripts/sugar_jepa/train_sugar_jepa.py already has an
-`evaluate()` that handles this model's (x, glucose_jepa, y) batches).
+— this is a deliberately separate script so the SugarJepa work doesn't touch any
+existing, shared evaluation code. Reuses the model-reconstruction pattern from
+evaluate_model.py (scripts/common/registry.py) and the training script's
+dataset/eval/metrics functions.
+
+Evaluates `SugarJepaModel2` — the 128-step model whose JEPA branch reads its
+glucose from `x[..., 0]`. Its dataset contract is SugarOne's plain `(x, y)`, so
+there is no separate jepa_window, no fifth scaler, and no extra tensor in the
+eval loop.
 """
 from __future__ import annotations
 
@@ -21,9 +24,10 @@ import typer
 from scripts.common.data_loading import impute_and_sort as _common_impute_and_sort
 from scripts.common.registry import load_run_meta, resolve_checkpoint, resolve_csv_path
 from scripts.common.checkpoint import strip_compile_prefix
-from scripts.sugar_jepa.sugar_jepa_model import SugarJepaModel
+from scripts.sugar_jepa.sugar_jepa_model import SugarJepaModel2
 from scripts.sugar_jepa.train_sugar_jepa import (
     SugarJepaWindowDataset,
+    _mix_weights,
     compute_and_print_metrics,
     evaluate,
     load_splits_streaming,
@@ -63,7 +67,10 @@ def main(
     dev = torch.device(device)
     resolved_batch_size = batch_size or cfg.get("batch_size", 256)
 
-    model = SugarJepaModel(
+    # The JEPA hyperparameters must reproduce the checkpoint's architecture;
+    # strict=True below is what turns a mismatch into an error instead of
+    # silently-wrong weights.
+    model = SugarJepaModel2(
         n_time_steps=cfg["input_steps"],
         n_features=4,
         d_model=cfg["d_model"],
@@ -72,15 +79,19 @@ def main(
         n_blocks=cfg["n_blocks"],
         prediction_horizon=cfg["horizon"],
         dropout=cfg["dropout"],
-        jepa_weights_dir=cfg["jepa_weights_dir"],
-        jepa_patch_size=cfg["jepa_patch_size"],
-        jepa_freeze=not cfg.get("finetune_jepa", False),
+        jepa_patch_size=cfg.get("jepa_patch_size", 8),
+        jepa_embed_dim=cfg.get("jepa_embed_dim", 96),
+        jepa_layers=cfg.get("jepa_layers", 3),
+        jepa_heads=cfg.get("jepa_heads", 6),
+        jepa_norm=cfg.get("jepa_norm", "instance"),
     ).to(dev)
 
     state = torch.load(ckpt_path, map_location=dev, weights_only=True)
     state = strip_compile_prefix(state)
-    model.load_state_dict(state)
+    model.load_state_dict(state, strict=True)
     model.eval()
+
+    typer.echo(f"Mix weights (mean over blocks): {_mix_weights(model)}")
 
     # Fit scalers on the training CSV's train split (matches train_sugar_jepa.py).
     train_df, _, _ = load_splits_streaming(train_path, cfg["unique_id"], cfg["drop_interpolated"])
@@ -88,7 +99,7 @@ def main(
         train_df, ffill_bfill_columns=["glucose", "basal"], zero_fill_columns=["bolus", "carbs"],
     )
     train_ds = SugarJepaWindowDataset(
-        train_df, cfg["input_steps"], cfg["horizon"], cfg["jepa_window"], fit_scalers=True,
+        train_df, cfg["input_steps"], cfg["horizon"], fit_scalers=True,
     )
 
     test_train_df, test_val_df, test_test_df = load_splits_streaming(
@@ -110,12 +121,11 @@ def main(
     )
 
     eval_ds = SugarJepaWindowDataset(
-        eval_df, cfg["input_steps"], cfg["horizon"], cfg["jepa_window"],
+        eval_df, cfg["input_steps"], cfg["horizon"],
         scaler_glucose=train_ds.scaler_glucose,
         scaler_basal=train_ds.scaler_basal,
         scaler_bolus=train_ds.scaler_bolus,
         scaler_carbs=train_ds.scaler_carbs,
-        scaler_glucose_jepa=train_ds.scaler_glucose_jepa,
     )
     typer.echo(f"Evaluation windows: {len(eval_ds):,}")
 

@@ -158,6 +158,18 @@ def make_optimizer_and_scheduler(
     return optimizer, scheduler
 
 
+def _mix_weights(model: SugarJepaModel2) -> dict[str, float]:
+    """Mean softmax mix weight per auxiliary, averaged over blocks — logged to the
+    metrics CSV every epoch so the JEPA stream's weight is a curve, not one number
+    at the end."""
+    m = getattr(model, "_orig_mod", model)
+    w = torch.stack(
+        [torch.softmax(b.cross_attn.mix_logits.detach().float(), dim=0) for b in m.blocks]
+    ).mean(dim=0)
+    names = ("mix_basal", "mix_bolus", "mix_carbs", "mix_jepa")
+    return {n: round(v, 4) for n, v in zip(names, w.tolist())}
+
+
 def _log_mix_weights(model: SugarJepaModel2) -> None:
     """How much weight each block's softmax mix gives the JEPA stream.
 
@@ -280,6 +292,8 @@ def run_train_and_eval(
         val_every_n_epochs=cfg["val_every_n_epochs"],
         batch_log_every=int(cfg.get("batch_log_every", 0)),
         eval_batch_log_every=int(cfg.get("eval_batch_log_every", 0)),
+        metrics_csv=run_dir / "training_metrics.csv",
+        extra_metrics_fn=lambda: _mix_weights(model),
     )
 
     _log_mix_weights(model)
