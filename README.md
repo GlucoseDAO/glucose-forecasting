@@ -124,7 +124,7 @@ Every script supports **built-in help** when run with `uv`:
 | Installed console commands (see `pyproject.toml` `[project.scripts]`) | `uv run <command> --help` or `-h` where supported |
 | Python entry files | `uv run python scripts/.../script.py --help` or `-h` (argparse) |
 
-Argparse-based CLIs (`train_glumind.py`, `tune_nf_baselines_by_group.py`, `eval_gluformer_val_test_masked.py`) print defaults in `--help` via `ArgumentDefaultsHelpFormatter` where configured. Typer apps list each option with `--help`.
+Argparse-based CLIs (`train_glumind.py`, `eval_gluformer_val_test_masked.py`) print defaults in `--help` via `ArgumentDefaultsHelpFormatter` where configured. Typer apps list each option with `--help`.
 
 ### `train-glumind` — `scripts/glumind/train_glumind.py`
 
@@ -253,42 +253,22 @@ Skips `checkpoints/` and `README.md` in the remote repo; downloads everything el
 | `--token` | Write token. |
 | `--private` / `--public` | Create private repo (default public). |
 
-### `tune_nf_baselines_by_group.py`
+### `glucose train --backend neuralforecast`
 
-`uv run python scripts/tune_nf_baselines_by_group.py -h`
+`uv run glucose train --backend neuralforecast --data DATA.csv --help`
 
 | Option | Meaning |
 |--------|---------|
-| `--csv` | Dataset CSV (required). |
-| `--split_scheme` | `classic` or `trainval_test_as_val`. |
-| `--unique_id` | `sequence_id` or `user_id`. |
-| `--model` | `tft`, `nhits`, `nbeatsx`, or `all`. |
-| `--grid` | Optional JSON file overriding hyperparameter grids per model. |
-| `--h_min` | Forecast horizon in **minutes** (default 60). |
-| `--freq` | Pandas offset string, e.g. `5min`. |
-| `--input_hours` | History length in hours for the model input window. |
-| `--train_tail_val_hours` | Internal val tail per train series (used by NeuralForecast `val_size`). |
-| `--max_steps`, `--val_check_steps` | PyTorch Lightning / NeuralForecast training steps. |
-| `--batch_size`, `--valid_batch_size` | Batches. |
-| `--windows_batch_size`, `--inference_windows_batch_size` | Window batching for NF. |
-| `--step_size` | Sliding step between windows. |
-| `--lr` | Learning rate. |
-| `--device` | `cpu`, `mps`, or `cuda`. |
-| `--seed` | Random seed. |
-| `--chunk_size` | Pandas read chunk size for streaming. |
-| `--max_train_series`, `--max_eval_series` | Subsample series; `0` = all. |
-| `--max_points_per_series` | Truncate each series to the last N points after impute. |
-| `--study_groups` | Comma-separated filter; empty uses all groups (unless global). |
-| `--global_model` | One model on all study groups (no per-group runs). |
-| `--out_dir` | Base output directory. |
-| `--save_predictions` | Write `*_predictions.csv` per split. |
-| `--ckpt_every_n_steps` | Checkpoint frequency in steps. |
-| `--early_stop_patience` | Early stopping on `valid_loss`. |
-| `--save_all_checkpoints` | Keep every checkpoint, not only best. |
-| `--eval_checkpoints` | After training, eval each saved checkpoint. |
-| `--train_event_type` | Optional: filter **train** rows by `Event Type`. |
-| `--drop_interpolated` | Remove interpolated rows from all splits. |
-| `--mask_interpolated_targets` | Keep history rows but drop interpolated **targets** from metrics. |
+| `--eval` | `holdout` (default) uses the CSV's fixed train/val/test splits for comparable per-cohort metrics. `cross-val` performs rolling cross-validation for model screening. |
+| `--profile` | `auto` (default), `ai-readi`, or `loop`. Auto-detection selects HR/steps for AI-READI and basal/bolus/carbohydrates for Loop data. |
+| `--models` | YAML model suite (`auto`, `baseline`, `recurrent`) or comma-separated concrete model names. |
+| `--model-config` | Replacement YAML defining curated model suites. |
+| `--device` | `auto` (default: CUDA, then MPS, then CPU), `cuda`, `mps`, or `cpu`. |
+| `--global-model` | Train one model using all study groups. |
+| `--max-steps`, `--max-train-series`, `--max-eval-series` | Training duration and real-data development limits. |
+| `--plot` / `--no-plot` | Write interactive HTML and static PNG actual-versus-forecast charts (default on). |
+| `--max-plot-series` | Number of representative sequences visualized per model (default 3). |
+| `--list-models` | Show YAML suites and their resolved model names without training. |
 
 ### `eval_gluformer_val_test_masked.py`
 
@@ -464,28 +444,67 @@ Use `-c scripts/sugar_one/tune_sugar_one_dev.toml` for a smaller dev search.
 
 ## NeuralForecast Baselines
 
-NHITS example:
+Run the default `auto` YAML suite on the development subset. The command detects the
+Loop schema and uses basal rate, bolus insulin, and carbohydrates as historical
+covariates. `--device auto` selects CUDA when available, otherwise MPS or CPU.
 
 ```bash
-uv run python scripts/tune_nf_baselines_by_group.py \
-  --csv data/input/ai_ready_processed_dataset.csv \
-  --model nhits \
-  --global_model \
-  --device cuda \
-  --mask_interpolated_targets \
-  --max_steps 300 \
-  --val_check_steps 50 \
-  --ckpt_every_n_steps 50 \
-  --early_stop_patience 6 \
-  --save_all_checkpoints \
-  --eval_checkpoints \
-  --out_dir runs/nhits
+uv run glucose train \
+  --backend neuralforecast \
+  --data data/input/loop_ai_ready_joined2_dev.csv \
+  --global-model \
+  --max-steps 300 \
+  --max-train-series 20 \
+  --max-eval-series 10
 ```
 
-Supported NF models in this repo:
-- `nhits`
-- `tft`
-- `nbeatsx`
+Use `--eval holdout` (the default) for fixed CSV train/validation/test metrics that
+can be compared with GluMind and SugarOne. Use `--eval cross-val` for rolling
+cross-validation when screening the YAML model suite; those results are intentionally
+stored separately and are not cohort-report metrics.
+
+```bash
+uv run glucose train \
+  --backend neuralforecast \
+  --eval cross-val \
+  --data data/input/loop_ai_ready_joined2_dev.csv \
+  --models auto \
+  --max-steps 300 \
+  --max-train-series 20
+```
+
+Curated suite membership lives in
+`src/glucose_forecasting/backends/neuralforecast/model_suites.yaml`. `auto` includes
+NHITS, NBEATSx, LSTM, TFT, TiDE, and xLSTM. Inspect it before training:
+
+```bash
+uv run glucose train --backend neuralforecast \
+  --data data/input/loop_ai_ready_joined2_dev.csv --list-models
+```
+
+Each holdout run prints a Lightning progress bar plus a concise loss line after every
+epoch. It also saves a reloadable NeuralForecast bundle, Lightning checkpoints,
+metrics, predictions, plots, and both machine-readable and rendered structured logs:
+
+```text
+runs/nf_holdout/__ALL__/NHITS_<UTC_TIMESTAMP>/
+├── checkpoints/                 # best Lightning checkpoint and last.ckpt
+├── neuralforecast/              # nf.save() bundle for reuse
+├── logs/
+│   ├── training.json             # Eliot structured events (status, epoch loss, metrics)
+│   └── training.log              # human-readable rendering of the same events
+├── val_metrics_*.csv
+├── test_metrics_*.csv
+├── val_predictions.csv
+├── test_predictions.csv
+└── plots/
+    ├── NHITS_val/sequence_*.html|png
+    └── NHITS_test/sequence_*.html|png
+```
+
+Cross-validation additionally writes `cross_val_metrics_summary.csv`, per-model
+metrics and prediction CSVs, interactive per-model charts, and
+`plots/dashboard/model_comparison.html|png`.
 
 ## GluFormer Evaluation
 

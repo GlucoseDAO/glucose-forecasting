@@ -10,8 +10,9 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import StrEnum
 from importlib import import_module
+from importlib.util import find_spec
 from types import MappingProxyType
-from typing import Mapping
+from typing import Any, Mapping, Sequence
 
 
 class NeuralForecastModel(StrEnum):
@@ -36,6 +37,7 @@ class NeuralForecastModel(StrEnum):
     TIMEXER = "TimeXer"
     TSMIXERX = "TSMixerx"
     HINT = "HINT"
+    XLSTM = "xLSTM"
 
 
 class ModelProfile(StrEnum):
@@ -62,6 +64,7 @@ class ModelDefinition:
     name: NeuralForecastModel
     capabilities: ModelCapabilities
     import_name: str
+    optional_dependency: str | None = None
 
 
 def _definition(
@@ -70,6 +73,7 @@ def _definition(
     supports_historical_exogenous: bool,
     requires_special_initialization: bool = False,
     requires_n_series: bool = False,
+    optional_dependency: str | None = None,
 ) -> ModelDefinition:
     return ModelDefinition(
         name=name,
@@ -79,6 +83,7 @@ def _definition(
             requires_n_series=requires_n_series,
         ),
         import_name=name.value,
+        optional_dependency=optional_dependency,
     )
 
 
@@ -146,6 +151,11 @@ MODEL_CATALOG: Mapping[NeuralForecastModel, ModelDefinition] = MappingProxyType(
             NeuralForecastModel.HINT,
             supports_historical_exogenous=False,
             requires_special_initialization=True,
+        ),
+        NeuralForecastModel.XLSTM: _definition(
+            NeuralForecastModel.XLSTM,
+            supports_historical_exogenous=True,
+            optional_dependency="xlstm",
         ),
     }
 )
@@ -238,10 +248,84 @@ def create_models(
 
     models_module = import_module("neuralforecast.models")
     return tuple(
-        getattr(models_module, definition.import_name)(
-            h=horizon,
+        create_model(
+            definition,
+            horizon=horizon,
             input_size=input_size,
             max_steps=max_steps,
         )
         for definition in select_models(profile)
+    )
+
+
+def resolve_models(
+    selection: str,
+    *,
+    suite_models: Mapping[str, Sequence[NeuralForecastModel]],
+) -> tuple[ModelDefinition, ...]:
+    """Resolve a suite name or comma-separated concrete model names."""
+    if selection in suite_models:
+        names = tuple(suite_models[selection])
+    else:
+        lookup = {model.value.lower(): model for model in NeuralForecastModel}
+        names = tuple(
+            lookup.get(item.strip().lower())
+            for item in selection.split(",")
+            if item.strip()
+        )
+        if not names or any(name is None for name in names):
+            known = ", ".join(sorted((*suite_models, *(model.value for model in NeuralForecastModel))))
+            raise ValueError(f"unknown NeuralForecast model or suite {selection!r}; choose from {known}")
+    return tuple(MODEL_CATALOG[name] for name in names)
+
+
+def create_model(
+    definition: ModelDefinition,
+    *,
+    horizon: int,
+    input_size: int,
+    max_steps: int,
+    historical_exogenous: Sequence[str] = (),
+    trainer_kwargs: Mapping[str, Any] | None = None,
+    learning_rate: float = 1e-3,
+    val_check_steps: int = 400,
+    batch_size: int = 8,
+    valid_batch_size: int = 8,
+    windows_batch_size: int = 256,
+    inference_windows_batch_size: int = 256,
+    step_size: int = 12,
+) -> Any:
+    """Instantiate one validated model using common glucose-forecast settings."""
+    if definition.optional_dependency and find_spec(definition.optional_dependency) is None:
+        raise RuntimeError(
+            f"{definition.name.value} requires optional dependency {definition.optional_dependency!r}; "
+            f"install it with `uv add {definition.optional_dependency}`."
+        )
+    models_module = import_module("neuralforecast.models")
+    try:
+        model_class = getattr(models_module, definition.import_name)
+    except AttributeError as error:
+        raise RuntimeError(
+            f"installed neuralforecast does not export {definition.import_name}; "
+            "upgrade neuralforecast or remove the model from the YAML suite."
+        ) from error
+    from neuralforecast.losses.pytorch import MAE
+
+    return model_class(
+        h=horizon,
+        input_size=input_size,
+        loss=MAE(),
+        valid_loss=MAE(),
+        max_steps=max_steps,
+        val_check_steps=min(val_check_steps, max_steps),
+        learning_rate=learning_rate,
+        batch_size=batch_size,
+        valid_batch_size=valid_batch_size,
+        windows_batch_size=windows_batch_size,
+        inference_windows_batch_size=inference_windows_batch_size,
+        step_size=step_size,
+        hist_exog_list=list(historical_exogenous)
+        if definition.capabilities.supports_historical_exogenous
+        else None,
+        **dict(trainer_kwargs or {}),
     )

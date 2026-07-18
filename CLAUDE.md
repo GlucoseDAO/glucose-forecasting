@@ -15,7 +15,7 @@ Model variants (shared training/eval scaffolding, different covariates):
 - **SugarOne** (`scripts/sugar_one/`) — glucose + basal rate + bolus insulin + carbohydrates (Loop pump data), 3-way cross-attention with learnable softmax mixing weights. Formerly GluMindIC.
 - **GluMind** (`scripts/glumind/`) — glucose + heart rate + step count. Independent reimplementation of Farahmand et al., 2025b (arXiv:2509.18457): parallel cross-attention multimodal fusion + multi-scale self-attention, optional LwF for continual cross-cohort training.
 - **GluMind-Uni** (`scripts/glumind_uni/`) — glucose-only variant of the same architecture.
-- **NeuralForecast baselines** (`scripts/tune_nf_baselines_by_group.py`) — NHITS / TFT / NBEATSx, glucose-only.
+- **NeuralForecast baselines** (`src/glucose_forecasting/backends/neuralforecast/`) — package-native fixed-split holdout and rolling cross-validation evaluation, selected through `glucose train --backend neuralforecast --eval ...`.
 - **GluFormer** (`scripts/eval_gluformer_val_test_masked.py`) — evaluation only, against a pretrained Hugging Face model (`njeffrie/Gluformer`).
 
 Forecast horizon defaults to 12 steps = 60 minutes at 5-minute sampling frequency.
@@ -47,7 +47,7 @@ Scripts without a console entry point are run directly, e.g.:
 ```bash
 uv run python scripts/sugar_one/train_sugar_one.py --help          # Typer, no subcommand name
 uv run python scripts/glumind_uni/train_uniglumind.py train --help # Typer, `train` subcommand
-uv run python scripts/tune_nf_baselines_by_group.py -h              # argparse
+uv run glucose train --backend neuralforecast --data DATA.csv --help
 uv run python scripts/eval_gluformer_val_test_masked.py -h          # argparse
 uv run python scripts/glumind/upload_to_huggingface.py --help
 ```
@@ -98,11 +98,11 @@ All training scripts (GluMind, SugarOne, GluMind-Uni) support the same four mode
 
 ### CLI framework split
 
-`train_glumind.py`, `tune_nf_baselines_by_group.py`, and `eval_gluformer_val_test_masked.py` use argparse; `train_sugar_one.py`, `train_uniglumind.py`, `evaluate_glumind.py`, `evaluate_model.py`, `tune_sugar_one.py` use Typer. This is a known inconsistency (not enforced) — check which framework a script uses before assuming flag syntax (argparse: `--snake_case`; Typer: `--kebab-case`).
+`train_glumind.py` and `eval_gluformer_val_test_masked.py` use argparse; `train_sugar_one.py`, `train_uniglumind.py`, `evaluate_glumind.py`, `evaluate_model.py`, `tune_sugar_one.py`, and `glucose train` use Typer. This is a known inconsistency (not enforced) — check which framework a script uses before assuming flag syntax (argparse: `--snake_case`; Typer: `--kebab-case`).
 
 ### CLI naming convention
 
-For new CLIs, avoid long hyphenated executable names. Prefer one concise root Typer command with action-first subcommands, such as `glucose forecast`, `glucose train`, and `glucose models`. Select a model or backend with options, for example `glucose train --model sugarone` or `glucose train --backend neuralforecast --workflow benchmark`. Use kebab-case only for multi-word option names when necessary. Do not rename legacy commands solely for this convention; preserve their compatibility.
+For new CLIs, avoid long hyphenated executable names. Prefer one concise root Typer command with action-first subcommands, such as `glucose forecast`, `glucose train`, and `glucose models`. Select a model or backend with options, for example `glucose train --model sugarone` or `glucose train --backend neuralforecast --eval holdout`. Use `--eval holdout` or `--eval cross-val` when selecting an ML evaluation protocol; reserve “workflow” for multi-step orchestration. Use kebab-case only for multi-word option names when necessary. Do not rename legacy commands solely for this convention; preserve their compatibility.
 
 ### Data expectations
 

@@ -78,6 +78,28 @@ def test_glucose_cli_help() -> None:
     assert "release" in result.output
 
 
+def test_neuralforecast_train_lists_packaged_yaml_suites(tmp_path: Path) -> None:
+    """The package CLI exposes the YAML-defined NeuralForecast auto suite."""
+    data_path = tmp_path / "placeholder.csv"
+    data_path.write_text("unused\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "train",
+            "--backend",
+            "neuralforecast",
+            "--data",
+            str(data_path),
+            "--list-models",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "auto:" in result.output
+    assert "xLSTM" in result.output
+
+
 def _registry(path: Path) -> Path:
     """Create a minimal real registry for CLI tests."""
     return save_registry(

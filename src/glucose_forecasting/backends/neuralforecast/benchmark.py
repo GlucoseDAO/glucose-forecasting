@@ -1,7 +1,7 @@
-"""Reusable primitives for the legacy fixed-split NeuralForecast benchmark.
+"""Reusable primitives for fixed-split NeuralForecast holdout evaluation.
 
-The functions here deliberately exclude loading data, split orchestration, model
-fitting, and command-line concerns from ``scripts/tune_nf_baselines_by_group.py``.
+Loading, orchestration, model fitting, and command-line concerns live in the
+profile-aware adapter and evaluation modules.
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ _METRIC_COLUMNS: dict[str, pl.DataType] = {
 
 @dataclass(frozen=True)
 class BenchmarkModelConfig:
-    """Training configuration shared by the legacy baseline model catalog."""
+    """Training configuration retained for direct fixed-split model construction."""
 
     model: CatalogModelName
     learning_rate: float
@@ -122,7 +122,7 @@ def calculate_metrics(
     prediction_column: str = "yhat",
     study_group_column: str = "study_group",
 ) -> BenchmarkMetrics:
-    """Calculate legacy-compatible overall and per-study-group MAE/RMSE/MARD."""
+    """Calculate holdout overall and per-study-group MAE/RMSE/MARD."""
     _require_columns(
         predictions, (target_column, prediction_column, study_group_column)
     )

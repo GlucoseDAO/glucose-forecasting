@@ -1,5 +1,4 @@
-"""NeuralForecast backend primitives."""
-"""Lazy NeuralForecast model catalog and factory."""
+"""Profile-aware NeuralForecast training and evaluation backend."""
 
 from glucose_forecasting.backends.neuralforecast.catalog import (
     MODEL_CATALOG,
@@ -7,8 +6,10 @@ from glucose_forecasting.backends.neuralforecast.catalog import (
     ModelDefinition,
     ModelProfile,
     NeuralForecastModel,
+    create_model,
     create_models,
     iter_models,
+    resolve_models,
     select_models,
 )
 
@@ -18,7 +19,9 @@ __all__ = [
     "ModelDefinition",
     "ModelProfile",
     "NeuralForecastModel",
+    "create_model",
     "create_models",
     "iter_models",
+    "resolve_models",
     "select_models",
 ]
