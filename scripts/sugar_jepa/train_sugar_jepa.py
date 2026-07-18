@@ -4,7 +4,7 @@ SugarJepa — SugarOne + a pretrained CGM-JEPA glucose embedding as a 4th
 cross-attention auxiliary stream. See scripts/sugar_jepa/sugar_jepa_model.py
 and scripts/sugar_jepa/README.md.
 
-Dataset: data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv (or the full
+Dataset: data/input/loop_ai_ready_joined2_dev.csv (or the full
 loop_ai_ready_joined2.csv).
 
 Proof-of-concept scope: `global` mode only (one model, all study groups) —

@@ -1,5 +1,5 @@
 {
-  "csv": "data/actual/with_complex_steps_processing/ai_ready_plus_type1_v1_val_in_val_and_test.csv",
+  "csv": "data/input/ai_ready_plus_type1_v1_val_in_val_and_test.csv",
   "unique_id": "sequence_id",
   "chunk_size": 1000000,
   "max_train_series": 0,

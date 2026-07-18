@@ -2,17 +2,18 @@
 
 ## Notes
 
-- Use `uv run python scripts/GluMind/train_glumind.py ...`.
+- Prefer `uv run train-glumind ...` or `uv run python scripts/glumind/train_glumind.py ...`.
 - `classic` split: uses train/val/test as provided.
 - `trainval_test_as_val` split: train <- train+val, val <- test, test disabled.
 - Replace output paths as needed for your experiments.
+- Examples may use the historical `data/actual/with_complex_steps_processing/` layout. Prefer `data/input/` CSVs from [glucose_data_processing](https://github.com/GlucoseDAO/glucose_data_processing); see [docs/DATA.md](../../docs/DATA.md).
 
 ## 1) Smoke Tests
 
 ### Global smoke test (tiny run)
 
 ```bash
-uv run python scripts/GluMind/train_glumind.py \
+uv run python scripts/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --mode global \
   --epochs 1 \
@@ -34,7 +35,7 @@ uv run python scripts/GluMind/train_glumind.py \
 ### Continual smoke test (2 groups)
 
 ```bash
-uv run python scripts/GluMind/train_glumind.py \
+uv run python scripts/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --mode continual \
   --study_groups Healthy,Pre-T2DM \
@@ -60,7 +61,7 @@ uv run python scripts/GluMind/train_glumind.py \
 ### Global
 
 ```bash
-uv run python scripts/GluMind/train_glumind.py \
+uv run python scripts/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --split_scheme classic \
   --mode global \
@@ -82,7 +83,7 @@ uv run python scripts/GluMind/train_glumind.py \
 ### Continual
 
 ```bash
-uv run python scripts/GluMind/train_glumind.py \
+uv run python scripts/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --split_scheme classic \
   --mode continual \
@@ -108,7 +109,7 @@ uv run python scripts/GluMind/train_glumind.py \
 ### Global
 
 ```bash
-uv run python scripts/GluMind/train_glumind.py \
+uv run python scripts/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --split_scheme trainval_test_as_val \
   --mode global \
@@ -130,7 +131,7 @@ uv run python scripts/GluMind/train_glumind.py \
 ### Continual (`all_groups` validation)
 
 ```bash
-uv run python scripts/GluMind/train_glumind.py \
+uv run python scripts/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --split_scheme trainval_test_as_val \
   --mode continual \
@@ -157,7 +158,7 @@ uv run python scripts/GluMind/train_glumind.py \
 ### Global (classic, held-out test enabled)
 
 ```bash
-uv run python scripts/GluMind/train_glumind.py \
+uv run python scripts/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_plus_type1_v1_val_in_val_and_test.csv \
   --split_scheme classic \
   --mode global \
@@ -179,7 +180,7 @@ uv run python scripts/GluMind/train_glumind.py \
 ### Continual tuning (`trainval_test_as_val`, reverse/default order optional)
 
 ```bash
-uv run python scripts/GluMind/train_glumind.py \
+uv run python scripts/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_plus_type1_v2_val_only_in_test.csv \
   --split_scheme trainval_test_as_val \
   --mode continual \
@@ -207,7 +208,7 @@ uv run python scripts/GluMind/train_glumind.py \
 ### Global
 
 ```bash
-uv run python scripts/GluMind/train_glumind.py \
+uv run python scripts/glumind/train_glumind.py \
   --csv data/actual/type_1/type1_hupa_uom_glumind_trainval_testmirror.csv \
   --mode global \
   --epochs 120 \
@@ -228,7 +229,7 @@ uv run python scripts/GluMind/train_glumind.py \
 ## 6) Resume from Checkpoint
 
 ```bash
-uv run python scripts/GluMind/train_glumind.py \
+uv run python scripts/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --mode global \
   --epochs 250 \

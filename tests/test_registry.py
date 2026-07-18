@@ -170,3 +170,26 @@ def test_resolve_csv_path_relative_to_project_root(tmp_path: Path) -> None:
 def test_resolve_csv_path_missing_exits(tmp_path: Path) -> None:
     with pytest.raises(typer.Exit):
         resolve_csv_path("does_not_exist.csv", tmp_path)
+
+
+def test_resolve_csv_path_remaps_windows_metadata_to_data_input(tmp_path: Path) -> None:
+    project_root = tmp_path / "root"
+    input_dir = project_root / "data" / "input"
+    input_dir.mkdir(parents=True)
+    local = input_dir / "loop_ai_ready_joined2.csv"
+    local.write_text("a,b\n1,2\n")
+    windows_meta = (
+        r"D:\01_1_LIVIA\sources\glucose-forecasting\data\loop_and_ai_ready\loop_ai_ready_joined2.csv"
+    )
+    resolved = resolve_csv_path(windows_meta, project_root)
+    assert resolved == local
+
+
+def test_resolve_csv_path_remaps_legacy_relative_folder(tmp_path: Path) -> None:
+    project_root = tmp_path / "root"
+    input_dir = project_root / "data" / "input"
+    input_dir.mkdir(parents=True)
+    local = input_dir / "loop_ai_ready_joined2_dev.csv"
+    local.write_text("a,b\n1,2\n")
+    resolved = resolve_csv_path("data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv", project_root)
+    assert resolved == local

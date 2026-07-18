@@ -83,12 +83,50 @@ def resolve_checkpoint(run_dir: Path, checkpoint: Path | None) -> Path:
     raise typer.Exit(1)
 
 
+def _csv_basename(csv_value: str | Path) -> str:
+    """Basename that works for POSIX and Windows-style paths in metadata."""
+    text = str(csv_value).replace("\\", "/").rstrip("/")
+    return Path(text).name
+
+
 def resolve_csv_path(csv_value: str | Path, project_root: Path) -> Path:
+    """Resolve a CSV path, including legacy / absolute metadata paths.
+
+    Checks the value as given, relative to ``project_root``, then common local
+    data folders using the basename (``data/input/``, ``data/loop_and_ai_ready/``,
+    ``data/actual/with_complex_steps_processing/``). Bundled checkpoints often
+    store absolute Windows paths from the original training machine.
+    """
     csv_path = Path(csv_value)
-    if csv_path.exists():
-        return csv_path
-    alt = project_root / csv_value
-    if alt.exists():
-        return alt
-    typer.echo(f"Error: CSV not found: {csv_path}", err=True)
+    candidates: list[Path] = [csv_path, project_root / csv_path]
+    name = _csv_basename(csv_value)
+    if name:
+        candidates.extend(
+            [
+                project_root / "data" / "input" / name,
+                project_root / "data" / "loop_and_ai_ready" / name,
+                project_root / "data" / "actual" / "with_complex_steps_processing" / name,
+            ]
+        )
+
+    seen: set[Path] = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            resolved = candidate
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if candidate.exists():
+            if candidate != csv_path and not csv_path.exists():
+                typer.echo(f"Note: using {candidate} (resolved from missing {csv_value})")
+            return candidate
+
+    typer.echo(f"Error: CSV not found: {csv_value}", err=True)
+    typer.echo(
+        "Hint: pass an explicit --train-csv / --test-csv / --csv under data/input/ "
+        "(see docs/DATA.md). Demo smoke tests should use test_data/… with --train-csv.",
+        err=True,
+    )
     raise typer.Exit(1)
