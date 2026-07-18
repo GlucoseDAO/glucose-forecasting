@@ -73,6 +73,7 @@ def test_evaluate_model_cli_smoke(tmp_path: Path) -> None:
 
 def test_evaluate_glumind_cli_smoke(tmp_path: Path) -> None:
     from scripts.glumind.evaluate_glumind import app as evaluate_glumind_app
+    from scripts.glumind.inference_glumind import app as inference_glumind_app
     from scripts.glumind.train_glumind import main as train_glumind_main
     import sys
 
@@ -122,6 +123,15 @@ def test_evaluate_glumind_cli_smoke(tmp_path: Path) -> None:
             "--test-split", "test",
             "--device", "cpu",
         ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "MAE" in result.output
+    assert "RMSE" in result.output
+    assert "MARD" in result.output
+
+    result = runner.invoke(
+        inference_glumind_app,
+        ["--run-dir", str(run_dir), "--device", "cpu"],
     )
     assert result.exit_code == 0, result.output
     assert "MAE" in result.output

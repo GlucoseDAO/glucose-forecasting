@@ -100,6 +100,10 @@ All training scripts (GluMind, SugarOne, GluMind-Uni) support the same four mode
 
 `train_glumind.py`, `tune_nf_baselines_by_group.py`, and `eval_gluformer_val_test_masked.py` use argparse; `train_sugar_one.py`, `train_uniglumind.py`, `evaluate_glumind.py`, `evaluate_model.py`, `tune_sugar_one.py` use Typer. This is a known inconsistency (not enforced) — check which framework a script uses before assuming flag syntax (argparse: `--snake_case`; Typer: `--kebab-case`).
 
+### CLI naming convention
+
+For new CLIs, avoid long hyphenated executable names. Prefer one concise root Typer command with action-first subcommands, such as `glucose forecast`, `glucose train`, and `glucose models`. Select a model or backend with options, for example `glucose train --model sugarone` or `glucose train --backend neuralforecast --workflow benchmark`. Use kebab-case only for multi-word option names when necessary. Do not rename legacy commands solely for this convention; preserve their compatibility.
+
 ### Data expectations
 
 ML-ready CSVs come from **glucose_data_processing**, not this repo. Put them in `data/input/` (or symlink historical paths — see `docs/DATA.md`).
