@@ -28,11 +28,14 @@ def write_prediction_charts(
     prediction_column: str = "yhat",
     max_sequences: int = 3,
     title_prefix: str = "",
+    split_name: str | None = None,
 ) -> list[Path]:
-    """Write interactive HTML and best-effort PNG charts for representative series."""
+    """Write deterministically selected per-sequence diagnostic charts."""
     _require_columns(actual, ("unique_id", "ds", "y"))
     _require_columns(predictions, ("unique_id", "ds", "y", prediction_column))
-    plot_dir = output_dir / "plots" / model_name
+    plot_dir = output_dir / "plots" / "diagnostic_examples" / model_name
+    if split_name is not None:
+        plot_dir /= split_name
     plot_dir.mkdir(parents=True, exist_ok=True)
     sequence_ids = predictions["unique_id"].unique(maintain_order=True).head(max_sequences)
     written: list[Path] = []
@@ -44,7 +47,10 @@ def write_prediction_charts(
             predicted_series,
             model_name=model_name,
             prediction_column=prediction_column,
-            title=f"{title_prefix}{model_name}: series {sequence_id}",
+            title=(
+                f"{title_prefix}{model_name}: diagnostic example for {sequence_id} "
+                "(first encountered sequence ID; not a random or performance-selected result)"
+            ),
         )
         stem = f"sequence_{_safe_filename(str(sequence_id))}"
         html_path = plot_dir / f"{stem}.html"
@@ -60,17 +66,21 @@ def write_comparison_dashboard(
     *,
     output_dir: Path,
     max_sequences: int = 3,
+    dashboard_subdir: str = "dashboard",
 ) -> Path:
-    """Write one interactive dashboard comparing all models on representative series."""
+    """Write one deterministically selected diagnostic comparison dashboard."""
     _require_columns(actual, ("unique_id", "ds", "y"))
-    dashboard_dir = output_dir / "plots" / "dashboard"
+    dashboard_dir = output_dir / "plots" / dashboard_subdir
     dashboard_dir.mkdir(parents=True, exist_ok=True)
     sequence_ids = actual["unique_id"].unique(maintain_order=True).head(max_sequences).to_list()
     figure = make_subplots(
         rows=len(sequence_ids),
         cols=1,
         shared_xaxes=False,
-        subplot_titles=[f"Series {sequence_id}" for sequence_id in sequence_ids],
+        subplot_titles=[
+            f"Diagnostic example: {sequence_id} (first encountered; not performance-selected)"
+            for sequence_id in sequence_ids
+        ],
         vertical_spacing=0.08,
     )
     for row, sequence_id in enumerate(sequence_ids, start=1):
@@ -105,7 +115,10 @@ def write_comparison_dashboard(
                 col=1,
             )
     figure.update_layout(
-        title="NeuralForecast model comparison",
+        title=(
+            "NeuralForecast model comparison — diagnostic sequence examples; "
+            "first encountered IDs, not aggregate results"
+        ),
         height=max(450, 350 * len(sequence_ids)),
         width=1500,
         hovermode="x unified",

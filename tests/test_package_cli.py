@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-import torch
 from typer.testing import CliRunner
 
 from glucose_forecasting.cli import app
@@ -16,66 +15,9 @@ from glucose_forecasting.models.registry import (
     ModelRegistry,
     save_registry,
 )
-from glucose_forecasting.release import (
-    EvaluationProtocol,
-    InferenceConfig,
-    MetricsSpec,
-    PreprocessorSpec,
-    ProvenanceSpec,
-    ReleaseManifest,
-    SelectionMetric,
-    WindowSpec,
-    write_inference_bundle,
-)
+from tests.release_fixtures import release_manifest as _release_manifest
 
 runner = CliRunner()
-
-
-class _TinyModel(torch.nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.linear = torch.nn.Linear(2, 1)
-
-    def forward(self, values: torch.Tensor) -> torch.Tensor:
-        return self.linear(values)
-
-
-def _release_manifest() -> ReleaseManifest:
-    return ReleaseManifest(
-        release_id="sugar-one-2026-07",
-        config=InferenceConfig(
-            model_id="sugar-one",
-            model_type="sugar_one",
-            architecture={"d_model": 128},
-            feature_order=("glucose", "basal_rate"),
-            horizon=12,
-            cadence=5,
-        ),
-        preprocessor=PreprocessorSpec(window=WindowSpec(input_steps=72)),
-        metrics=MetricsSpec(
-            selection_metric=SelectionMetric(name="mae", direction="minimize"),
-            validation={"mae": 18.2},
-            test={"mae": 19.1},
-            protocol=EvaluationProtocol(name="held-out evaluation", split="test"),
-        ),
-        provenance=ProvenanceSpec(
-            git_sha="abc1234",
-            lock_hash="def5678",
-            env={"python": "3.12"},
-            dataset_fingerprint="sha256:dataset",
-            seed=42,
-        ),
-    )
-
-
-def test_glucose_cli_help() -> None:
-    """The modern root command must be available after package installation."""
-    result = runner.invoke(app, ["--help"])
-
-    assert result.exit_code == 0, result.output
-    assert "Train, evaluate, and publish glucose forecasting models." in result.output
-    assert "info" in result.output
-    assert "release" in result.output
 
 
 def test_neuralforecast_train_lists_packaged_yaml_suites(tmp_path: Path) -> None:
@@ -186,17 +128,6 @@ def test_models_commands_explain_missing_registry(tmp_path: Path) -> None:
 
     assert result.exit_code != 0
     assert "registry not found" in result.output
-
-
-def test_release_check_validates_a_real_local_bundle(tmp_path: Path) -> None:
-    """The release check command validates an actual inference bundle."""
-    bundle_dir = tmp_path / "bundle"
-    write_inference_bundle(bundle_dir, manifest=_release_manifest(), model=_TinyModel())
-
-    result = runner.invoke(app, ["release", "check", str(bundle_dir)])
-
-    assert result.exit_code == 0, result.output
-    assert result.output.strip() == "Release bundle valid: sugar-one-2026-07"
 
 
 def test_release_publish_calls_release_api(

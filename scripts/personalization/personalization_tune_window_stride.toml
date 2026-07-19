@@ -7,7 +7,7 @@
 [paths]
 base_run_dir = "test_model_sugar_one"
 personal_csv = "data/personalization/prepared/livia_chronological.csv"
-output_dir = "runs/personalization/livia/window_stride_compare"
+output_dir = "data/output/runs/personalization/livia/window_stride_compare"
 
 [defaults]
 lwf_lambda = 0.3

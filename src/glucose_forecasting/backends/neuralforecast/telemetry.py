@@ -57,6 +57,24 @@ class EpochProgressCallback(Callback):
             )
         )
 
+    def on_validation_epoch_end(self, trainer: Any, pl_module: Any) -> None:
+        """Record validation loss only when Lightning actually runs validation."""
+        if trainer.sanity_checking:
+            return
+        metrics = _scalar_metrics(trainer.callback_metrics)
+        validation = {
+            name: value
+            for name, value in metrics.items()
+            if name in {"valid_loss", "val_loss", "ptl/val_loss"}
+        }
+        if validation:
+            Message.log(
+                message_type="validation_epoch_completed",
+                model=self.model_name,
+                epoch=trainer.current_epoch + 1,
+                **validation,
+            )
+
 
 def _scalar_metrics(metrics: Mapping[str, Any]) -> dict[str, float]:
     return {

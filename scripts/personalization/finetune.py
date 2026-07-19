@@ -543,7 +543,7 @@ def main(
         "--base-run-dir",
     ),
     personal_csv: Path = typer.Option(..., "--personal-csv"),
-    out_dir: Path = typer.Option(Path("runs/personalization"), "--out-dir"),
+    out_dir: Path = typer.Option(Path("data/output/runs/personalization"), "--out-dir"),
     run_name: Optional[str] = typer.Option(None, "--run-name"),
     personal_days: Optional[int] = typer.Option(
         None,

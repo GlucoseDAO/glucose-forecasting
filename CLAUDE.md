@@ -29,11 +29,15 @@ uv sync
 
 Run tests:
 ```bash
-uv run pytest -q            # full suite (tests/ — 21 tests as of this writing)
-uv run pytest tests/test_evaluate_model_covariates.py -q   # single file
-uv run pytest tests/test_train_checkpoint_resume.py::test_checkpoint_stores_wait_and_resumes_next_epoch -q  # single test
+uv run pytest -q                                      # full suite
+uv run pytest tests/test_train_cli_smoke.py -q        # parametrized train smokes (all model families)
+uv run pytest tests/test_evaluate_model_covariates.py -q
 ```
 No lint/format command is configured in `pyproject.toml`.
+
+**Device selection:** never hardcode `--device cpu` or `device="cpu"` in commands, scripts, or tests. Always use `device="auto"` (the default), which detects CUDA → MPS → CPU. If the machine has a GPU, use it.
+
+**Testing style (also in `AGENTS.md`):** prefer behavioral smokes over thin helper unit files; parametrize GluMind/SugarOne/Uni (do not copy a whole test per model); construct shared strings/flags/dims from constants or tables instead of pasting argv/artifact literals. Patterns: `tests/test_train_cli_smoke.py`, `tests/test_models_forward.py`, `tests/test_datasets.py`.
 
 Installed console commands (defined in `pyproject.toml` `[project.scripts]`, all runnable as `uv run <name> --help`):
 - `train-glumind` → `scripts/glumind/train_glumind.py:main` (argparse CLI)
@@ -122,7 +126,7 @@ Loop/SugarOne CSVs additionally/instead have: `Glucose (mg/dL)` (or `Glucose Val
 
 ### Reports and run artifacts
 
-`runs/` and `marked_runs/` hold training outputs (checkpoints, per-split metrics CSVs, `tuning_meta.json`). `marked_runs/` is curated/annotated subset with `RUNS_ANALYSIS.md` writeups per model/dataset combo. `reports/` and `docs/reports/` hold longer-form comparison and milestone writeups (e.g. `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`, `docs/T1DM_COVARIATE_ABLATION_REPORT.md`). Root `CROSS_MODEL_COMPARISON.md` is the cross-model summary.
+`data/output/runs/` holds generated training outputs (checkpoints, per-split metrics CSVs, `tuning_meta.json`). `marked_runs/` is a separate curated/annotated subset with `RUNS_ANALYSIS.md` writeups per model/dataset combo. `reports/` and `docs/reports/` hold longer-form comparison and milestone writeups (e.g. `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`, `docs/T1DM_COVARIATE_ABLATION_REPORT.md`). Root `CROSS_MODEL_COMPARISON.md` is the cross-model summary.
 
 ## Things I don't know / should ask about
 

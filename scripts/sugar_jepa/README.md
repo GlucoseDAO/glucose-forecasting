@@ -16,7 +16,7 @@ uv run python scripts/sugar_jepa/train_sugar_jepa.py \
   --d-model 32 --n-heads 8 --n-blocks 5 --ff-units 128 --input-steps 128 --horizon 12 \
   --lr 0.0004 --weight-decay 0.00003 --batch-size 256 \
   --epochs 30 --patience 3 --val-every-n-epochs 5 --num-workers 0 \
-  --out-dir runs/sugar_jepa
+  --out-dir data/output/runs/sugar_jepa
 ```
 
 (These are also the defaults baked into `train_sugar_jepa.py`'s CLI — you can omit all of them and just
@@ -39,10 +39,10 @@ Windows DataLoader worker-spawn stalls) instead. Both source values live side by
 [`tune_sugar_jepa_full.toml`](tune_sugar_jepa_full.toml) (`[defaults]` from full.toml, `[train]` from
 dev.toml) for reference.
 
-It checkpoints every epoch to `runs/sugar_jepa/sugar_jepa_global_h12_<timestamp>/` (`best_model.pt`,
+It checkpoints every epoch to `data/output/runs/sugar_jepa/sugar_jepa_global_h12_<timestamp>/` (`best_model.pt`,
 `last_checkpoint.pt`) and writes `val_metrics_overall.csv` / `test_metrics_overall.csv` at the end, so if
 it's still running later you can `Ctrl+C` and resume with `--resume-from
-runs/sugar_jepa/.../last_checkpoint.pt`, or just evaluate whatever `best_model.pt` exists so far.
+data/output/runs/sugar_jepa/.../last_checkpoint.pt`, or just evaluate whatever `best_model.pt` exists so far.
 
 Rough sizing: the dev CSV has 1050 series (55MB); with a 288-step JEPA lookback, ~59% of series are long
 enough to contribute windows (shorter ones are skipped — this is logged). With epochs=30/patience=3 (vs.
@@ -54,7 +54,7 @@ the production 120/10), this should finish in well under an hour on a single con
 
 ```bash
 uv run python scripts/sugar_jepa/evaluate_sugar_jepa.py \
-  --run-dir runs/sugar_jepa/<run_name> \
+  --run-dir data/output/runs/sugar_jepa/<run_name> \
   --test-csv data/input/loop_ai_ready_joined2_dev.csv \
   --device cuda
 ```
@@ -77,7 +77,7 @@ Before a long run, sanity-check the pipeline end-to-end on a tiny slice:
 uv run python scripts/sugar_jepa/train_sugar_jepa.py \
   --csv data/input/loop_ai_ready_joined2_dev.csv \
   --device cuda --epochs 2 --max-train-series 20 --max-eval-series 10 \
-  --batch-size 32 --n-blocks 2 --out-dir runs/sugar_jepa_smoketest
+  --batch-size 32 --n-blocks 2 --out-dir data/output/runs/sugar_jepa_smoketest
 ```
 
 Unit/shape tests: `uv run pytest tests/test_sugar_jepa_smoke.py -q`.

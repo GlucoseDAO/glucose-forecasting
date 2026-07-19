@@ -31,6 +31,7 @@ Licensed datasets (AI-READI, Loop, joined benchmarks) are **not** redistributed 
 | Path | Role |
 |------|------|
 | `data/input/` | Preferred place for local ML-ready CSVs (gitignored except `.gitignore`). |
+| `data/output/runs/` | Default location for generated training and evaluation artifacts (gitignored except `.gitignore`). |
 | `test_data/` | Small demo CSVs shipped in-repo for smoke tests (Livia). |
 
 Historical docs and some TOML/scripts still mention older folders such as:

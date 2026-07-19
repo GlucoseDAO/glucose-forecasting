@@ -24,7 +24,7 @@
 
 [paths]
 csv = "data/input/loop_ai_ready_joined2_dev.csv"
-output_dir = "runs/sugar_jepa"
+output_dir = "data/output/runs/sugar_jepa"
 
 [dataset]
 unique_id = "sequence_id"

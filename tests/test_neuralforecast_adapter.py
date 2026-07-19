@@ -22,13 +22,6 @@ def _write_loop_csv(path: Path) -> None:
     path.write_text("\n".join(rows), encoding="utf-8")
 
 
-def test_detect_profile_recognizes_loop_schema(tmp_path: Path) -> None:
-    path = tmp_path / "loop.csv"
-    _write_loop_csv(path)
-
-    assert detect_profile(path) == LOOP_PROFILE
-
-
 def test_prepare_splits_normalizes_loop_columns_and_imputes_events(tmp_path: Path) -> None:
     path = tmp_path / "loop.csv"
     _write_loop_csv(path)

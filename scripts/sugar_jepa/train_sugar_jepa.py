@@ -845,7 +845,7 @@ def main(
     jepa_lr: float = typer.Option(4e-5, help="LR for JEPA encoder params, only used if --finetune-jepa."),
     device_name: str = typer.Option("cuda", "--device", help="cpu | mps | cuda."),
     seed: int = typer.Option(42, help="Random seed."),
-    out_dir: Path = typer.Option(Path("runs/sugar_jepa"), help="Output directory."),
+    out_dir: Path = typer.Option(Path("data/output/runs/sugar_jepa"), help="Output directory."),
 ) -> None:
     """Train SugarJepa (global mode only) on insulin + carb + JEPA-embedding covariate data."""
     torch.manual_seed(seed)

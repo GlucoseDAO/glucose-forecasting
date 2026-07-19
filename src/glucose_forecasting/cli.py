@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from datetime import UTC, datetime
 from importlib.metadata import version
 import json
 from pathlib import Path
@@ -16,13 +17,17 @@ from glucose_forecasting.backends.neuralforecast.config import (
     load_model_suites,
 )
 from glucose_forecasting.backends.neuralforecast.evaluations.cross_val import run_cross_val
-from glucose_forecasting.backends.neuralforecast.evaluations.holdout import run_holdout
+from glucose_forecasting.backends.neuralforecast.evaluations.holdout import (
+    run_holdout,
+    run_loaded_holdout,
+    summarize_holdout_runs,
+)
 from glucose_forecasting.config import (
     DatasetSpec,
     ModelSelection,
     load_evaluation_config,
 )
-from glucose_forecasting.evaluation import run_evaluation
+from glucose_forecasting.evaluation import evaluate_and_compare, evaluate_run_dir, run_evaluation
 from glucose_forecasting.models.registry import (
     ModelArtifact,
     ModelRegistry,
@@ -45,6 +50,7 @@ models_app = typer.Typer(help="Inspect and resolve registered model artifacts.")
 config_app = typer.Typer(help="Validate modern workflow configuration files.")
 data_app = typer.Typer(help="Resolve project data paths.")
 release_app = typer.Typer(help="Validate, publish, and retrieve inference releases.")
+neuralforecast_app = typer.Typer(help="Train and evaluate saved NeuralForecast bundles.")
 
 _DEFAULT_REGISTRY = Path("data/catalog/model-registry.json")
 _PROFILE_SPECS: dict[str, tuple[str, tuple[str, ...]]] = {
@@ -56,6 +62,7 @@ app.add_typer(models_app, name="models")
 app.add_typer(config_app, name="config")
 app.add_typer(data_app, name="data")
 app.add_typer(release_app, name="release")
+app.add_typer(neuralforecast_app, name="neuralforecast")
 
 
 @app.callback()
@@ -83,6 +90,15 @@ def train(
             ),
         ),
     ] = "holdout",
+    holdout_protocol: Annotated[
+        str,
+        typer.Option(
+            help=(
+                "Holdout scoring: sugarone-compatible uses dense stride-1 128/12 windows; "
+                "dense supports native experimental geometry; tail is the legacy final-horizon protocol."
+            )
+        ),
+    ] = "sugarone-compatible",
     profile: Annotated[
         str, typer.Option(help="Data profile: auto, ai-readi, or loop.")
     ] = "auto",
@@ -95,7 +111,9 @@ def train(
     device: Annotated[
         str, typer.Option(help="auto prefers CUDA, then MPS, then CPU.")
     ] = "auto",
-    out_dir: Annotated[Path, typer.Option(help="Directory for run artifacts.")] = Path("runs"),
+    out_dir: Annotated[Path, typer.Option(help="Directory for run artifacts.")] = Path(
+        "data/output/runs"
+    ),
     unique_id: Annotated[
         str, typer.Option(help="Series identifier: sequence_id or user_id.")
     ] = "sequence_id",
@@ -111,7 +129,10 @@ def train(
     max_steps: Annotated[int, typer.Option(help="Maximum optimization steps.")] = 2000,
     h_minutes: Annotated[int, typer.Option(help="Forecast horizon in minutes.")] = 60,
     freq: Annotated[str, typer.Option(help="Sampling frequency, e.g. 5min.")] = "5min",
-    input_hours: Annotated[float, typer.Option(help="Input context in hours.")] = 6.0,
+    input_hours: Annotated[
+        float,
+        typer.Option(help="Input context in hours; 10.6667 gives SugarOne's 128 steps at 5min."),
+    ] = 128 * 5 / 60,
     train_tail_val_hours: Annotated[
         float, typer.Option(help="Internal train-tail validation length in hours.")
     ] = 24.0,
@@ -122,7 +143,10 @@ def train(
     inference_windows_batch_size: Annotated[
         int, typer.Option(help="Inference window batch size.")
     ] = 256,
-    step_size: Annotated[int, typer.Option(help="Sliding training-window step.")] = 12,
+    step_size: Annotated[
+        int,
+        typer.Option(help="Sliding training-window step; 1 matches SugarOne."),
+    ] = 1,
     learning_rate: Annotated[float, typer.Option(help="Learning rate.")] = 1e-3,
     max_train_series: Annotated[
         int, typer.Option(help="Cap training series; useful for real-data development runs.")
@@ -171,6 +195,7 @@ def train(
             models=models,
             model_config_path=model_config,
             evaluation=evaluation,
+            holdout_protocol=holdout_protocol,
             device=device,
             out_dir=out_dir,
             unique_id=unique_id,
@@ -210,40 +235,191 @@ def train(
         typer.echo(f"NeuralForecast run written to {run_dir}")
 
 
+@neuralforecast_app.command("evaluate")
+def evaluate_neuralforecast(
+    run_dir: Annotated[Path, typer.Option(help="Completed NeuralForecast model run directory.")],
+    data: Annotated[Path, typer.Option(help="Labeled CSV to evaluate using the source split settings.")],
+    out: Annotated[
+        Path | None,
+        typer.Option(help="New output directory; defaults to RUN_DIR/evaluations/<UTC timestamp>."),
+    ] = None,
+    device: Annotated[
+        str | None,
+        typer.Option(help="Optional inference device override: auto, cpu, cuda, or mps."),
+    ] = None,
+    max_eval_series: Annotated[
+        int | None,
+        typer.Option(help="Optional cap on evaluated series for a diagnostic run."),
+    ] = None,
+) -> None:
+    """Re-evaluate a saved NeuralForecast bundle without fitting."""
+    config_path = run_dir / "run_config.json"
+    bundle_dir = run_dir / "neuralforecast"
+    if not config_path.is_file():
+        raise typer.BadParameter(f"run config not found: {config_path}", param_hint="--run-dir")
+    if not bundle_dir.is_dir():
+        raise typer.BadParameter(f"saved NeuralForecast bundle not found: {bundle_dir}", param_hint="--run-dir")
+    if not data.is_file():
+        raise typer.BadParameter(f"CSV data file not found: {data}", param_hint="--data")
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+        source_protocol = payload.get("holdout_protocol")
+        if source_protocol is None:
+            payload["holdout_protocol"] = "dense"
+        payload["csv"] = str(data)
+        if device is not None:
+            payload["device"] = device
+        if max_eval_series is not None:
+            payload["max_eval_series"] = max_eval_series
+        config = NeuralForecastRunConfig.model_validate(payload)
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        output_dir = out if out is not None else run_dir / "evaluations" / timestamp
+        written_dir = run_loaded_holdout(config, bundle_dir=bundle_dir, run_dir=output_dir)
+    except (OSError, ValueError, RuntimeError, ValidationError, json.JSONDecodeError) as error:
+        raise typer.BadParameter(str(error)) from error
+    typer.echo(f"NeuralForecast evaluation written to {written_dir}")
+
+
+@neuralforecast_app.command("summarize-holdout")
+def summarize_neuralforecast_holdout(
+    run_dir: Annotated[
+        list[Path],
+        typer.Option("--run-dir", help="Completed per-model holdout run; repeat for each model."),
+    ],
+    out: Annotated[
+        Path | None,
+        typer.Option(help="Summary directory; defaults below the shared group directory."),
+    ] = None,
+    plot: Annotated[
+        bool,
+        typer.Option("--plot/--no-plot", help="Write val/test comparison dashboards."),
+    ] = True,
+) -> None:
+    """Combine compatible per-model holdout runs without retraining."""
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    output_dir = out if out is not None else run_dir[0].parent / "summaries" / timestamp
+    try:
+        written_dir = summarize_holdout_runs(run_dir, output_dir=output_dir, plot=plot)
+    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+        raise typer.BadParameter(str(error)) from error
+    typer.echo(f"NeuralForecast holdout summary written to {written_dir}")
+
+
 @app.command("evaluate")
 def evaluate(
+    run_dir: Annotated[
+        list[Path] | None,
+        typer.Option("--run-dir", help="Model run directory; repeat for multi-model comparison."),
+    ] = None,
     data: Annotated[
-        list[str],
-        typer.Option(help="CSV data file(s); repeat or separate values with commas."),
-    ],
+        list[str] | None,
+        typer.Option(
+            help=(
+                "CSV data file(s) for live inference.  When omitted, precomputed "
+                "metrics are read from each run directory."
+            ),
+        ),
+    ] = None,
+    train_data: Annotated[
+        Path | None,
+        typer.Option(
+            help=(
+                "Training CSV for scaler fitting (custom PyTorch models).  "
+                "When omitted, resolved from run directory metadata or --data."
+            ),
+        ),
+    ] = None,
+    label: Annotated[
+        list[str] | None,
+        typer.Option(help="Model label for the corresponding --run-dir; repeat to match."),
+    ] = None,
+    device: Annotated[str, typer.Option(help="Inference device: auto, cpu, cuda, mps.")] = "auto",
+    out: Annotated[
+        Path | None,
+        typer.Option(help="Output directory for the comparison report."),
+    ] = None,
+    plot: Annotated[
+        bool,
+        typer.Option("--plot/--no-plot", help="Write interactive Plotly comparison charts."),
+    ] = True,
     models: Annotated[
-        list[str],
-        typer.Option(help="Model selector(s), NAME or NAME@VERSION; repeat or comma-separate."),
-    ] = [],
+        list[str] | None,
+        typer.Option(help="Model selector(s) for registry-based evaluation (requires --registry)."),
+    ] = None,
     registry: Annotated[
         Path | None,
         typer.Option(help="Registry JSON path. Defaults to data/catalog/model-registry.json."),
     ] = None,
-    out: Annotated[
-        Path | None,
-        typer.Option(help="Immutable output directory; defaults to data/output/runs/<UTC timestamp>."),
-    ] = None,
 ) -> None:
-    """Plan a multi-model evaluation and persist long-form result records."""
-    registry_path = _registry_path(registry)
-    model_registry = _load_registry_or_error(registry)
-    try:
-        evaluation_run = run_evaluation(
-            data=data,
-            models=models,
-            registry=model_registry,
-            registry_path=registry_path,
-            project_root=Path.cwd(),
-            output_dir=out,
-        )
-    except (FileNotFoundError, FileExistsError, ValueError) as error:
-        raise typer.BadParameter(str(error)) from error
-    typer.echo(f"Evaluation records written to {evaluation_run.output_dir}")
+    """Evaluate model run directories and produce a comparison report.
+
+    Run-directory mode (primary)::
+
+        glucose evaluate --run-dir DIR1 --run-dir DIR2 --out REPORT_DIR
+
+    Registry-based mode (requires a populated model registry)::
+
+        glucose evaluate --data DATA.csv --models NAME1,NAME2 --registry REG.json
+    """
+    if run_dir:
+        data_path = Path(data[0]) if data and len(data) == 1 else None
+        if data and len(data) > 1:
+            raise typer.BadParameter(
+                "pass at most one --data CSV with --run-dir; each run directory "
+                "is evaluated against the same dataset",
+                param_hint="--data",
+            )
+        try:
+            if len(run_dir) == 1:
+                result = evaluate_run_dir(
+                    run_dir[0], data=data_path, train_data=train_data,
+                    label=(label[0] if label else None), device=device,
+                )
+                for split_name, split_metrics in sorted(result.split_results.items()):
+                    typer.echo(
+                        f"{result.model_name} {split_name}: "
+                        f"MAE={split_metrics.overall.mae:.3f}  "
+                        f"RMSE={split_metrics.overall.rmse:.3f}  "
+                        f"MARD={split_metrics.overall.mard:.3f}%"
+                    )
+            else:
+                report_dir = evaluate_and_compare(
+                    run_dir,
+                    data=data_path,
+                    train_data=train_data,
+                    labels=label or [],
+                    output_dir=out,
+                    device=device,
+                    plot=plot,
+                )
+                typer.echo(f"Comparison report written to {report_dir}")
+        except (FileNotFoundError, FileExistsError, ValueError, OSError) as error:
+            raise typer.BadParameter(str(error)) from error
+        return
+
+    if models is not None or registry is not None:
+        if data is None:
+            raise typer.BadParameter("--data is required for registry-based evaluation", param_hint="--data")
+        registry_path = _registry_path(registry)
+        model_registry = _load_registry_or_error(registry)
+        try:
+            evaluation_run = run_evaluation(
+                data=data,
+                models=models or [],
+                registry=model_registry,
+                registry_path=registry_path,
+                project_root=Path.cwd(),
+                output_dir=out,
+            )
+        except (FileNotFoundError, FileExistsError, ValueError) as error:
+            raise typer.BadParameter(str(error)) from error
+        typer.echo(f"Evaluation records written to {evaluation_run.output_dir}")
+        return
+
+    raise typer.BadParameter(
+        "provide --run-dir for run-directory evaluation or --models/--registry for registry mode",
+        param_hint="--run-dir",
+    )
 
 
 def _registry_path(registry: Path | None) -> Path:

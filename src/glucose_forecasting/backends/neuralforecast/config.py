@@ -56,15 +56,16 @@ class NeuralForecastRunConfig(BaseModel):
     models: str = "auto"
     model_config_path: Path | None = None
     evaluation: Literal["holdout", "cross-val"] = "holdout"
+    holdout_protocol: Literal["sugarone-compatible", "dense", "tail"] = "sugarone-compatible"
     device: Literal["auto", "cpu", "cuda", "mps"] = "auto"
     unique_id: Literal["sequence_id", "user_id"] = "sequence_id"
     split_scheme: Literal["classic", "trainval_test_as_val"] = "classic"
     global_model: bool = False
     study_groups: tuple[str, ...] = ()
-    out_dir: Path = Path("runs")
+    out_dir: Path = Path("data/output/runs")
     h_minutes: int = Field(default=60, gt=0)
     freq: str = "5min"
-    input_hours: float = Field(default=6.0, gt=0)
+    input_hours: float = Field(default=10.666666666666666, gt=0)
     train_tail_val_hours: float = Field(default=24.0, gt=0)
     max_steps: int = Field(default=2000, gt=0)
     val_check_steps: int = Field(default=400, gt=0)
@@ -72,7 +73,7 @@ class NeuralForecastRunConfig(BaseModel):
     valid_batch_size: int = Field(default=8, gt=0)
     windows_batch_size: int = Field(default=256, gt=0)
     inference_windows_batch_size: int = Field(default=256, gt=0)
-    step_size: int = Field(default=12, gt=0)
+    step_size: int = Field(default=1, gt=0)
     learning_rate: float = Field(default=1e-3, gt=0)
     max_train_series: int = Field(default=0, ge=0)
     max_eval_series: int = Field(default=0, ge=0)
@@ -89,6 +90,39 @@ class NeuralForecastRunConfig(BaseModel):
         if not self.csv.is_file():
             raise ValueError(f"CSV data file not found: {self.csv}")
         return self
+
+    @model_validator(mode="after")
+    def require_sugarone_geometry(self) -> NeuralForecastRunConfig:
+        """Keep comparable holdout runs on the shared 128/12/stride-1 geometry."""
+        if self.evaluation != "holdout" or self.holdout_protocol != "sugarone-compatible":
+            return self
+        step_minutes = frequency_minutes(self.freq)
+        input_size = round(self.input_hours * 60 / step_minutes)
+        horizon = self.h_minutes // step_minutes
+        if self.h_minutes % step_minutes or input_size != 128 or horizon != 12 or self.step_size != 1:
+            raise ValueError(
+                "sugarone-compatible holdout requires input_steps=128, horizon=12, "
+                "and step_size=1; use --holdout-protocol dense or tail for an experimental geometry"
+            )
+        return self
+
+
+def frequency_minutes(freq: str) -> int:
+    """Parse the minute-based sampling frequencies supported by this benchmark."""
+    if not freq.endswith("min"):
+        raise ValueError(f"only minute-based frequencies are supported, got {freq!r}")
+    try:
+        minutes = int(freq.removesuffix("min"))
+    except ValueError as error:
+        raise ValueError(f"invalid minute-based frequency {freq!r}") from error
+    if minutes <= 0:
+        raise ValueError(f"frequency must be positive, got {freq!r}")
+    return minutes
+
+
+def neuralforecast_frequency(freq: str) -> str:
+    """Return the frequency spelling expected by NeuralForecast's Polars path."""
+    return f"{frequency_minutes(freq)}m"
 
 
 def load_model_suites(path: Path | None = None) -> tuple[ModelSuiteConfig, str]:

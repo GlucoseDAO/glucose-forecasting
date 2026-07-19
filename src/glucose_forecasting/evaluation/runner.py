@@ -4,12 +4,17 @@ This module deliberately separates compatibility and artifact resolution from
 model-specific inference.  Legacy run directories and validated release bundles
 are recognized, but they are not assigned synthetic metrics when their required
 preprocessing adapter is unavailable.
+
+The ``evaluate_run_dir`` and ``evaluate_and_compare`` entry points provide
+the unified run-directory evaluation path (``glucose evaluate --run-dir``).
 """
 
 from __future__ import annotations
 
 import csv
 import json
+import os
+import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,6 +23,10 @@ from typing import Literal
 import polars as pl
 
 from glucose_forecasting.config import DatasetSpec, ModelSelection
+from glucose_forecasting.evaluation.comparison import write_comparison_report
+from glucose_forecasting.evaluation.detect import detect_run_dir, infer_model_name
+from glucose_forecasting.evaluation.readers import read_precomputed_result
+from glucose_forecasting.evaluation.types import RunDirKind, SingleModelResult
 from glucose_forecasting.models.registry import ModelArtifact, ModelRegistry, resolve_data_path
 from glucose_forecasting.release import validate_inference_bundle
 
@@ -324,3 +333,117 @@ def run_evaluation(
         metrics_json_path=metrics_json_path,
         records=tuple(records),
     )
+
+
+# ---------------------------------------------------------------------------
+# Unified run-directory evaluation (``glucose evaluate --run-dir``)
+# ---------------------------------------------------------------------------
+
+
+def evaluate_run_dir(
+    run_dir: Path,
+    *,
+    data: Path | None = None,
+    train_data: Path | None = None,
+    label: str | None = None,
+    device: str = "auto",
+    output_dir: Path | None = None,
+) -> SingleModelResult:
+    """Evaluate a single run directory, auto-detecting its backend.
+
+    When *data* is ``None`` the function reads precomputed metrics CSVs
+    already present in the run directory and prints a warning.  Set the
+    ``GLUCOSE_EVAL_RERUN=1`` environment variable to force re-inference
+    even when precomputed results exist.
+
+    When *data* is provided, inference is dispatched to the appropriate
+    backend adapter.  *train_data* supplies the training CSV for scaler
+    fitting (custom PyTorch models); when omitted the adapter resolves it
+    from the run directory metadata or falls back to *data* itself.
+    """
+    kind = detect_run_dir(run_dir)
+    model_name = infer_model_name(run_dir, kind, label=label)
+    force_rerun = os.environ.get("GLUCOSE_EVAL_RERUN", "").strip() == "1"
+
+    if data is not None and not data.is_file():
+        raise FileNotFoundError(f"data file not found: {data}")
+
+    if data is not None and (force_rerun or kind != RunDirKind.PRECOMPUTED):
+        return _evaluate_with_inference(
+            run_dir, kind, model_name,
+            data=data, train_data=train_data, device=device, output_dir=output_dir,
+        )
+
+    has_precomputed = (
+        (run_dir / "test_metrics_overall.csv").is_file()
+        or (run_dir / "val_metrics_overall.csv").is_file()
+    )
+    if has_precomputed:
+        if data is None:
+            print(
+                f"[glucose evaluate] reading precomputed metrics from {run_dir} "
+                "(pass --data to re-run inference)",
+                file=sys.stderr,
+            )
+        return read_precomputed_result(run_dir, model_name, kind=kind)
+
+    raise ValueError(
+        f"no precomputed metrics in {run_dir} and no --data provided for inference"
+    )
+
+
+def _evaluate_with_inference(
+    run_dir: Path,
+    kind: RunDirKind,
+    model_name: str,
+    *,
+    data: Path,
+    train_data: Path | None = None,
+    device: str,
+    output_dir: Path | None = None,
+) -> SingleModelResult:
+    """Dispatch to a backend-specific inference adapter."""
+    if kind == RunDirKind.NEURALFORECAST:
+        from glucose_forecasting.evaluation.nf_adapter import evaluate_nf_run_dir
+
+        return evaluate_nf_run_dir(
+            run_dir, model_name, data=data, output_dir=output_dir,
+        )
+    if kind == RunDirKind.CUSTOM_PYTORCH:
+        from glucose_forecasting.evaluation.pytorch_adapter import evaluate_pytorch_run_dir
+
+        return evaluate_pytorch_run_dir(
+            run_dir, model_name,
+            data=data, train_data=train_data, device=device, output_dir=output_dir,
+        )
+    return read_precomputed_result(run_dir, model_name, kind=kind)
+
+
+def evaluate_and_compare(
+    run_dirs: list[Path],
+    *,
+    data: Path | None = None,
+    train_data: Path | None = None,
+    labels: list[str] | None = None,
+    output_dir: Path | None = None,
+    device: str = "auto",
+    plot: bool = True,
+) -> Path:
+    """Evaluate one or more run directories and produce a comparison report.
+
+    Returns the output directory path.
+    """
+    effective_labels = labels or []
+    results: list[SingleModelResult] = []
+    for index, run_dir in enumerate(run_dirs):
+        label = effective_labels[index] if index < len(effective_labels) else None
+        result = evaluate_run_dir(
+            run_dir, data=data, train_data=train_data, label=label, device=device,
+        )
+        results.append(result)
+
+    if output_dir is None:
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        output_dir = Path("data/output/comparisons") / timestamp
+
+    return write_comparison_report(results, output_dir, plot=plot)

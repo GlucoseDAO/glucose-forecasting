@@ -113,7 +113,7 @@ def parse_args() -> argparse.Namespace:
     )
     ap.add_argument("--device", choices=["cpu", "mps", "cuda"], default="cuda")
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--out_dir", type=Path, default=Path("runs/glumind"))
+    ap.add_argument("--out_dir", type=Path, default=Path("data/output/runs/glumind"))
     ap.add_argument("--save_predictions", action="store_true")
     return ap.parse_args()
 

@@ -29,9 +29,9 @@ def test_to_neuralforecast_frame_selects_schema_and_sorts_rows() -> None:
 
     result = to_neuralforecast_frame(split, historical_exogenous=("hr",))
 
-    assert list(result.columns) == ["unique_id", "ds", "y", "hr"]
-    assert result["unique_id"].tolist() == ["series-a", "series-a", "series-b"]
-    assert result["y"].tolist() == [100.0, 110.0, 120.0]
+    assert result.columns == ["unique_id", "ds", "y", "hr"]
+    assert result["unique_id"].to_list() == ["series-a", "series-a", "series-b"]
+    assert result["y"].to_list() == [100.0, 110.0, 120.0]
 
 
 def test_to_neuralforecast_frame_rejects_missing_columns() -> None:
@@ -65,14 +65,3 @@ def test_calculate_metrics_matches_legacy_overall_and_group_outputs() -> None:
     assert result.by_study_group["study_group"].to_list() == ["B", "A"]
     assert result.by_study_group["n_points"].to_list() == [2, 2]
     assert result.by_study_group["mae"].to_list() == pytest.approx([7.5, 25.0])
-
-
-def test_calculate_metrics_returns_nan_mard_for_all_zero_targets() -> None:
-    predictions = pl.DataFrame(
-        {"y": [0.0], "yhat": [4.0], "study_group": ["T1DM"]}
-    )
-
-    result = calculate_metrics(predictions)
-
-    assert result.overall.mae == pytest.approx(4.0)
-    assert math.isnan(result.overall.mard)

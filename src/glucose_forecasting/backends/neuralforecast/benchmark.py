@@ -6,13 +6,10 @@ profile-aware adapter and evaluation modules.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
 import numpy as np
 import polars as pl
-
-if TYPE_CHECKING:
-    import pandas as pd
 
 
 CatalogModelName = Literal["tft", "nhits", "nbeatsx"]
@@ -62,13 +59,13 @@ class BenchmarkMetrics:
 def to_neuralforecast_frame(
     split: pl.DataFrame,
     historical_exogenous: Sequence[str] = (),
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Select and sort normalized split columns for ``NeuralForecast.fit/predict``.
 
     The input must already use the normalized names ``unique_id``, ``ds``, and
     ``y``.  Metadata columns such as ``study_group`` are intentionally omitted.
     Pandas is imported only when this conversion is requested because
-    NeuralForecast consumes pandas frames.
+    NeuralForecast natively accepts Polars frames.
     """
     columns = (*_BASE_COLUMNS, *historical_exogenous)
     _require_columns(split, columns)
@@ -76,7 +73,7 @@ def to_neuralforecast_frame(
     if len(set(columns)) != len(columns):
         raise ValueError("historical_exogenous must not repeat NeuralForecast columns.")
 
-    return split.select(columns).sort(["unique_id", "ds"]).to_pandas()
+    return split.select(columns).sort(["unique_id", "ds"])
 
 
 def build_catalog_model(
