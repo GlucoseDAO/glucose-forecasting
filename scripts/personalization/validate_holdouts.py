@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Step 5: validate Livia recipe on Loop holdouts + compare data-size curves.
 
-Phase A — apply frozen Livia LwF/LR on full personal train data per holdout.
-Phase B — repeat data-size sweep per holdout with same LwF/LR; compare plateau
+Phase A — apply frozen Livia LR recipe on full personal train data per holdout.
+Phase B — repeat data-size sweep per holdout with same recipe; compare plateau
 curves to Livia and document differences.
 """
 from __future__ import annotations
@@ -18,6 +18,7 @@ from scripts.personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
     DEFAULT_DATA_SIZE_DAYS,
     DEFAULT_FT_PATIENCE,
+    DEFAULT_PERSONAL_LWF_LAMBDA,
     DEFAULT_SEED,
     LOOP_HOLDOUT_QUALITY_USERS,
 )
@@ -90,6 +91,7 @@ def _run_data_size_for_subject(
     batch_size: int,
     seed: int,
     device: str,
+    precision: str = "bf16",
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for day_budget in days_grid:
@@ -109,6 +111,7 @@ def _run_data_size_for_subject(
                 batch_size=batch_size,
                 seed=seed,
                 device=device,
+                precision=precision,
                 eval_zero_shot=True,
             )
         except ValueError as exc:
@@ -188,11 +191,12 @@ def main(
 ) -> None:
     """Validate Livia hyperparameters and data-size curves on holdout users."""
     recipe = load_best_recipe(recipe_json)
-    lwf = float(recipe.get("lwf_lambda", 0.3))
+    lwf = float(recipe.get("lwf_lambda", DEFAULT_PERSONAL_LWF_LAMBDA))
     lr = float(recipe.get("lr", 4e-4))
     wd = float(recipe.get("weight_decay", 3e-5))
     patience = int(recipe.get("patience", DEFAULT_FT_PATIENCE))
     recipe_epochs = int(epochs if epochs is not None else recipe.get("epochs", 30))
+    recipe_precision = str(recipe.get("precision", "bf16"))
     days_grid = _parse_days_grid(days)
 
     user_list = (
@@ -240,6 +244,7 @@ def main(
                 batch_size=batch_size,
                 seed=seed,
                 device=device,
+                precision=recipe_precision,
                 eval_zero_shot=True,
             )
             zs = results.get("zero_shot_test") or {}
@@ -284,6 +289,7 @@ def main(
                     batch_size=batch_size,
                     seed=seed,
                     device=device,
+                    precision=recipe_precision,
                 )
                 data_size_by_user[uid] = ds_rows
                 plateau_by_user[uid] = plateau

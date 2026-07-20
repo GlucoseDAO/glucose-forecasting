@@ -20,6 +20,7 @@ import typer
 from scripts.common.console import init_cli_console, safe_echo
 from scripts.personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
+    DEFAULT_PERSONAL_LWF_LAMBDA,
     DEFAULT_SEED,
     DENSE_WINDOW_STRIDE,
     SPARSE_WINDOW_STRIDE,
@@ -80,7 +81,11 @@ def main(
     ),
     run_sparse: bool = typer.Option(True, "--run-sparse/--no-run-sparse"),
     run_dense: bool = typer.Option(True, "--run-dense/--no-run-dense"),
-    lwf_lambda: float = typer.Option(0.3, "--lwf-lambda"),
+    lwf_lambda: float = typer.Option(
+        DEFAULT_PERSONAL_LWF_LAMBDA,
+        "--lwf-lambda",
+        help="LwF weight (0 = plain fine-tune, default).",
+    ),
     lr: Optional[float] = typer.Option(None, "--lr"),
     weight_decay: Optional[float] = typer.Option(None, "--weight-decay"),
     epochs: int = typer.Option(30, "--epochs"),

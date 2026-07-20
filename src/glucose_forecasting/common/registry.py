@@ -92,13 +92,19 @@ def _csv_basename(csv_value: str | Path) -> str:
 def resolve_csv_path(csv_value: str | Path, project_root: Path) -> Path:
     """Resolve a CSV path, including legacy / absolute metadata paths.
 
-    Checks the value as given, relative to ``project_root``, then common local
-    data folders using the basename (``data/input/``, ``data/loop_and_ai_ready/``,
-    ``data/actual/with_complex_steps_processing/``). Bundled checkpoints often
-    store absolute Windows paths from the original training machine.
+    Checks absolute paths as given, then relative to ``project_root``, then
+    common local data folders using the basename (``data/input/``,
+    ``data/loop_and_ai_ready/``, ``data/actual/with_complex_steps_processing/``).
+    Relative CWD paths are only a last resort so an existing repo copy of a
+    legacy location cannot shadow the ``data/input/`` remap. Bundled
+    checkpoints often store absolute Windows paths from the original training
+    machine.
     """
     csv_path = Path(csv_value)
-    candidates: list[Path] = [csv_path, project_root / csv_path]
+    candidates: list[Path] = []
+    if csv_path.is_absolute():
+        candidates.append(csv_path)
+    candidates.append(project_root / csv_path)
     name = _csv_basename(csv_value)
     if name:
         candidates.extend(
@@ -108,6 +114,8 @@ def resolve_csv_path(csv_value: str | Path, project_root: Path) -> Path:
                 project_root / "data" / "actual" / "with_complex_steps_processing" / name,
             ]
         )
+    if not csv_path.is_absolute():
+        candidates.append(csv_path)
 
     seen: set[Path] = set()
     for candidate in candidates:

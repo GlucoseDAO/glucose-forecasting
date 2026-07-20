@@ -10,7 +10,7 @@ personal_csv = "data/personalization/prepared/livia_chronological.csv"
 output_dir = "data/output/runs/personalization/livia/window_stride_compare"
 
 [defaults]
-lwf_lambda = 0.3
+lwf_lambda = 0.0
 lr = 0.0004
 weight_decay = 0.00003
 epochs = 30

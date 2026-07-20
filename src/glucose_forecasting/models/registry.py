@@ -5,7 +5,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from glucose_forecasting.config import DatasetSpec, ModelSelection
 
@@ -37,6 +44,11 @@ class ModelArtifact(BaseModel):
     horizon_steps: int = Field(default=12, gt=0)
     validation_metric: float = Field(ge=0)
     stable: bool = True
+
+    @field_serializer("artifact_path")
+    def serialize_artifact_path(self, path: Path) -> str:
+        """Emit portable forward-slash paths in JSON (stable across Windows)."""
+        return path.as_posix()
 
     @field_validator("covariates")
     @classmethod
