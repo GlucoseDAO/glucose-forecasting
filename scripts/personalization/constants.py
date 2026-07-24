@@ -17,6 +17,24 @@ LOOP_HOLDOUT_QUALITY_USERS: Final[tuple[str, ...]] = (
     "1082",
 )
 
+# Additional Loop users from loop_ai_ready_joined2 Recommended Split == test
+# (largest row counts among the 9 Loop test users; see data/personalization/subjects/).
+LOOP_TEST_EXTRA_USERS: Final[tuple[str, ...]] = (
+    "467",
+    "745",
+    "590",
+    "758",
+)
+
+# Full 10-user personalization cohort: 6 holdouts + 4 joined2 test users.
+LOOP_PERSONALIZATION_COHORT_USERS: Final[tuple[str, ...]] = (
+    LOOP_HOLDOUT_QUALITY_USERS + LOOP_TEST_EXTRA_USERS
+)
+
+# Step 2b pilot: enough users to judge LR transfer; remainder deferred for later report.
+HOLDOUT_LR_PILOT_USERS: Final[tuple[str, ...]] = ("154", "556", "730")
+HOLDOUT_LR_DEFERRED_USERS: Final[tuple[str, ...]] = ("1017", "1029", "1082")
+
 # Default chronological split fractions (of the person's full timeline).
 DEFAULT_TEST_FRACTION: Final[float] = 0.25
 DEFAULT_VAL_FRACTION_OF_REMAINDER: Final[float] = 0.15
@@ -30,17 +48,23 @@ DEFAULT_DATA_SIZE_DAYS: Final[tuple[int | str, ...]] = (1, 3, 7, 14, 30, 60, "al
 GLUMIND_BEST_LWF_TYPE1: Final[float] = 0.3
 GLUMIND_BEST_LWF_AI_READY: Final[float] = 0.2
 
-# LwF grid centered on GluMind type-1 best (0.3): steps below and above starting point.
+# LwF grid for research / continual-learning experiments only (not default personalization).
 DEFAULT_LWF_LAMBDAS: Final[tuple[float, ...]] = (0.2, 0.25, 0.3, 0.35)
+
+# Step 2: LR grid for holdout transfer check (Livia best was 2e-4).
+DEFAULT_HOLDOUT_LR_GRID: Final[tuple[float, ...]] = (0.0001, 0.0002, 0.0004)
+LIVIA_REFERENCE_LR: Final[float] = 0.0002
 
 # Step 2: LR multipliers relative to base model ``tuning_meta.json`` lr (test_model_sugar_one: 4e-4).
 DEFAULT_LR_MULTIPLIERS: Final[tuple[float, ...]] = (0.5, 1.0, 2.0)
 
-# Step 2: weight_decay tuning (base = 3e-5 from test_model_sugar_one / SugarOne training).
+# weight_decay fixed at DEFAULT_WEIGHT_DECAY for personalization; multipliers for legacy sweeps only.
 DEFAULT_WEIGHT_DECAY: Final[float] = 3e-5
-DEFAULT_WEIGHT_DECAY_MULTIPLIERS: Final[tuple[float, ...]] = (0.5, 1.0, 2.0)
+DEFAULT_WEIGHT_DECAY_MULTIPLIERS: Final[tuple[float, ...]] = (1.0,)
 
 # Personalization fine-tune defaults (Step 2+).
+# Production path: plain fine-tune on global checkpoint (no LwF teacher).
+DEFAULT_PERSONAL_LWF_LAMBDA: Final[float] = 0.0
 DEFAULT_FT_PATIENCE: Final[int] = 3
 DEFAULT_VAL_EVERY_N_EPOCHS: Final[int] = 2
 DEFAULT_PROGRESS_LOG_INTERVAL_S: Final[float] = 10.0

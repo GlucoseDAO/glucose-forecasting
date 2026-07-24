@@ -29,6 +29,7 @@ from scripts.common.metrics import mae_rmse_mard, overall_metrics_to_csv
 from scripts.personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
     DEFAULT_FT_PATIENCE,
+    DEFAULT_PERSONAL_LWF_LAMBDA,
     DEFAULT_PROGRESS_LOG_INTERVAL_S,
     DEFAULT_SEED,
     DEFAULT_TRAIN_WINDOW_STRIDE,
@@ -200,7 +201,7 @@ def run_finetune(
     run_name: str | None = None,
     personal_days: int | None = None,
     model_type: str | None = None,
-    lwf_lambda: float = 0.5,
+    lwf_lambda: float = DEFAULT_PERSONAL_LWF_LAMBDA,
     epochs: int = 40,
     lr: float | None = None,
     weight_decay: float | None = None,
@@ -290,19 +291,23 @@ def run_finetune(
     input_steps = int(base_meta.get("input_steps", 128))
     horizon = int(base_meta.get("horizon", 12))
 
-    p_train, p_val, p_test = _load_split_frames(personal_csv)
+    p_train_full, p_val, p_test = _load_split_frames(personal_csv)
+    if p_train_full.is_empty():
+        raise ValueError("personal train split is empty")
+
+    # Fit scalers on the full personal train split so metrics stay comparable across
+    # day budgets. Day limiting applies only to the train windows used for fine-tuning.
+    scaler_ds = SugarOneWindowDataset(
+        p_train_full, input_steps, horizon, fit_scalers=True, window_stride=1
+    )
+
+    p_train = p_train_full
     if personal_days is not None:
-        if p_train.is_empty():
-            raise ValueError("personal train split is empty")
-        t0 = p_train.select(pl.col("ds").min()).item()
+        t0 = p_train_full.select(pl.col("ds").min()).item()
         t_end = t0 + timedelta(days=personal_days)
-        p_train = p_train.filter(pl.col("ds") < t_end)
+        p_train = p_train_full.filter(pl.col("ds") < t_end)
         if p_train.is_empty():
             raise ValueError(f"personal_days={personal_days} left no train rows")
-
-    scaler_ds = SugarOneWindowDataset(
-        p_train, input_steps, horizon, fit_scalers=True, window_stride=1
-    )
 
     def _make_ds(
         df: pl.DataFrame,
@@ -397,6 +402,23 @@ def run_finetune(
     amp_dtype = torch.bfloat16 if precision == "bf16" else torch.float16
 
     results: dict[str, Any] = {"config": cfg}
+
+    # On resume, keep previously computed zero-shot metrics (CSV or prior JSON).
+    if resume_path is not None:
+        prior_metrics_path = run_dir / "personalization_metrics.json"
+        if prior_metrics_path.is_file():
+            prior = json.loads(prior_metrics_path.read_text(encoding="utf-8"))
+            if isinstance(prior.get("zero_shot_test"), dict):
+                results["zero_shot_test"] = prior["zero_shot_test"]
+        if "zero_shot_test" not in results:
+            zs_csv = run_dir / "zero_shot_test_metrics_overall.csv"
+            if zs_csv.is_file():
+                zs_df = pl.read_csv(zs_csv)
+                if not zs_df.is_empty():
+                    row = zs_df.row(0, named=True)
+                    results["zero_shot_test"] = _metrics_dict(
+                        float(row["mae"]), float(row["rmse"]), float(row["mard"])
+                    )
 
     if eval_zero_shot and not from_scratch:
         safe_echo("Zero-shot baseline (frozen base weights):")
@@ -550,7 +572,11 @@ def main(
         "--personal-days",
         help="Limit personal train to first N days. Default: all train rows.",
     ),
-    lwf_lambda: float = typer.Option(0.5, "--lwf-lambda"),
+    lwf_lambda: float = typer.Option(
+        DEFAULT_PERSONAL_LWF_LAMBDA,
+        "--lwf-lambda",
+        help="LwF distillation weight (0 = plain fine-tune, default).",
+    ),
     model_type: Optional[str] = typer.Option(None, "--model-type"),
     epochs: int = typer.Option(40, "--epochs"),
     lr: Optional[float] = typer.Option(None, "--lr", help="Default: base model meta lr."),

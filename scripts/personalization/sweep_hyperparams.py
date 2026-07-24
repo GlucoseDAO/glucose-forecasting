@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Step 2: sweep LwF, learning rate, and weight_decay on full personal train data.
+"""Step 2: sweep learning rate on full personal train data (plain fine-tune).
 
-Uses all personal train rows (excluding val/test).
+Default: ``lwf_lambda=0`` (no LwF teacher) — ~10× faster than LwF fine-tune.
+``weight_decay`` fixed at ``3e-5``. LR grid uses 0.5× / 1× / 2× of base model lr.
 
-LwF grid is centered on GluMind type-1 best (``lwf_lambda=0.3`` from
-``reports/glumind/AI_READY_PLUS_TYPE_1_TUNED_MODELS_RUNS_ANALYSIS.md``).
-LR and weight_decay grids use 0.5× / 1× / 2× of base model values.
+Use ``--lwf-lambdas`` to re-enable LwF grid for research experiments.
 """
 from __future__ import annotations
 
@@ -20,8 +19,8 @@ from scripts.common.console import init_cli_console, safe_echo
 from scripts.personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
     DEFAULT_FT_PATIENCE,
-    DEFAULT_LWF_LAMBDAS,
     DEFAULT_LR_MULTIPLIERS,
+    DEFAULT_PERSONAL_LWF_LAMBDA,
     DEFAULT_SEED,
     DEFAULT_WEIGHT_DECAY_MULTIPLIERS,
     GLUMIND_BEST_LWF_TYPE1,
@@ -59,7 +58,10 @@ def main(
     lwf_lambdas: Optional[str] = typer.Option(
         None,
         "--lwf-lambdas",
-        help="Comma-separated LwF weights (default: 0.2,0.25,0.3,0.35 around GluMind type-1 best).",
+        help=(
+            "Comma-separated LwF weights for research sweeps. "
+            f"Default: {DEFAULT_PERSONAL_LWF_LAMBDA} (plain fine-tune only)."
+        ),
     ),
     lr_multipliers: Optional[str] = typer.Option(
         None,
@@ -69,7 +71,7 @@ def main(
     weight_decay_multipliers: Optional[str] = typer.Option(
         None,
         "--weight-decay-multipliers",
-        help="Comma-separated multipliers of 3e-5, e.g. '0.5,1,2'.",
+        help="Comma-separated multipliers of 3e-5 (default: 1.0 = fixed wd).",
     ),
     epochs: int = typer.Option(30, "--epochs"),
     batch_size: int = typer.Option(256, "--batch-size"),
@@ -77,16 +79,20 @@ def main(
     device: str = typer.Option("cpu", "--device"),
     subject: str = typer.Option("livia", "--subject"),
 ) -> None:
-    """Grid over LwF × LR × weight_decay on full personal train data."""
+    """Grid over LR on full personal train data (plain fine-tune by default)."""
     init_cli_console()
-    lwf_grid = _parse_floats(lwf_lambdas, DEFAULT_LWF_LAMBDAS)
+    lwf_grid = _parse_floats(
+        lwf_lambdas,
+        (DEFAULT_PERSONAL_LWF_LAMBDA,),
+    )
     lr_mults = tuple(_parse_floats(lr_multipliers, DEFAULT_LR_MULTIPLIERS))
     wd_mults = tuple(_parse_floats(weight_decay_multipliers, DEFAULT_WEIGHT_DECAY_MULTIPLIERS))
     lr_grid = lr_grid_from_base(base_run_dir, multipliers=lr_mults)
     wd_grid = weight_decay_grid(wd_mults)
     patience = DEFAULT_FT_PATIENCE
 
-    safe_echo(f"GluMind type-1 LwF starting point: {GLUMIND_BEST_LWF_TYPE1}")
+    if any(lwf > 0.0 for lwf in lwf_grid):
+        safe_echo(f"GluMind type-1 LwF reference (research): {GLUMIND_BEST_LWF_TYPE1}")
     safe_echo(f"LwF grid: {lwf_grid}")
     safe_echo(f"LR grid: {lr_grid}")
     safe_echo(f"weight_decay grid: {wd_grid}")
@@ -94,7 +100,7 @@ def main(
 
     rows: list[dict] = []
     for lwf, lr, wd in itertools.product(lwf_grid, lr_grid, wd_grid):
-        label = f"lwf{lwf:g}_lr{lr:g}_wd{wd:g}"
+        label = f"lr{lr:g}_wd{wd:g}" if lwf == 0.0 else f"lwf{lwf:g}_lr{lr:g}_wd{wd:g}"
         safe_echo(f"\n===== hyperparams {label} (full train data) =====")
         try:
             run_dir, results = run_finetune(
@@ -159,7 +165,6 @@ def main(
             "patience": int(best["patience"]),
             "epochs": epochs,
             "base_run_dir": str(base_run_dir),
-            "glumind_lwf_start": GLUMIND_BEST_LWF_TYPE1,
             "ft_test_mae": best.get("ft_test_mae"),
             "zs_test_mae": best.get("zs_test_mae"),
             "source_run_dir": best.get("run_dir"),

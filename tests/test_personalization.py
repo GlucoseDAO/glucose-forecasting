@@ -20,8 +20,21 @@ from scripts.personalization.registry import (
     register_model,
 )
 from scripts.personalization.splits import chronological_split_labels, limit_train_days, split_meta
+from scripts.personalization.leaderboard import (
+    STATUS_FAILED,
+    STATUS_OK,
+    build_run_combos,
+    combo_hash,
+    completed_hashes,
+    grid_combo_hashes,
+    import_existing_runs,
+    write_leaderboard_csv,
+)
 from scripts.personalization.sweep_utils import (
+    build_holdout_lr_comparison,
     estimate_plateau_day,
+    holdout_run_complete,
+    holdout_row_from_metrics,
     lr_grid_from_base,
     pick_best_row,
     weight_decay_grid,
@@ -107,8 +120,8 @@ def test_lr_grid_from_base(tmp_path: Path) -> None:
 
 
 def test_weight_decay_grid() -> None:
-    grid = weight_decay_grid((0.5, 1.0, 2.0))
-    assert grid == [1.5e-5, 3e-5, 6e-5]
+    grid = weight_decay_grid((1.0,))
+    assert grid == [3e-5]
 
 
 def test_chronological_split_and_day_limit() -> None:
@@ -275,6 +288,52 @@ def test_sweep_utils_pick_best(tmp_path: Path) -> None:
     assert path.exists()
 
 
+def test_holdout_lr_comparison_vs_livia() -> None:
+    rows = [
+        {"status": "ok", "user_id": "154", "subject": "loop_154", "lr": 0.0001, "ft_test_mae": 14.0},
+        {"status": "ok", "user_id": "154", "subject": "loop_154", "lr": 0.0002, "ft_test_mae": 13.5},
+        {"status": "ok", "user_id": "154", "subject": "loop_154", "lr": 0.0004, "ft_test_mae": 13.8},
+        {"status": "ok", "user_id": "556", "subject": "loop_556", "lr": 0.0001, "ft_test_mae": 12.0},
+        {"status": "ok", "user_id": "556", "subject": "loop_556", "lr": 0.0002, "ft_test_mae": 12.2},
+        {"status": "ok", "user_id": "556", "subject": "loop_556", "lr": 0.0004, "ft_test_mae": 11.5},
+    ]
+    comparison = build_holdout_lr_comparison(rows, livia_reference_lr=0.0002)
+    assert len(comparison) == 2
+    by_user = {c["user_id"]: c for c in comparison}
+    assert by_user["154"]["optimal_lr"] == 0.0002
+    assert by_user["154"]["divergence"] == "same"
+    assert by_user["556"]["optimal_lr"] == 0.0004
+    assert by_user["556"]["divergence"] == "higher"
+
+
+def test_holdout_run_complete(tmp_path: Path) -> None:
+    run_dir = tmp_path / "loop_154_lr0.0001"
+    run_dir.mkdir()
+    assert not holdout_run_complete(run_dir)
+
+    metrics = {
+        "config": {"lr": 0.0001},
+        "zero_shot_test": {"mae": 20.0, "rmse": 30.0, "mard": 15.0},
+        "finetuned_test": {"mae": 18.0, "rmse": 28.0, "mard": 14.0},
+        "finetuned_val": {"mae": 17.5, "rmse": 27.0, "mard": 13.5},
+    }
+    (run_dir / "personalization_metrics.json").write_text(
+        json.dumps(metrics), encoding="utf-8"
+    )
+    assert holdout_run_complete(run_dir)
+    row = holdout_row_from_metrics(
+        run_dir,
+        user_id="154",
+        subject="loop_154",
+        lwf_lambda=0.0,
+        weight_decay=3e-5,
+        patience=3,
+        epochs=30,
+    )
+    assert row is not None
+    assert row["ft_test_mae"] == 18.0
+
+
 def test_aggregate_cli(tmp_path: Path) -> None:
     from scripts.personalization.aggregate_results import app as agg_app
 
@@ -289,6 +348,206 @@ def test_aggregate_cli(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     data = json.loads(out_json.read_text(encoding="utf-8"))
     assert data["sections"]["hyperparams"]["n_rows"] == 1
+
+
+def test_build_run_combos_grid() -> None:
+    cfg = {
+        "defaults": {"lwf_lambda": 0.3, "lr": 0.0004},
+        "grid": {"lwf_lambda": [0.2, 0.3], "weight_decay": [1.5e-5, 3e-5]},
+    }
+    combos = build_run_combos(cfg)
+    assert len(combos) == 4
+    assert combos[0]["lwf_lambda"] == 0.2
+
+
+def test_personalization_tune_grid_lr_only() -> None:
+    """Current Step-2 TOML sweeps LR only; lwf=0 and wd fixed at default."""
+    import tomllib
+
+    cfg = tomllib.loads(
+        Path("scripts/personalization/personalization_tune.toml").read_text(encoding="utf-8")
+    )
+    combos = build_run_combos(cfg)
+    assert len(combos) == 3
+    assert "lwf_lambda" not in cfg.get("grid", {})
+    assert "weight_decay" not in cfg.get("grid", {})
+    assert cfg["defaults"]["lwf_lambda"] == 0.0
+    lrs = {c["lr"] for c in combos}
+    assert lrs == {0.0001, 0.0002, 0.0004}
+    assert all(c["lwf_lambda"] == 0.0 for c in combos)
+    assert all(c["weight_decay"] == 3e-5 for c in combos)
+
+
+def test_leaderboard_filters_to_active_grid(tmp_path: Path) -> None:
+    cfg = {
+        "defaults": {
+            "lwf_lambda": 0.3,
+            "lr": 0.0004,
+            "weight_decay": 3e-5,
+            "train_window_stride": 6,
+            "base_run_dir": "test_model_sugar_one",
+            "personal_csv": "data/p.csv",
+            "patience": 3,
+            "epochs": 30,
+            "batch_size": 256,
+            "val_every_n_epochs": 2,
+            "precision": "bf16",
+            "eval_zero_shot": True,
+        },
+        "grid": {"lwf_lambda": [0.2, 0.25], "lr": [0.0002, 0.0004]},
+    }
+    active = grid_combo_hashes(cfg)
+    legacy_params = {
+        **cfg["defaults"],
+        "lwf_lambda": 0.25,
+        "lr": 0.0002,
+        "weight_decay": 1.5e-05,
+    }
+    current_params = {**cfg["defaults"], "lwf_lambda": 0.25, "lr": 0.0002}
+    trials = [
+        {
+            "run_index": 1,
+            "combo_hash": combo_hash(legacy_params),
+            "status": STATUS_OK,
+            "run_name": "legacy_wd_sweep",
+            "ft_test_mae": 17.28,
+            "params": legacy_params,
+        },
+        {
+            "run_index": 2,
+            "combo_hash": combo_hash(current_params),
+            "status": STATUS_OK,
+            "run_name": "current_grid",
+            "ft_test_mae": 17.22,
+            "params": current_params,
+        },
+    ]
+    leaderboard_path = tmp_path / "leaderboard.csv"
+    write_leaderboard_csv(leaderboard_path, trials, active_combo_hashes=active)
+    text = leaderboard_path.read_text(encoding="utf-8")
+    assert "legacy_wd_sweep" not in text
+    assert "current_grid" in text
+    assert text.count("\n") == 2
+    assert combo_hash(current_params) in completed_hashes(
+        trials, active_combo_hashes=active
+    )
+    assert combo_hash(legacy_params) not in completed_hashes(
+        trials, active_combo_hashes=active
+    )
+
+
+def test_build_run_combos_explicit() -> None:
+    cfg = {
+        "defaults": {"lwf_lambda": 0.3, "lr": 0.0004},
+        "runs": [
+            {"name": "sparse", "train_window_stride": 6},
+            {"name": "dense", "train_window_stride": 1},
+        ],
+    }
+    combos = build_run_combos(cfg)
+    assert len(combos) == 2
+    assert combos[0]["train_window_stride"] == 6
+
+
+def test_combo_hash_skip_completed() -> None:
+    params_a = {"lwf_lambda": 0.3, "lr": 0.0004, "weight_decay": 3e-5, "train_window_stride": 6}
+    params_b = {**params_a, "lr": 0.0008}
+    assert combo_hash(params_a) != combo_hash(params_b)
+    trials = [{"combo_hash": combo_hash(params_a), "status": STATUS_OK}]
+    assert combo_hash(params_a) in completed_hashes(trials)
+    assert combo_hash(params_b) not in completed_hashes(trials)
+
+
+def test_import_existing_run(tmp_path: Path) -> None:
+    run_dir = tmp_path / "sparse_stride6"
+    run_dir.mkdir()
+    metrics = {
+        "config": {
+            "personalization": True,
+            "base_run_dir": "test_model_sugar_one",
+            "personal_csv": "data/p.csv",
+            "lwf_lambda": 0.3,
+            "lr": 0.0004,
+            "weight_decay": 3e-5,
+            "patience": 3,
+            "epochs": 30,
+            "batch_size": 256,
+            "train_window_stride": 6,
+            "precision": "bf16",
+        },
+        "zero_shot_test": {"mae": 19.3},
+        "finetuned_test": {"mae": 17.1},
+        "wall_time_s": 100.0,
+    }
+    (run_dir / "personalization_metrics.json").write_text(
+        json.dumps(metrics), encoding="utf-8"
+    )
+    trials: list[dict] = []
+    n = import_existing_runs(tmp_path, trials)
+    assert n == 1
+    assert trials[0]["status"] == STATUS_OK
+    assert trials[0]["ft_test_mae"] == 17.1
+
+
+def test_leaderboard_excludes_failed_trials(tmp_path: Path) -> None:
+    params = {
+        "base_run_dir": "test_model_sugar_one",
+        "personal_csv": "data/p.csv",
+        "lwf_lambda": 0.3,
+        "lr": 0.0004,
+        "weight_decay": 3e-5,
+        "patience": 3,
+        "epochs": 30,
+        "batch_size": 256,
+        "train_window_stride": 1,
+        "val_every_n_epochs": 2,
+        "precision": "bf16",
+        "eval_zero_shot": True,
+    }
+    trials = [
+        {
+            "run_index": 1,
+            "combo_hash": combo_hash({**params, "train_window_stride": 6}),
+            "status": STATUS_OK,
+            "run_name": "sparse_stride6",
+            "ft_test_mae": 17.15,
+            "params": {**params, "train_window_stride": 6},
+            "run_dir": str(tmp_path / "sparse"),
+        },
+        {
+            "run_index": 2,
+            "combo_hash": combo_hash(params),
+            "status": STATUS_FAILED,
+            "run_name": "dense_stride1",
+            "error": "CUDA out of memory.\nTraceback (most recent call last):\n  ...",
+            "params": params,
+        },
+        {
+            "run_index": 3,
+            "combo_hash": combo_hash(params),
+            "status": STATUS_OK,
+            "run_name": "dense_stride1",
+            "ft_test_mae": 17.23,
+            "params": params,
+            "run_dir": str(tmp_path / "dense"),
+        },
+    ]
+    leaderboard_path = tmp_path / "leaderboard.csv"
+    write_leaderboard_csv(leaderboard_path, trials)
+    text = leaderboard_path.read_text(encoding="utf-8")
+    assert "CUDA" not in text
+    assert "Traceback" not in text
+    assert text.count("\n") == 3  # header + 2 ok rows
+    assert "error" not in text.splitlines()[0]
+
+
+def test_tune_personal_dry_run_cli() -> None:
+    from scripts.personalization.tune_personal import app as tune_app
+
+    cfg = Path("scripts/personalization/personalization_tune_window_stride.toml")
+    result = runner.invoke(tune_app, ["-c", str(cfg), "--dry-run", "--no-import-existing"])
+    assert result.exit_code == 0, result.output
+    assert "Pending" in result.output
 
 
 def test_safe_echo_unicode_on_ascii_stdout() -> None:
@@ -312,3 +571,60 @@ def test_safe_echo_unicode_on_ascii_stdout() -> None:
 
 def test_holdout_constants() -> None:
     assert len(LOOP_HOLDOUT_QUALITY_USERS) == 6
+    from scripts.personalization.constants import (
+        HOLDOUT_LR_DEFERRED_USERS,
+        HOLDOUT_LR_PILOT_USERS,
+    )
+
+    assert len(HOLDOUT_LR_PILOT_USERS) == 3
+    assert len(HOLDOUT_LR_DEFERRED_USERS) == 3
+    assert set(HOLDOUT_LR_PILOT_USERS) & set(HOLDOUT_LR_DEFERRED_USERS) == set()
+
+
+def test_plot_data_size_curve(tmp_path: Path) -> None:
+    from scripts.personalization.plot_data_size_curve import plot_data_size_curve
+
+    rows = [
+        {
+            "status": "ok",
+            "personal_days": "1",
+            "ft_test_mae": 18.0,
+            "zs_test_mae": 19.5,
+        },
+        {
+            "status": "ok",
+            "personal_days": "7",
+            "ft_test_mae": 17.2,
+            "zs_test_mae": 19.5,
+        },
+        {
+            "status": "ok",
+            "personal_days": "all",
+            "ft_test_mae": 17.0,
+            "zs_test_mae": 19.5,
+        },
+    ]
+    out_png = tmp_path / "curve.png"
+    meta = plot_data_size_curve(rows, out_png=out_png, subject="livia")
+    assert out_png.is_file()
+    assert meta["plateau"]["optimal_day"] in ("all", 7)
+
+
+def test_plot_combined_data_size_curves(tmp_path: Path) -> None:
+    from scripts.personalization.plot_data_size_curve import plot_combined_data_size_curves
+
+    livia = [
+        {"status": "ok", "personal_days": "7", "ft_test_mae": 19.5, "zs_test_mae": 19.3},
+        {"status": "ok", "personal_days": "all", "ft_test_mae": 17.1, "zs_test_mae": 19.3},
+    ]
+    other = [
+        {"status": "ok", "personal_days": "7", "ft_test_mae": 18.0, "zs_test_mae": 18.2},
+        {"status": "ok", "personal_days": "all", "ft_test_mae": 17.0, "zs_test_mae": 18.2},
+    ]
+    out_png = tmp_path / "combined.png"
+    meta = plot_combined_data_size_curves(
+        [("livia", livia), ("loop_556", other)],
+        out_png=out_png,
+    )
+    assert out_png.is_file()
+    assert len(meta["subjects"]) == 2
