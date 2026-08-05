@@ -14,7 +14,7 @@ This report compares models on a **joined benchmark** built from two distinct so
 | **`ai_ready`** | Wearable CGM cohort export (`ai_ready_full4.csv`) | glucose, heart rate, step count | Healthy, pre-diabetes, oral-T2DM, insulin-dependent T2DM | 2,232 |
 | **`loop`** | Pump/CGM closed-loop cohort export (`loop.csv`) | glucose, basal rate, bolus insulin, carbohydrates | T1DM only | 60 |
 
-**`loop_ai_ready_joined2.csv`** vertically stacks both sources into one loop-style schema (glucose + basal/bolus/carbs columns). Rows from **`ai_ready`** keep wearable glucose but have empty insulin/carb fields; rows from **`loop`** carry pump insulin signals. Sequence IDs are prefixed `A-` (**ai_ready**) or `L-` (**loop**) to avoid collisions. Built by `scripts/loop_ai_ready/build_loop_ai_ready_joined2.py` with T1DM (**loop**) row mass balanced against combined non-T1DM (**ai_ready**) row mass.
+**`loop_ai_ready_joined2.csv`** vertically stacks both sources into one loop-style schema (glucose + basal/bolus/carbs columns). Rows from **`ai_ready`** keep wearable glucose but have empty insulin/carb fields; rows from **`loop`** carry pump insulin signals. Sequence IDs are prefixed `A-` (**ai_ready**) or `L-` (**loop**) to avoid collisions. Built by `temp_scripts/loop_ai_ready/build_loop_ai_ready_joined2.py` with T1DM (**loop**) row mass balanced against combined non-T1DM (**ai_ready**) row mass.
 
 ### Training data per model
 

@@ -210,6 +210,8 @@ runs/
 marked_runs/
 data/
 temp/
+temp_docs/
+temp_scripts/
 
 *.zip
 .DS_Store

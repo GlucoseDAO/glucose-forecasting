@@ -334,22 +334,6 @@ def test_holdout_run_complete(tmp_path: Path) -> None:
     assert row["ft_test_mae"] == 18.0
 
 
-def test_aggregate_cli(tmp_path: Path) -> None:
-    from scripts.personalization.aggregate_results import app as agg_app
-
-    root = tmp_path / "runs"
-    sweep = root / "livia" / "sweeps" / "hyperparams"
-    sweep.mkdir(parents=True)
-    pl.DataFrame(
-        [{"subject": "livia", "lwf_lambda": 0.5, "ft_test_mae": 11.0, "status": "ok"}]
-    ).write_csv(sweep / "summary.csv")
-    out_json = tmp_path / "summary.json"
-    result = runner.invoke(agg_app, ["--root", str(root), "--out", str(out_json)])
-    assert result.exit_code == 0, result.output
-    data = json.loads(out_json.read_text(encoding="utf-8"))
-    assert data["sections"]["hyperparams"]["n_rows"] == 1
-
-
 def test_build_run_combos_grid() -> None:
     cfg = {
         "defaults": {"lwf_lambda": 0.3, "lr": 0.0004},

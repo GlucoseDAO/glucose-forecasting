@@ -34,7 +34,7 @@
 | **2** | `tune-personal` / `sweep_hyperparams.py` | Livia, **full train** | Grid: **LR** (3 runs)                         |
 | **3** | `sweep_data_size.py`                     | Livia                 | Days grid with fixed recipe; estimate plateau |
 | **4** | `validate_holdouts.py`                   | 6 Loop holdouts       | Phase A: frozen recipe; Phase B: days curves  |
-| **5** | `aggregate_results.py`                   | All runs              | Merge summaries for report                    |
+| **5** | `temp_scripts/.../aggregate_results.py`  | All runs              | Merge summaries for report                    |
 
 ```mermaid
 flowchart TD
@@ -162,7 +162,8 @@ uv run sweep-personal-hyperparams \
   --device cuda
 
 # Finalize a hung run (eval only, no re-training)
-uv run finalize-personal-run runs/personalization/livia/sweeps/data_size/days_all/livia_days_all --device cuda
+uv run python temp_scripts/personalization/finalize_personal_run.py \
+  runs/personalization/livia/sweeps/data_size/days_all/livia_days_all --device cuda
 
 # Rebuild chart without re-training
 uv run sweep-personal-data-size ... --report-only
@@ -183,9 +184,9 @@ uv run validate-personal-holdouts \
   --device cuda
 
 # Step 5 тАФ Aggregate
-uv run aggregate-personal-results \
+uv run python temp_scripts/personalization/aggregate_results.py \
   --root runs/personalization \
-  --out docs/reports/milestone8_personalization_summary.json
+  --out temp_docs/reports/milestone8_personalization_summary.json
 ```
 
 ## 6. Success criteria
@@ -208,7 +209,7 @@ uv run aggregate-personal-results \
 | Dense            | 1                     | ~81.5k                 | ~30тАУ40 min           |
 
 ```bash
-uv run compare-personal-window-stride \
+uv run python temp_scripts/personalization/compare_window_stride.py \
   --personal-csv data/personalization/prepared/livia_chronological.csv \
   --out-dir runs/personalization/livia/window_stride_compare \
   --device cuda --precision bf16

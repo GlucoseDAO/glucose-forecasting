@@ -1,6 +1,6 @@
 """Smoke tests for the SugarJepa proof-of-concept (scripts/sugar_jepa/).
 
-Not full coverage (time-boxed POC per CLAUDE.md) — just enough to catch
+Not full coverage (time-boxed POC per AGENTS.md) — just enough to catch
 shape regressions in the model, the sliding-window dataset, and the
 checkpoint round-trip. Uses the vendored, locally-cached pretrained CGM-JEPA
 encoder (scripts/sugar_jepa/pretrained/cgm_jepa/) — no network access needed.

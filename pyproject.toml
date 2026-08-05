@@ -32,15 +32,12 @@ inference-glumind = "scripts.glumind.inference_glumind:app"
 download-glumind-hf = "scripts.glumind.download_from_huggingface:app"
 prepare-personal-csv = "scripts.personalization.prepare_personal_csv:app"
 finetune-personal = "scripts.personalization.finetune:app"
-finalize-personal-run = "scripts.personalization.finalize_personal_run:app"
-compare-personal-window-stride = "scripts.personalization.compare_window_stride:app"
 tune-personal = "scripts.personalization.tune_personal:app"
 sweep-personal-hyperparams = "scripts.personalization.sweep_hyperparams:app"
 sweep-personal-data-size = "scripts.personalization.sweep_data_size:app"
 validate-personal-holdouts = "scripts.personalization.validate_holdouts:app"
 sweep-holdout-lr = "scripts.personalization.sweep_holdout_lr:app"
 plot-personal-data-size = "scripts.personalization.plot_data_size_curve:app"
-aggregate-personal-results = "scripts.personalization.aggregate_results:app"
 
 [build-system]
 requires = ["hatchling>=1.26.0"]

@@ -1,6 +1,22 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents (Cursor, Claude Code, Copilot, etc.) when working with code in this repository. Prefer this file over tool-specific names (`CLAUDE.md`, etc.).
+
+## Temporary vs permanent artifacts
+
+Put all intermediate reports, scratch notes, evaluation dumps, and other temporary information in `temp_docs/`. Put all temporary or one-off scripts in `temp_scripts/`.
+
+- **One-shot / never-reuse scripts**: run them, then delete them. Do not leave them in the tree.
+- **Potentially reusable but not part of the product surface**: keep them under `temp_scripts/` (e.g. one-off data prep, report generation, ad-hoc analysis).
+- **Stay in the project codebase** only if the code is intentionally part of the product: CLI entry points, API surfaces, or modules imported by those (or by other first-class code / tests).
+
+Examples:
+- A script that prepares a dataset once → `temp_scripts/`
+- A script that builds a milestone or interim report → `temp_scripts/`, outputs under `temp_docs/`
+- Training/eval CLIs and shared libraries under `scripts/` that are imported by CLIs/tests → keep in the codebase
+
+- Do not add intermediate markdown or scratch analysis under `docs/` or the repo root; `docs/` is for intentional, durable documentation. Training run outputs still go to `runs/` / `marked_runs/` as today.
+- **Tests must not reference `temp_scripts/` or `temp_docs/`.** Those folders are gitignored and unavailable from a fresh clone. Do not import, invoke, or assert against temporary scripts or their outputs. If a script moves to `temp_scripts/`, delete the tests that covered it rather than skipping or path-hacking around the move.
 
 ## Project overview
 
@@ -102,7 +118,7 @@ Loop/SugarOne CSVs additionally/instead have: `Glucose (mg/dL)` (or `Glucose Val
 
 `evaluate-model` resolves column aliases automatically and can zero out or ablate individual covariates at inference time (`--zero-cov`, `--include-cov`, `--exclude-cov`) for cross-model/cross-covariate comparison — this is the main tool for comparing GluMind vs. SugarOne on the same data.
 
-`scripts/loop_ai_ready/` contains one-off data-joining scripts (Loop pump export + AI-READI CSV → unified CSV); not part of the training/eval pipeline itself.
+One-off Loop+AI-READI join / sample scripts live under `temp_scripts/loop_ai_ready/` (not part of the training/eval pipeline). Run them as `uv run python temp_scripts/loop_ai_ready/<script>.py` from the repo root.
 
 ### Known dead/unwired flags
 
@@ -110,8 +126,4 @@ Loop/SugarOne CSVs additionally/instead have: `Glucose (mg/dL)` (or `Glucose Val
 
 ### Reports and run artifacts
 
-`runs/` and `marked_runs/` hold training outputs (checkpoints, per-split metrics CSVs, `tuning_meta.json`). `marked_runs/` is curated/annotated subset with `RUNS_ANALYSIS.md` writeups per model/dataset combo. `reports/` and `docs/reports/` hold longer-form comparison and milestone writeups (e.g. `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`, `docs/T1DM_COVARIATE_ABLATION_REPORT.md`). Root `CROSS_MODEL_COMPARISON.md` is the cross-model summary.
-
-## Things I don't know / should ask about
-
-- Whether `docs/MILESTONE_6_MODEL_ARCHITECTURE_STATUS.md` and `docs/MILESTONE_6_SELECTION_EVALUATION_REPORT.md` (untracked, not yet committed) represent decisions that should change how new work is scoped — worth reading before starting architecture work. (Confirmed: these are temporary working files left over from preparing the milestone 6 report, not necessarily final decisions.)
+`runs/` and `marked_runs/` hold training outputs (checkpoints, per-split metrics CSVs, `tuning_meta.json`). `marked_runs/` is curated/annotated subset with `RUNS_ANALYSIS.md` writeups per model/dataset combo. Durable comparison and milestone writeups live under `docs/` (e.g. `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`, `docs/T1DM_COVARIATE_ABLATION_REPORT.md`). Intermediate / working reports go under `temp_docs/`. Root `CROSS_MODEL_COMPARISON.md` is the cross-model summary.
