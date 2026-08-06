@@ -21,6 +21,7 @@ import typer
 from scripts.common.data_loading import impute_and_sort as _common_impute_and_sort
 from scripts.common.registry import load_run_meta, resolve_checkpoint, resolve_csv_path
 from scripts.common.checkpoint import strip_compile_prefix
+from scripts.common.scalers import SCALERS_FILENAME, load_scalers, resolve_scalers_path, save_scalers_for_run
 from scripts.sugar_jepa.sugar_jepa_model import SugarJepaModel
 from scripts.sugar_jepa.train_sugar_jepa import (
     SugarJepaWindowDataset,
@@ -40,7 +41,10 @@ def main(
     run_dir: Path = typer.Option(..., "--run-dir", help="Run directory with tuning_meta.json/config.json + best_model.pt."),
     test_csv: Path = typer.Option(..., "--test-csv", help="CSV to evaluate on."),
     train_csv: Path | None = typer.Option(
-        None, "--train-csv", help="CSV to fit MinMax/z-score scalers on (default: csv from the run's config)."
+        None, "--train-csv", help="CSV to fit scalers on when scalers.json is absent."
+    ),
+    refit_scalers: bool = typer.Option(
+        False, "--refit-scalers", help="Ignore scalers.json and re-fit from train CSV."
     ),
     checkpoint: Path | None = typer.Option(None, "--checkpoint", help="Explicit .pt weights (default: best_model.pt)."),
     test_split: str = typer.Option("test", "--test-split", help="Recommended Split value to filter to; '' disables filtering."),
@@ -55,10 +59,49 @@ def main(
     typer.echo(f"Run directory: {run_dir}")
     typer.echo(f"Checkpoint   : {ckpt_path}")
 
-    train_path = resolve_csv_path(train_csv or cfg["csv"], project_root)
     test_path = resolve_csv_path(test_csv, project_root)
-    typer.echo(f"Train CSV (scaler fit): {train_path}")
     typer.echo(f"Test CSV  (evaluation): {test_path}")
+
+    sidecar = None if refit_scalers else resolve_scalers_path(run_dir, cfg)
+    if sidecar is not None:
+        kind, scalers, _ = load_scalers(sidecar)
+        if kind != "sugar_jepa":
+            typer.echo(f"Error: scalers.json kind={kind!r}, expected sugar_jepa.", err=True)
+            raise typer.Exit(1)
+        typer.echo(f"Loaded scalers from: {sidecar}")
+        scaler_glucose = scalers["glucose"]
+        scaler_basal = scalers["basal"]
+        scaler_bolus = scalers["bolus"]
+        scaler_carbs = scalers["carbs"]
+        scaler_glucose_jepa = scalers["glucose_jepa"]
+    else:
+        train_path = resolve_csv_path(train_csv or cfg["csv"], project_root)
+        typer.echo(f"Train CSV (scaler fit): {train_path}")
+        train_df, _, _ = load_splits_streaming(train_path, cfg["unique_id"], cfg["drop_interpolated"])
+        train_df = _common_impute_and_sort(
+            train_df, ffill_bfill_columns=["glucose", "basal"], zero_fill_columns=["bolus", "carbs"],
+        )
+        train_ds = SugarJepaWindowDataset(
+            train_df, cfg["input_steps"], cfg["horizon"], cfg["jepa_window"], fit_scalers=True,
+        )
+        scaler_glucose = train_ds.scaler_glucose
+        scaler_basal = train_ds.scaler_basal
+        scaler_bolus = train_ds.scaler_bolus
+        scaler_carbs = train_ds.scaler_carbs
+        scaler_glucose_jepa = train_ds.scaler_glucose_jepa
+        save_scalers_for_run(
+            run_dir,
+            kind="sugar_jepa",
+            scalers={
+                "glucose": scaler_glucose,
+                "basal": scaler_basal,
+                "bolus": scaler_bolus,
+                "carbs": scaler_carbs,
+                "glucose_jepa": scaler_glucose_jepa,
+            },
+            provenance={"csv": str(train_path), "source": "legacy_refit"},
+        )
+        typer.echo(f"Wrote {SCALERS_FILENAME} (legacy re-fit).")
 
     dev = torch.device(device)
     resolved_batch_size = batch_size or cfg.get("batch_size", 256)
@@ -82,15 +125,6 @@ def main(
     model.load_state_dict(state)
     model.eval()
 
-    # Fit scalers on the training CSV's train split (matches train_sugar_jepa.py).
-    train_df, _, _ = load_splits_streaming(train_path, cfg["unique_id"], cfg["drop_interpolated"])
-    train_df = _common_impute_and_sort(
-        train_df, ffill_bfill_columns=["glucose", "basal"], zero_fill_columns=["bolus", "carbs"],
-    )
-    train_ds = SugarJepaWindowDataset(
-        train_df, cfg["input_steps"], cfg["horizon"], cfg["jepa_window"], fit_scalers=True,
-    )
-
     test_train_df, test_val_df, test_test_df = load_splits_streaming(
         test_path, cfg["unique_id"], cfg["drop_interpolated"]
     )
@@ -111,18 +145,18 @@ def main(
 
     eval_ds = SugarJepaWindowDataset(
         eval_df, cfg["input_steps"], cfg["horizon"], cfg["jepa_window"],
-        scaler_glucose=train_ds.scaler_glucose,
-        scaler_basal=train_ds.scaler_basal,
-        scaler_bolus=train_ds.scaler_bolus,
-        scaler_carbs=train_ds.scaler_carbs,
-        scaler_glucose_jepa=train_ds.scaler_glucose_jepa,
+        scaler_glucose=scaler_glucose,
+        scaler_basal=scaler_basal,
+        scaler_bolus=scaler_bolus,
+        scaler_carbs=scaler_carbs,
+        scaler_glucose_jepa=scaler_glucose_jepa,
     )
     typer.echo(f"Evaluation windows: {len(eval_ds):,}")
 
     loader = DataLoader(eval_ds, batch_size=resolved_batch_size, shuffle=False)
     loss_fn = nn.MSELoss()
     _, true_arr, pred_arr = evaluate(model, loader, loss_fn, dev, split_label=test_split or "all")
-    compute_and_print_metrics(true_arr, pred_arr, train_ds.scaler_glucose, test_split or "all", run_dir, eval_ds)
+    compute_and_print_metrics(true_arr, pred_arr, scaler_glucose, test_split or "all", run_dir, eval_ds)
 
 
 if __name__ == "__main__":

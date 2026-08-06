@@ -40,5 +40,6 @@
   "train_samples": 4450964,
   "val_samples": 977214,
   "test_samples": 984256,
-  "start_time": "2026-02-26T03:27:07.868598"
+  "start_time": "2026-02-26T03:27:07.868598",
+  "scalers": "scalers.json"
 }

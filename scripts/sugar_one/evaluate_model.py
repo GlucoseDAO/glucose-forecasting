@@ -73,12 +73,19 @@ from scripts.sugar_one.train_sugar_one import (
     impute_and_sort as impute_and_sort_ic,
     load_splits_streaming as load_splits_ic,
 )
+from scripts.common.scalers import (
+    SCALERS_FILENAME,
+    load_scalers,
+    resolve_scalers_path,
+    save_scalers_for_run,
+)
 from scripts.common.checkpoint import strip_compile_prefix
 from scripts.common.registry import (
     find_best_run_dir as _common_find_best_run_dir,
     load_run_meta as _load_meta,
     resolve_checkpoint as _common_resolve_checkpoint,
     resolve_csv_path as _common_resolve_csv_path,
+    try_resolve_csv_path as _common_try_resolve_csv_path,
 )
 from scripts.common.evaluation import (
     COVARIATE_NAME_ALIASES,
@@ -276,9 +283,29 @@ def _load_train_for_scalers(
     model_kind: ModelKind,
     meta: dict,
     train_csv_override: Path | None,
+    *,
+    allow_fit_on_eval: bool = False,
 ) -> pl.DataFrame:
-    """Load training rows for scaler fitting."""
-    scaler_csv = train_csv_override or _resolve_csv_path(meta["csv"])
+    """Load training rows for scaler fitting (legacy path when no scalers.json)."""
+    if train_csv_override is not None:
+        scaler_csv = train_csv_override
+    else:
+        csv_meta = meta.get("csv")
+        if not csv_meta:
+            typer.echo("Error: tuning_meta.json has no 'csv' field for scaler fitting.", err=True)
+            raise typer.Exit(1)
+        resolved = _common_try_resolve_csv_path(csv_meta, project_root)
+        if resolved is None:
+            typer.echo(
+                f"Error: Training CSV from metadata not found: {csv_meta}\n"
+                "Provide --train-csv, or place scalers.json in the run directory, "
+                "or pass --allow-fit-on-eval to fit scalers on the evaluation CSV "
+                "(not recommended for small personal datasets).",
+                err=True,
+            )
+            raise typer.Exit(1)
+        scaler_csv = resolved
+
     typer.echo(f"Fitting scalers from: {scaler_csv}")
 
     split_scheme = meta.get("split_scheme", "classic")
@@ -296,8 +323,18 @@ def _load_train_for_scalers(
             train_only=True,
         )
         if train_df.is_empty():
+            if not allow_fit_on_eval:
+                typer.echo(
+                    "Error: No train split rows in scaler CSV. Refusing to fit scalers "
+                    "on evaluation/all rows (corrupts metrics on small datasets). "
+                    "Pass --allow-fit-on-eval to override, or provide scalers.json / "
+                    "a proper --train-csv.",
+                    err=True,
+                )
+                raise typer.Exit(1)
             typer.echo(
-                "Warning: No train split rows in CSV — fitting scalers on all rows.",
+                "Warning: No train split rows — fitting scalers on all rows "
+                "(--allow-fit-on-eval).",
                 err=True,
             )
             train_df = _load_csv_flexible(
@@ -321,9 +358,16 @@ def _load_train_for_scalers(
     train_df_raw, _, _ = apply_split(train_df_raw, val_df_raw, test_df_raw, split_scheme)
 
     if train_df_raw.is_empty():
+        if not allow_fit_on_eval:
+            typer.echo(
+                "Error: Training split empty after load_splits. Refusing to fit on "
+                "all rows without --allow-fit-on-eval.",
+                err=True,
+            )
+            raise typer.Exit(1)
         typer.echo(
-            "Warning: Training split empty after load_splits_streaming — "
-            "using flexible loader on all rows.",
+            "Warning: Training split empty — fitting scalers on all rows "
+            "(--allow-fit-on-eval).",
             err=True,
         )
         train_df = _load_csv_flexible(
@@ -359,6 +403,34 @@ def _build_train_dataset(
     )
 
 
+def _build_eval_dataset_from_scalers(
+    eval_df: pl.DataFrame,
+    scalers: dict,
+    model_kind: ModelKind,
+    meta: dict,
+) -> GlucoseWindowDataset | SugarOneWindowDataset:
+    if model_kind == "glumind":
+        return GlucoseWindowDataset(
+            eval_df,
+            input_steps=meta["input_steps"],
+            horizon=meta["horizon"],
+            scaler_glucose=scalers["glucose"],
+            scaler_hr=scalers["hr"],
+            scaler_steps=scalers["steps"],
+            fit_scalers=False,
+        )
+    return SugarOneWindowDataset(
+        eval_df,
+        input_steps=meta["input_steps"],
+        horizon=meta["horizon"],
+        scaler_glucose=scalers["glucose"],
+        scaler_basal=scalers["basal"],
+        scaler_bolus=scalers["bolus"],
+        scaler_carbs=scalers["carbs"],
+        fit_scalers=False,
+    )
+
+
 def _build_eval_dataset(
     eval_df: pl.DataFrame,
     train_ds: GlucoseWindowDataset | SugarOneWindowDataset,
@@ -387,6 +459,75 @@ def _build_eval_dataset(
         scaler_carbs=train_ds.scaler_carbs,
         fit_scalers=False,
     )
+
+
+def _resolve_feature_scalers(
+    resolved_run_dir: Path,
+    meta: dict,
+    model_kind: ModelKind,
+    test_path: Path,
+    train_csv: Path | None,
+    *,
+    refit_scalers: bool,
+    allow_fit_on_eval: bool,
+) -> tuple[dict, str]:
+    """Return ``({feature: scaler}, source_description)``."""
+    sidecar = None if refit_scalers else resolve_scalers_path(resolved_run_dir, meta)
+    if sidecar is not None:
+        kind, scalers, _ = load_scalers(sidecar)
+        if kind != model_kind:
+            typer.echo(
+                f"Error: scalers.json kind={kind!r} does not match "
+                f"model type={model_kind!r}.",
+                err=True,
+            )
+            raise typer.Exit(1)
+        typer.echo(f"Loaded scalers from: {sidecar}")
+        return scalers, str(sidecar)
+
+    if allow_fit_on_eval and train_csv is None and not meta.get("csv"):
+        train_csv = test_path
+
+    train_df = _load_train_for_scalers(
+        test_path,
+        model_kind=model_kind,
+        meta=meta,
+        train_csv_override=train_csv,
+        allow_fit_on_eval=allow_fit_on_eval,
+    )
+    train_ds = _build_train_dataset(train_df, model_kind, meta)
+    if model_kind == "glumind":
+        assert isinstance(train_ds, GlucoseWindowDataset)
+        scalers = {
+            "glucose": train_ds.scaler_glucose,
+            "hr": train_ds.scaler_hr,
+            "steps": train_ds.scaler_steps,
+        }
+    else:
+        assert isinstance(train_ds, SugarOneWindowDataset)
+        scalers = {
+            "glucose": train_ds.scaler_glucose,
+            "basal": train_ds.scaler_basal,
+            "bolus": train_ds.scaler_bolus,
+            "carbs": train_ds.scaler_carbs,
+        }
+    # Backfill sidecar for next eval when we had to re-fit from CSV.
+    try:
+        save_scalers_for_run(
+            resolved_run_dir,
+            kind=model_kind,
+            scalers=scalers,
+            provenance={
+                "csv": str(train_csv or meta.get("csv", "")),
+                "source": "legacy_refit",
+                "n_rows": len(train_df),
+                "train_windows": len(train_ds),
+            },
+        )
+        typer.echo(f"Wrote {SCALERS_FILENAME} to {resolved_run_dir} (legacy re-fit).")
+    except OSError as exc:
+        typer.echo(f"Warning: could not write {SCALERS_FILENAME}: {exc}", err=True)
+    return scalers, f"refit:{len(train_df)} rows"
 
 
 def _build_model(model_kind: ModelKind, meta: dict) -> nn.Module:
@@ -456,7 +597,23 @@ def main(
     train_csv: Path | None = typer.Option(
         None,
         "--train-csv",
-        help="CSV for scaler fitting (default: csv from tuning_meta.json).",
+        help=(
+            "CSV for legacy scaler fitting when scalers.json is absent "
+            "(default: csv from tuning_meta.json)."
+        ),
+    ),
+    refit_scalers: bool = typer.Option(
+        False,
+        "--refit-scalers",
+        help="Ignore scalers.json and re-fit from --train-csv / metadata csv.",
+    ),
+    allow_fit_on_eval: bool = typer.Option(
+        False,
+        "--allow-fit-on-eval",
+        help=(
+            "Allow fitting scalers on evaluation/all rows when the train split "
+            "is missing (not recommended for small personal datasets)."
+        ),
     ),
     model_type: ModelTypeChoice = typer.Option(
         ModelTypeChoice.auto,
@@ -590,16 +747,16 @@ def main(
                 f"zeroed={', '.join(zeroed_cov)}"
             )
 
-    train_df = _load_train_for_scalers(
+    scalers, scaler_source = _resolve_feature_scalers(
+        resolved_run_dir,
+        meta,
+        resolved_kind,
         test_path,
-        model_kind=resolved_kind,
-        meta=meta,
-        train_csv_override=train_csv,
+        train_csv,
+        refit_scalers=refit_scalers,
+        allow_fit_on_eval=allow_fit_on_eval,
     )
-    train_ds = _build_train_dataset(train_df, resolved_kind, meta)
-    typer.echo(
-        f"Scalers fitted on {len(train_df):,} training rows, {len(train_ds):,} windows."
-    )
+    typer.echo(f"Scaler source: {scaler_source}")
 
     impute = impute_and_sort_glumind if resolved_kind == "glumind" else impute_and_sort_ic
     typer.echo(f"Loading evaluation data from: {test_path}")
@@ -619,7 +776,7 @@ def main(
         typer.echo("Error: Evaluation dataframe is empty after loading/filtering.", err=True)
         raise typer.Exit(1)
 
-    eval_ds = _build_eval_dataset(eval_df, train_ds, resolved_kind, meta)
+    eval_ds = _build_eval_dataset_from_scalers(eval_df, scalers, resolved_kind, meta)
     if len(eval_ds) == 0:
         typer.echo(
             f"Error: No windows could be built. Each series needs at least "
@@ -645,10 +802,11 @@ def main(
         log_interval_s=log_interval_s,
     )
 
-    y_true = train_ds.scaler_glucose.inverse_transform(
+    scaler_glucose = scalers["glucose"]
+    y_true = scaler_glucose.inverse_transform(
         y_true_scaled.ravel().reshape(-1, 1)
     ).ravel()
-    y_pred = train_ds.scaler_glucose.inverse_transform(
+    y_pred = scaler_glucose.inverse_transform(
         y_pred_scaled.ravel().reshape(-1, 1)
     ).ravel()
 
@@ -686,6 +844,7 @@ def main(
             "active_covariates": active_cov,
             "zeroed_covariates": zeroed_cov,
             "windows": len(eval_ds),
+            "scaler_source": scaler_source,
             "mae": mae,
             "rmse": rmse,
             "mard": mard,

@@ -36,5 +36,6 @@
   "device": "cuda",
   "seed": 42,
   "out_dir": "runs/glumind/ai_ready_plus_type1",
-  "save_predictions": false
+  "save_predictions": false,
+  "scalers": "scalers.json"
 }

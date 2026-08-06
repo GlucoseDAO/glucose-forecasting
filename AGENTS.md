@@ -67,10 +67,9 @@ Full flag reference and worked examples for every script live in the root `READM
 Fast smoke test after code changes (no GPU, no full dataset needed):
 ```bash
 uv run evaluate-model --run-dir test_model_glumind --model-type glumind \
-  --test-csv test_data/livia_glumind_ready.csv --train-csv test_data/livia_glumind_ready.csv \
-  --test-split "" --batch-size 4096
+  --test-csv test_data/livia_glumind_ready.csv --test-split "" --batch-size 4096
 ```
-This uses the bundled reviewer checkpoint (`test_model_glumind/`) and demo CSV (`test_data/livia_glumind_ready.csv`, ~140k rows, no `Recommended Split` column — always pass `--test-split ""` for it). For SugarOne against the same demo file, add `--zero-cov` since it has no insulin/carb columns. See README.md "Evaluate on `test_data/livia_glumind_ready.csv`" section for exact commands including the SugarOne case.
+This uses the bundled reviewer checkpoint (`test_model_glumind/`), its **`scalers.json`**, and demo CSV (`test_data/livia_glumind_ready.csv`, ~140k rows, no `Recommended Split` column — always pass `--test-split ""` for it). For SugarOne against the same demo file, add `--zero-cov` since it has no insulin/carb columns. See README.md "Evaluate on `test_data/livia_glumind_ready.csv`" section for exact commands including the SugarOne case.
 
 ## Architecture
 
@@ -96,11 +95,11 @@ These are intentionally isolated from the training scripts so a checkpoint can b
 
 ### Checkpoints
 
-Two kinds are saved per run, both plain `torch.save` of dicts (no pickled class references, so moving code around is safe as long as model `state_dict` key names don't change):
+Two kinds of weight files are saved per run, both plain `torch.save` of dicts (no pickled class references, so moving code around is safe as long as model `state_dict` key names don't change):
 - `best_model.pt` / `last_model.pt` — plain `state_dict` only, loaded with `weights_only=True`.
 - `checkpoint.pt` / `last_checkpoint.pt` — full training state (`model_state_dict`, `optimizer_state_dict`, `scheduler_state_dict`, epoch, best_val_loss, config), loaded with `weights_only=False`, used to `--resume_from` a training run.
 
-Architecture hyperparameters live separately in `tuning_meta.json` / `config.json` inside the run directory, not in the checkpoint — evaluation/inference scripts read that JSON to reconstruct the right model shape before loading weights.
+Architecture hyperparameters live separately in `tuning_meta.json` / `config.json` inside the run directory. **Train-fit MinMax scalers** are saved as sidecar **`scalers.json`** next to the weights (written at train time; eval prefers this over re-fitting from CSV). Legacy runs without the sidecar can be backfilled with `uv run python temp_scripts/migrate_scalers.py --run-dir <run>` when the training CSV is still available; otherwise eval falls back to CSV re-fit (`--train-csv` / metadata `csv`).
 
 ### Training modes
 

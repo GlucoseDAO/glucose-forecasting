@@ -26,6 +26,13 @@ from torch.utils.data import DataLoader
 from scripts.common.console import init_cli_console, safe_echo
 from scripts.common.data_loading import resolve_num_workers
 from scripts.common.metrics import mae_rmse_mard, overall_metrics_to_csv
+from scripts.common.registry import try_resolve_csv_path
+from scripts.common.scalers import (
+    SCALERS_FILENAME,
+    load_scalers,
+    resolve_scalers_path,
+    save_scalers_for_run,
+)
 from scripts.personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
     DEFAULT_FT_PATIENCE,
@@ -109,7 +116,7 @@ def _load_saved_run_config(run_dir: Path) -> dict[str, Any]:
 def _compute_quiet_metrics(
     true_arr: np.ndarray,
     pred_arr: np.ndarray,
-    scaler_ds: SugarOneWindowDataset,
+    scaler_ds: Any,
     split_name: str,
     run_dir: Path,
     dataset: SugarOneWindowDataset | None = None,
@@ -157,7 +164,7 @@ def _compute_quiet_metrics(
 def _eval_split(
     model: nn.Module,
     ds: SugarOneWindowDataset | None,
-    scaler_ds: SugarOneWindowDataset,
+    scaler_ds: Any,
     device: torch.device,
     batch_size: int,
     num_workers: int,
@@ -217,6 +224,7 @@ def run_finetune(
     eval_zero_shot: bool = True,
     from_scratch: bool = False,
     resume_from: Path | None = None,
+    refit_scalers_on_personal: bool = False,
 ) -> tuple[Path, dict[str, Any]]:
     """Fine-tune on personal train split; return ``(run_dir, results)``."""
     init_cli_console()
@@ -257,6 +265,9 @@ def run_finetune(
         num_workers = int(saved_cfg.get("num_workers", num_workers))
         personal_days = saved_cfg.get("personal_days", personal_days)
         from_scratch = bool(saved_cfg.get("from_scratch", from_scratch))
+        refit_scalers_on_personal = bool(
+            saved_cfg.get("refit_scalers_on_personal", refit_scalers_on_personal)
+        )
         eval_zero_shot = False
 
     if not base_run_dir.exists():
@@ -295,11 +306,88 @@ def run_finetune(
     if p_train_full.is_empty():
         raise ValueError("personal train split is empty")
 
-    # Fit scalers on the full personal train split so metrics stay comparable across
-    # day budgets. Day limiting applies only to the train windows used for fine-tuning.
-    scaler_ds = SugarOneWindowDataset(
-        p_train_full, input_steps, horizon, fit_scalers=True, window_stride=1
-    )
+    project_root = Path(__file__).resolve().parents[2]
+    scaler_source = "personal_train"
+    scaler_glucose = scaler_basal = scaler_bolus = scaler_carbs = None
+    use_personal_scalers = refit_scalers_on_personal
+
+    if not use_personal_scalers:
+        sidecar = resolve_scalers_path(base_run_dir, base_meta)
+        if sidecar is not None:
+            kind, base_scalers, _ = load_scalers(sidecar)
+            if kind != "sugar_one":
+                raise ValueError(
+                    f"base scalers.json kind={kind!r}; personalization expects sugar_one"
+                )
+            scaler_glucose = base_scalers["glucose"]
+            scaler_basal = base_scalers["basal"]
+            scaler_bolus = base_scalers["bolus"]
+            scaler_carbs = base_scalers["carbs"]
+            scaler_source = str(sidecar)
+            safe_echo(f"Using base-run scalers: {sidecar}")
+        else:
+            csv_meta = base_meta.get("csv")
+            resolved_csv = (
+                try_resolve_csv_path(csv_meta, project_root) if csv_meta else None
+            )
+            if resolved_csv is not None:
+                safe_echo(
+                    f"Base run has no scalers.json; fitting from base CSV: {resolved_csv}"
+                )
+                base_train_df, _, _ = load_splits_streaming(
+                    resolved_csv,
+                    unique_id_choice=str(base_meta.get("unique_id", "sequence_id")),
+                    drop_interpolated=bool(base_meta.get("drop_interpolated", False)),
+                )
+                base_train_df = impute_and_sort(base_train_df)
+                base_scaler_ds = SugarOneWindowDataset(
+                    base_train_df, input_steps, horizon, fit_scalers=True, window_stride=1
+                )
+                scaler_glucose = base_scaler_ds.scaler_glucose
+                scaler_basal = base_scaler_ds.scaler_basal
+                scaler_bolus = base_scaler_ds.scaler_bolus
+                scaler_carbs = base_scaler_ds.scaler_carbs
+                save_scalers_for_run(
+                    base_run_dir,
+                    kind="sugar_one",
+                    dataset=base_scaler_ds,
+                    provenance={"csv": str(resolved_csv), "source": "legacy_refit"},
+                )
+                scaler_source = f"base_csv:{resolved_csv}"
+                safe_echo(f"Wrote {SCALERS_FILENAME} into {base_run_dir}")
+            else:
+                safe_echo(
+                    "Warning: no base scalers.json and base CSV missing; "
+                    "falling back to fitting scalers on personal train "
+                    "(pass --refit-scalers-on-personal to silence this).",
+                    err=True,
+                )
+                use_personal_scalers = True
+
+    if use_personal_scalers:
+        personal_scaler_ds = SugarOneWindowDataset(
+            p_train_full, input_steps, horizon, fit_scalers=True, window_stride=1
+        )
+        scaler_glucose = personal_scaler_ds.scaler_glucose
+        scaler_basal = personal_scaler_ds.scaler_basal
+        scaler_bolus = personal_scaler_ds.scaler_bolus
+        scaler_carbs = personal_scaler_ds.scaler_carbs
+        scaler_source = "personal_train"
+        safe_echo("Fitting scalers on full personal train split.")
+
+    assert scaler_glucose is not None
+    assert scaler_basal is not None
+    assert scaler_bolus is not None
+    assert scaler_carbs is not None
+
+    class _ScalerHolder:
+        pass
+
+    scaler_ds = _ScalerHolder()
+    scaler_ds.scaler_glucose = scaler_glucose
+    scaler_ds.scaler_basal = scaler_basal
+    scaler_ds.scaler_bolus = scaler_bolus
+    scaler_ds.scaler_carbs = scaler_carbs
 
     p_train = p_train_full
     if personal_days is not None:
@@ -320,10 +408,10 @@ def run_finetune(
             df,
             input_steps,
             horizon,
-            scaler_glucose=scaler_ds.scaler_glucose,
-            scaler_basal=scaler_ds.scaler_basal,
-            scaler_bolus=scaler_ds.scaler_bolus,
-            scaler_carbs=scaler_ds.scaler_carbs,
+            scaler_glucose=scaler_glucose,
+            scaler_basal=scaler_basal,
+            scaler_bolus=scaler_bolus,
+            scaler_carbs=scaler_carbs,
             window_stride=window_stride,
         )
 
@@ -343,6 +431,23 @@ def run_finetune(
     else:
         safe_echo(f"Resuming from {resume_path}")
 
+    save_scalers_for_run(
+        run_dir,
+        kind="sugar_one",
+        scalers={
+            "glucose": scaler_glucose,
+            "basal": scaler_basal,
+            "bolus": scaler_bolus,
+            "carbs": scaler_carbs,
+        },
+        provenance={
+            "source": scaler_source,
+            "base_run_dir": str(base_run_dir),
+            "refit_scalers_on_personal": use_personal_scalers,
+            "personal_csv": str(personal_csv),
+        },
+    )
+
     cfg: dict[str, Any] = {
         "personalization": True,
         "model_type": resolved_type,
@@ -352,6 +457,9 @@ def run_finetune(
         "personal_days": personal_days,
         "lwf_lambda": lwf_lambda,
         "from_scratch": from_scratch,
+        "refit_scalers_on_personal": use_personal_scalers,
+        "scaler_source": scaler_source,
+        "scalers": SCALERS_FILENAME,
         "value_columns": dict(SUGAR_ONE_VALUE_COLUMNS),
         "input_steps": input_steps,
         "horizon": horizon,
@@ -608,6 +716,14 @@ def main(
         "--resume-from",
         help="Resume from last_checkpoint.pt (reuses run dir, skips zero-shot).",
     ),
+    refit_scalers_on_personal: bool = typer.Option(
+        False,
+        "--refit-scalers-on-personal/--base-scalers",
+        help=(
+            "Fit MinMax scalers on personal train (legacy). Default: use base-run "
+            "scalers.json so fine-tuning stays in the pretrained input scale."
+        ),
+    ),
 ) -> None:
     """Fine-tune a global checkpoint on one person's chronological splits."""
     init_cli_console()
@@ -634,6 +750,7 @@ def main(
             eval_zero_shot=eval_zero_shot,
             from_scratch=from_scratch,
             resume_from=resume_from,
+            refit_scalers_on_personal=refit_scalers_on_personal,
         )
     except ValueError as exc:
         safe_echo(f"Error: {exc}", err=True)

@@ -84,11 +84,49 @@ def resolve_checkpoint(run_dir: Path, checkpoint: Path | None) -> Path:
 
 
 def resolve_csv_path(csv_value: str | Path, project_root: Path) -> Path:
+    """Resolve a training/eval CSV path, including cross-machine absolute paths.
+
+    Tries, in order:
+    1. The path as given
+    2. ``project_root / csv_value``
+    3. Suffix starting at a ``data/`` component (other-machine absolutes)
+    4. Unique basename match under ``project_root / data``
+    """
     csv_path = Path(csv_value)
-    if csv_path.exists():
+    if csv_path.is_file():
         return csv_path
     alt = project_root / csv_value
-    if alt.exists():
+    if alt.is_file():
         return alt
+
+    parts = Path(str(csv_value).replace("\\", "/")).parts
+    if "data" in parts:
+        idx = list(parts).index("data")
+        cand = project_root.joinpath(*parts[idx:])
+        if cand.is_file():
+            return cand
+
+    name = csv_path.name
+    data_root = project_root / "data"
+    if name and data_root.is_dir():
+        hits = list(data_root.rglob(name))
+        if len(hits) == 1:
+            return hits[0]
+        if len(hits) > 1:
+            typer.echo(
+                f"Error: Ambiguous CSV basename {name!r} under data/: "
+                + ", ".join(str(h.relative_to(project_root)) for h in hits[:5]),
+                err=True,
+            )
+            raise typer.Exit(1)
+
     typer.echo(f"Error: CSV not found: {csv_path}", err=True)
     raise typer.Exit(1)
+
+
+def try_resolve_csv_path(csv_value: str | Path, project_root: Path) -> Path | None:
+    """Like ``resolve_csv_path`` but returns None instead of exiting."""
+    try:
+        return resolve_csv_path(csv_value, project_root)
+    except typer.Exit:
+        return None

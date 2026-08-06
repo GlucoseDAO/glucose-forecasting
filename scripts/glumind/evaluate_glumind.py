@@ -65,6 +65,13 @@ from scripts.common.registry import (
     find_best_run_dir as _common_find_best_run_dir,
     load_run_meta as _load_meta,
     resolve_checkpoint as _common_resolve_checkpoint,
+    try_resolve_csv_path,
+)
+from scripts.common.scalers import (
+    SCALERS_FILENAME,
+    load_scalers,
+    resolve_scalers_path,
+    save_scalers_for_run,
 )
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
@@ -206,9 +213,14 @@ def main(
         None,
         "--train-csv",
         help=(
-            "CSV used to fit the scalers (glucose / HR / steps MinMaxScaler). "
-            "Defaults to the CSV stored in tuning_meta.json."
+            "CSV used to fit scalers when scalers.json is absent "
+            "(default: CSV from tuning_meta.json)."
         ),
+    ),
+    refit_scalers: bool = typer.Option(
+        False,
+        "--refit-scalers",
+        help="Ignore scalers.json and re-fit from --train-csv / metadata csv.",
     ),
     test_split: Optional[str] = typer.Option(
         None,
@@ -268,37 +280,73 @@ def main(
     typer.echo(f"Checkpoint : {ckpt_path}")
 
     # -----------------------------------------------------------------------
-    # 3. Load training data for scaler fitting
+    # 3. Resolve feature scalers (prefer scalers.json)
     # -----------------------------------------------------------------------
-    scaler_csv = train_csv
-    if scaler_csv is None:
-        scaler_csv = Path(meta["csv"])
-        if not scaler_csv.exists():
-            scaler_csv = project_root / meta["csv"]
+    train_df_for_scalers: pl.DataFrame | None = None
+    sidecar = None if refit_scalers else resolve_scalers_path(resolved_run_dir, meta)
+    if sidecar is not None:
+        kind, scalers, _ = load_scalers(sidecar)
+        if kind != "glumind":
+            typer.echo(f"Error: scalers.json kind={kind!r}, expected 'glumind'.", err=True)
+            raise typer.Exit(1)
+        typer.echo(f"Loaded scalers from: {sidecar}")
+        scaler_glucose = scalers["glucose"]
+        scaler_hr = scalers["hr"]
+        scaler_steps = scalers["steps"]
+    else:
+        scaler_csv = train_csv
+        if scaler_csv is None:
+            csv_meta = meta.get("csv")
+            if not csv_meta:
+                typer.echo("Error: no scalers.json and no csv in metadata.", err=True)
+                raise typer.Exit(1)
+            resolved = try_resolve_csv_path(csv_meta, project_root)
+            if resolved is None:
+                typer.echo(
+                    f"Error: Training CSV not found: {csv_meta}. "
+                    "Provide --train-csv or scalers.json.",
+                    err=True,
+                )
+                raise typer.Exit(1)
+            scaler_csv = resolved
 
-    typer.echo(f"Fitting scalers from: {scaler_csv}")
-    train_df_raw, val_df_raw, test_df_raw = load_splits_streaming(
-        scaler_csv,
-        unique_id_choice=meta.get("unique_id", "sequence_id"),
-        drop_interpolated=meta.get("drop_interpolated", False),
-    )
+        typer.echo(f"Fitting scalers from: {scaler_csv}")
+        train_df_raw, val_df_raw, test_df_raw = load_splits_streaming(
+            scaler_csv,
+            unique_id_choice=meta.get("unique_id", "sequence_id"),
+            drop_interpolated=meta.get("drop_interpolated", False),
+        )
 
-    split_scheme = meta.get("split_scheme", "classic")
-    train_df_raw, val_df_raw, _ = apply_split_scheme(
-        train_df_raw, val_df_raw, test_df_raw, split_scheme
-    )
-    train_df_for_scalers = impute_and_sort(train_df_raw)
+        split_scheme = meta.get("split_scheme", "classic")
+        train_df_raw, val_df_raw, _ = apply_split_scheme(
+            train_df_raw, val_df_raw, test_df_raw, split_scheme
+        )
+        train_df_for_scalers = impute_and_sort(train_df_raw)
 
-    train_ds = GlucoseWindowDataset(
-        train_df_for_scalers,
-        input_steps=meta["input_steps"],
-        horizon=meta["horizon"],
-        fit_scalers=True,
-    )
-    typer.echo(
-        f"Scalers fitted on {len(train_df_for_scalers):,} training rows, "
-        f"{len(train_ds):,} windows."
-    )
+        train_ds = GlucoseWindowDataset(
+            train_df_for_scalers,
+            input_steps=meta["input_steps"],
+            horizon=meta["horizon"],
+            fit_scalers=True,
+        )
+        typer.echo(
+            f"Scalers fitted on {len(train_df_for_scalers):,} training rows, "
+            f"{len(train_ds):,} windows."
+        )
+        scaler_glucose = train_ds.scaler_glucose
+        scaler_hr = train_ds.scaler_hr
+        scaler_steps = train_ds.scaler_steps
+        save_scalers_for_run(
+            resolved_run_dir,
+            kind="glumind",
+            scalers={
+                "glucose": scaler_glucose,
+                "hr": scaler_hr,
+                "steps": scaler_steps,
+            },
+            provenance={"csv": str(scaler_csv), "source": "legacy_refit"},
+        )
+        typer.echo(f"Wrote {SCALERS_FILENAME} to {resolved_run_dir} (legacy re-fit).")
 
     # -----------------------------------------------------------------------
     # 4. Load test data
@@ -324,9 +372,9 @@ def main(
         test_df,
         input_steps=meta["input_steps"],
         horizon=meta["horizon"],
-        scaler_glucose=train_ds.scaler_glucose,
-        scaler_hr=train_ds.scaler_hr,
-        scaler_steps=train_ds.scaler_steps,
+        scaler_glucose=scaler_glucose,
+        scaler_hr=scaler_hr,
+        scaler_steps=scaler_steps,
         fit_scalers=False,
     )
 
@@ -358,12 +406,28 @@ def main(
         hr_replace = 0.0
         steps_replace = 0.0
 
-        if default_value == "mean":
-            hr_replace = float(train_ds.scaler_hr.transform([[train_df_for_scalers["hr"].mean()]])[0, 0])
-            steps_replace = float(train_ds.scaler_steps.transform([[train_df_for_scalers["steps"].mean()]])[0, 0])
-        elif default_value == "median":
-            hr_replace = float(train_ds.scaler_hr.transform([[train_df_for_scalers["hr"].median()]])[0, 0])
-            steps_replace = float(train_ds.scaler_steps.transform([[train_df_for_scalers["steps"].median()]])[0, 0])
+        if default_value in ("mean", "median"):
+            if train_df_for_scalers is None:
+                typer.echo(
+                    "Error: --glucose-only with mean/median requires train rows "
+                    "(pass --train-csv or --refit-scalers).",
+                    err=True,
+                )
+                raise typer.Exit(1)
+            if default_value == "mean":
+                hr_replace = float(
+                    scaler_hr.transform([[train_df_for_scalers["hr"].mean()]])[0, 0]
+                )
+                steps_replace = float(
+                    scaler_steps.transform([[train_df_for_scalers["steps"].mean()]])[0, 0]
+                )
+            else:
+                hr_replace = float(
+                    scaler_hr.transform([[train_df_for_scalers["hr"].median()]])[0, 0]
+                )
+                steps_replace = float(
+                    scaler_steps.transform([[train_df_for_scalers["steps"].median()]])[0, 0]
+                )
 
         typer.echo(f"  HR={hr_replace:.4f}, Steps={steps_replace:.4f} (scaled)")
         for i in range(len(eval_ds._series_h)):
@@ -401,10 +465,10 @@ def main(
         model, eval_loader, loss_fn, torch.device(device)
     )
 
-    y_true = train_ds.scaler_glucose.inverse_transform(
+    y_true = scaler_glucose.inverse_transform(
         y_true_scaled.ravel().reshape(-1, 1)
     ).ravel()
-    y_pred = train_ds.scaler_glucose.inverse_transform(
+    y_pred = scaler_glucose.inverse_transform(
         y_pred_scaled.ravel().reshape(-1, 1)
     ).ravel()
 

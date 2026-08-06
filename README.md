@@ -97,7 +97,8 @@ Argparse-based CLIs (`train_glumind.py`, `tune_nf_baselines_by_group.py`, `eval_
 | `--run-dir` | Explicit run directory with `tuning_meta.json` / `config.json` and weights. Overrides registry. |
 | `--checkpoint` | Specific `.pt` weights; still need `--run-dir` for architecture metadata. |
 | `--test-csv` | CSV to score (required). |
-| `--train-csv` | CSV to fit MinMax scalers; default from metadata. |
+| `--train-csv` | Legacy: CSV to re-fit MinMax scalers when `scalers.json` is absent. |
+| `--refit-scalers` | Ignore `scalers.json` and re-fit from `--train-csv` / metadata. |
 | `--test-split` | If the CSV has `Recommended Split`, keep only this value (e.g. `test`). |
 | `--glucose-only` | Ablation: replace HR/steps with zeros or a fixed scaled value. |
 | `--default-value` | With `--glucose-only`: `zero`, `mean`, or `median` for HR/steps replacement. |
@@ -112,7 +113,7 @@ For cross-model evaluation (GluMind or SugarOne on any compatible CSV), prefer *
 
 `uv run evaluate-model --help`
 
-Unified evaluation for **GluMind** (HR + steps) and **SugarOne** (basal + bolus + carbs). Loads architecture metadata from the run folder, fits MinMax scalers on training rows, and reports **MAE, RMSE, MARD**.
+Unified evaluation for **GluMind** (HR + steps) and **SugarOne** (basal + bolus + carbs). Loads architecture metadata and **`scalers.json`** from the run folder (falls back to re-fitting from the training CSV when the sidecar is missing), and reports **MAE, RMSE, MARD**.
 
 | Option | Meaning |
 |--------|---------|
@@ -120,7 +121,9 @@ Unified evaluation for **GluMind** (HR + steps) and **SugarOne** (basal + bolus 
 | `--run-dir` | Run directory with `tuning_meta.json` / `config.json` and `best_model.pt`. |
 | `--registry-dir` | Folder with `_analysis_registry.csv`; picks lowest `val_mae` run. |
 | `--checkpoint` | Explicit `.pt` weights; still need `--run-dir` for architecture metadata. |
-| `--train-csv` | CSV for scaler fitting (default: `csv` from metadata). Override when the training file from metadata is not on disk. |
+| `--train-csv` | Legacy scaler re-fit CSV when `scalers.json` is absent (default: `csv` from metadata). |
+| `--refit-scalers` | Ignore `scalers.json` and re-fit from `--train-csv` / metadata. |
+| `--allow-fit-on-eval` | Allow fitting scalers on eval/all rows when train split is missing (not for small personal sets). |
 | `--model-type` | `auto` (detect from checkpoint), `glumind`, or `sugar_one`. |
 | `--test-split` | Keep rows where `Recommended Split` equals this value (default `test`). Use `--test-split=''` to score all rows. |
 | `--batch-size` | DataLoader batch size (default from metadata). |
@@ -472,12 +475,12 @@ The repo ships reviewer checkpoint bundles and a demo CSV so you can run inferen
 | `test_model_sugar_one/` | SugarOne weights (same layout) |
 | `test_data/livia_glumind_ready.csv` | Self-contained CGM sample (~140k rows) in GluMind CSV shape |
 
-Use **`evaluate-model`** (`scripts/sugar_one/evaluate_model.py`) for both architectures. It reads run metadata, restores the checkpoint, fits MinMax scalers, and prints **MAE, RMSE, MARD**.
+Use **`evaluate-model`** (`scripts/sugar_one/evaluate_model.py`) for both architectures. It reads run metadata, restores the checkpoint, loads **`scalers.json`** (train-fit MinMax params), and prints **MAE, RMSE, MARD**.
 
 **Important for this demo file:**
 
 - `livia_glumind_ready.csv` has **no** `Recommended Split` column — pass **`--test-split ''`** to evaluate all rows.
-- Metadata in the bundled folders points at full training CSVs that are **not** redistributed — pass **`--train-csv test_data/livia_glumind_ready.csv`** so scalers are fit on the demo file.
+- Bundled `test_model_*` folders include **`scalers.json`** fitted on the original training CSVs — you do **not** need `--train-csv` for correct scaling. To deliberately re-fit on the demo file (wrong for comparing to training-domain metrics), pass `--refit-scalers --train-csv test_data/livia_glumind_ready.csv --allow-fit-on-eval`.
 - The demo file has glucose (+ sparse HR/steps) but **no insulin/carb columns** — for SugarOne, pass **`--zero-cov`** so basal/bolus/carbs are zeroed after imputation.
 
 Livia is type-1 personal data; numbers here are a **sanity check**, not a headline benchmark.
@@ -489,7 +492,6 @@ uv run evaluate-model `
   --run-dir test_model_glumind `
   --model-type glumind `
   --test-csv test_data/livia_glumind_ready.csv `
-  --train-csv test_data/livia_glumind_ready.csv `
   --test-split "" `
   --batch-size 4096
 ```
@@ -503,7 +505,6 @@ uv run evaluate-model `
   --run-dir test_model_sugar_one `
   --model-type sugar_one `
   --test-csv test_data/livia_glumind_ready.csv `
-  --train-csv test_data/livia_glumind_ready.csv `
   --zero-cov `
   --test-split "" `
   --batch-size 256 `

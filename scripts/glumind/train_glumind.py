@@ -44,6 +44,7 @@ from scripts.common.checkpoint import (
     save_full_checkpoint as _common_save_full_checkpoint,
     update_latest_symlink as update_latest_symlink,
 )
+from scripts.common.scalers import SCALERS_FILENAME, save_scalers_for_run
 
 # ---------------------------------------------------------------------------
 # Source CSV columns (same conventions as tune_nf_baselines_by_group.py)
@@ -564,13 +565,27 @@ def run_train_and_eval(
     run_dir.mkdir(parents=True, exist_ok=True)
     print(f"Run directory: {run_dir}")
 
+    save_scalers_for_run(
+        run_dir,
+        kind="glumind",
+        dataset=train_ds,
+        provenance={
+            "csv": str(getattr(args, "csv", "")),
+            "split_scheme": getattr(args, "split_scheme", "classic"),
+            "unique_id": getattr(args, "unique_id", "sequence_id"),
+            "mode": getattr(args, "mode", ""),
+            "train_windows": len(train_ds),
+        },
+    )
+
     # Save initial metadata (args + dataset sizes)
     meta = {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()}
     meta.update({
         "train_samples": len(train_ds),
         "val_samples": len(val_ds) if val_ds else 0,
         "test_samples": len(test_ds) if test_ds else 0,
-        "start_time": datetime.now().isoformat()
+        "start_time": datetime.now().isoformat(),
+        "scalers": SCALERS_FILENAME,
     })
     with open(run_dir / "tuning_meta.json", "w") as f:
         json.dump(meta, f, indent=2)

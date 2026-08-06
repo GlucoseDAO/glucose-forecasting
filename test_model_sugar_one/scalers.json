@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "kind": "sugar_one",
+  "features": {
+    "glucose": {
+      "type": "minmax",
+      "data_min": [
+        39.0
+      ],
+      "data_max": [
+        401.0
+      ],
+      "feature_range": [
+        0,
+        1
+      ],
+      "n_features_in": 1,
+      "scale": [
+        0.0027624310459941626
+      ],
+      "min": [
+        -0.107734814286232
+      ]
+    },
+    "basal": {
+      "type": "minmax",
+      "data_min": [
+        0.0
+      ],
+      "data_max": [
+        36.0
+      ],
+      "feature_range": [
+        0,
+        1
+      ],
+      "n_features_in": 1,
+      "scale": [
+        0.02777777798473835
+      ],
+      "min": [
+        0.0
+      ]
+    },
+    "bolus": {
+      "type": "minmax",
+      "data_min": [
+        0.0
+      ],
+      "data_max": [
+        25.0
+      ],
+      "feature_range": [
+        0,
+        1
+      ],
+      "n_features_in": 1,
+      "scale": [
+        0.03999999910593033
+      ],
+      "min": [
+        0.0
+      ]
+    },
+    "carbs": {
+      "type": "minmax",
+      "data_min": [
+        0.0
+      ],
+      "data_max": [
+        283.9599914550781
+      ],
+      "feature_range": [
+        0,
+        1
+      ],
+      "n_features_in": 1,
+      "scale": [
+        0.00352162285707891
+      ],
+      "min": [
+        0.0
+      ]
+    }
+  },
+  "provenance": {
+    "csv": "D:\\dev\\glucose-forecasting\\data\\loop_and_ai_ready\\loop_ai_ready_joined2.csv",
+    "source": "migrate_scalers",
+    "split_scheme": "classic",
+    "unique_id": "sequence_id",
+    "mode": "global",
+    "train_windows": 7543701,
+    "n_rows": 8390218
+  }
+}

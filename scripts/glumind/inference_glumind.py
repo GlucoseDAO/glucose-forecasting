@@ -32,6 +32,8 @@ from scripts.glumind.train_glumind import (
     mae_rmse_mard,
     evaluate,
 )
+from scripts.common.registry import try_resolve_csv_path
+from scripts.common.scalers import load_scalers, resolve_scalers_path, save_scalers_for_run
 
 _SPLIT_SCHEME_TO_MODE: dict[str, str] = {
     "classic": "test",
@@ -116,40 +118,85 @@ def main(
     resolved_mode = _resolve_mode(run_dir, mode, meta)
 
     # 3. Load dataset
-    csv_path = Path(meta["csv"])
-    if not csv_path.exists():
-        csv_path = project_root / meta["csv"]
+    csv_meta = meta.get("csv", "")
+    csv_path = try_resolve_csv_path(csv_meta, project_root) if csv_meta else None
+    sidecar = resolve_scalers_path(run_dir, meta)
 
-    typer.echo(f"Loading dataset from {csv_path}...")
-    train_df, val_df, test_df = load_splits_streaming(
-        csv_path,
-        unique_id_choice=meta.get("unique_id", "sequence_id"),
-        chunk_size=meta.get("chunk_size", 1000000),
-        drop_interpolated=meta.get("drop_interpolated", False),
-    )
+    if csv_path is None and sidecar is None:
+        typer.echo(
+            f"Error: Training CSV not found ({csv_meta!r}) and no scalers.json "
+            f"in {run_dir}.",
+            err=True,
+        )
+        raise typer.Exit(1)
 
-    # 4. Apply split scheme
-    split_scheme = meta.get("split_scheme", "classic")
-    train_df, val_df, test_df = apply_split_scheme(train_df, val_df, test_df, split_scheme)
+    train_df = val_df = test_df = None
+    if csv_path is not None:
+        typer.echo(f"Loading dataset from {csv_path}...")
+        train_df, val_df, test_df = load_splits_streaming(
+            csv_path,
+            unique_id_choice=meta.get("unique_id", "sequence_id"),
+            chunk_size=meta.get("chunk_size", 1000000),
+            drop_interpolated=meta.get("drop_interpolated", False),
+        )
 
-    # 5. Impute and sort
-    typer.echo("Preprocessing splits...")
-    train_df = impute_and_sort(train_df)
-    val_df = impute_and_sort(val_df)
-    test_df = impute_and_sort(test_df)
+        # 4. Apply split scheme
+        split_scheme = meta.get("split_scheme", "classic")
+        train_df, val_df, test_df = apply_split_scheme(
+            train_df, val_df, test_df, split_scheme
+        )
 
-    # 6. Build datasets and fit scalers on train set
-    typer.echo("Building datasets and fitting scalers on train set...")
-    train_ds = GlucoseWindowDataset(
-        train_df,
-        input_steps=meta["input_steps"],
-        horizon=meta["horizon"],
-        fit_scalers=True,
-    )
+        # 5. Impute and sort
+        typer.echo("Preprocessing splits...")
+        train_df = impute_and_sort(train_df)
+        val_df = impute_and_sort(val_df)
+        test_df = impute_and_sort(test_df)
+
+    # 6. Resolve scalers (prefer sidecar)
+    if sidecar is not None:
+        kind, scalers, _ = load_scalers(sidecar)
+        if kind != "glumind":
+            typer.echo(f"Error: scalers.json kind={kind!r}, expected glumind.", err=True)
+            raise typer.Exit(1)
+        typer.echo(f"Loaded scalers from: {sidecar}")
+        scaler_glucose = scalers["glucose"]
+        scaler_hr = scalers["hr"]
+        scaler_steps = scalers["steps"]
+    else:
+        assert train_df is not None
+        typer.echo("Building datasets and fitting scalers on train set...")
+        train_ds = GlucoseWindowDataset(
+            train_df,
+            input_steps=meta["input_steps"],
+            horizon=meta["horizon"],
+            fit_scalers=True,
+        )
+        scaler_glucose = train_ds.scaler_glucose
+        scaler_hr = train_ds.scaler_hr
+        scaler_steps = train_ds.scaler_steps
+        save_scalers_for_run(
+            run_dir,
+            kind="glumind",
+            scalers={
+                "glucose": scaler_glucose,
+                "hr": scaler_hr,
+                "steps": scaler_steps,
+            },
+            provenance={"csv": str(csv_path), "source": "legacy_refit"},
+        )
 
     # 7. Select evaluation set
+    if test_df is None or val_df is None:
+        typer.echo(
+            "Error: inference-glumind needs the training CSV on disk to select "
+            "val/test splits (scalers.json alone is not enough for this script). "
+            "Use evaluate-model / evaluate-glumind with --test-csv instead.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
     eval_df = test_df if resolved_mode == "test" else val_df
-    if eval_df.empty:
+    if eval_df.is_empty():
         typer.echo(f"Error: Resolved mode '{resolved_mode}' produced an empty dataset.", err=True)
         raise typer.Exit(1)
 
@@ -157,9 +204,9 @@ def main(
         eval_df,
         input_steps=meta["input_steps"],
         horizon=meta["horizon"],
-        scaler_glucose=train_ds.scaler_glucose,
-        scaler_hr=train_ds.scaler_hr,
-        scaler_steps=train_ds.scaler_steps,
+        scaler_glucose=scaler_glucose,
+        scaler_hr=scaler_hr,
+        scaler_steps=scaler_steps,
         fit_scalers=False,
     )
 
@@ -171,17 +218,24 @@ def main(
         hr_replace = 0.0
         steps_replace = 0.0
 
-        if default_value == "mean":
-            hr_replace = train_ds.scaler_hr.transform([[train_df["hr"].mean()]])[0, 0]
-            steps_replace = train_ds.scaler_steps.transform([[train_df["steps"].mean()]])[0, 0]
-        elif default_value == "median":
-            hr_replace = train_ds.scaler_hr.transform([[train_df["hr"].median()]])[0, 0]
-            steps_replace = train_ds.scaler_steps.transform([[train_df["steps"].median()]])[0, 0]
+        if default_value in ("mean", "median"):
+            if train_df is None:
+                typer.echo(
+                    "Error: mean/median glucose-only requires train CSV on disk.",
+                    err=True,
+                )
+                raise typer.Exit(1)
+            if default_value == "mean":
+                hr_replace = scaler_hr.transform([[train_df["hr"].mean()]])[0, 0]
+                steps_replace = scaler_steps.transform([[train_df["steps"].mean()]])[0, 0]
+            else:
+                hr_replace = scaler_hr.transform([[train_df["hr"].median()]])[0, 0]
+                steps_replace = scaler_steps.transform([[train_df["steps"].median()]])[0, 0]
 
         typer.echo(f"  HR={hr_replace:.4f}, Steps={steps_replace:.4f} (scaled)")
-        for i in range(len(eval_ds.windows_x)):
-            eval_ds.windows_x[i][:, 1] = hr_replace
-            eval_ds.windows_x[i][:, 2] = steps_replace
+        for i in range(len(eval_ds._series_h)):
+            eval_ds._series_h[i][:] = hr_replace
+            eval_ds._series_s[i][:] = steps_replace
 
     # 9. Load model
     best_model_path = run_dir / "best_model.pt"
@@ -219,10 +273,10 @@ def main(
     )
 
     # 11. Inverse transform and compute metrics
-    y_true = train_ds.scaler_glucose.inverse_transform(
+    y_true = scaler_glucose.inverse_transform(
         y_true_scaled.ravel().reshape(-1, 1)
     ).ravel()
-    y_pred = train_ds.scaler_glucose.inverse_transform(
+    y_pred = scaler_glucose.inverse_transform(
         y_pred_scaled.ravel().reshape(-1, 1)
     ).ravel()
 

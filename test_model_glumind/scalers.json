@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "kind": "glumind",
+  "features": {
+    "glucose": {
+      "type": "minmax",
+      "data_min": [
+        1.7999999523162842
+      ],
+      "data_max": [
+        455.3999938964844
+      ],
+      "feature_range": [
+        0,
+        1
+      ],
+      "n_features_in": 1,
+      "scale": [
+        0.002204585587605834
+      ],
+      "min": [
+        -0.0039682537317276
+      ]
+    },
+    "hr": {
+      "type": "minmax",
+      "data_min": [
+        0.0
+      ],
+      "data_max": [
+        195.8000030517578
+      ],
+      "feature_range": [
+        0,
+        1
+      ],
+      "n_features_in": 1,
+      "scale": [
+        0.0051072523929178715
+      ],
+      "min": [
+        0.0
+      ]
+    },
+    "steps": {
+      "type": "minmax",
+      "data_min": [
+        0.0
+      ],
+      "data_max": [
+        34418.66796875
+      ],
+      "feature_range": [
+        0,
+        1
+      ],
+      "n_features_in": 1,
+      "scale": [
+        2.905400106101297e-05
+      ],
+      "min": [
+        0.0
+      ]
+    }
+  },
+  "provenance": {
+    "csv": "data\\actual\\with_complex_steps_processing\\ai_ready_plus_type1_v1_val_in_val_and_test.csv",
+    "source": "migrate_scalers",
+    "split_scheme": "classic",
+    "unique_id": "sequence_id",
+    "mode": "global",
+    "train_windows": 4451055,
+    "n_rows": 4744698
+  }
+}
