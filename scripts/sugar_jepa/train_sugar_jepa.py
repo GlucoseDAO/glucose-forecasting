@@ -48,6 +48,7 @@ from scripts.common.checkpoint import load_full_checkpoint as _common_load_full_
 from scripts.common.checkpoint import save_full_checkpoint as _common_save_full_checkpoint
 from scripts.common.checkpoint import update_latest_symlink as _common_update_latest_symlink
 from scripts.common.scalers import SCALERS_FILENAME, save_scalers_for_run
+from scripts.sugar_jepa.sugar_jepa_spec import SUGAR_JEPA_SPEC
 
 app = typer.Typer(
     name="train_sugar_jepa",
@@ -663,8 +664,8 @@ def run_train_and_eval(
 
     save_scalers_for_run(
         run_dir,
-        kind="sugar_jepa",
-        dataset=train_ds,
+        kind=SUGAR_JEPA_SPEC.kind,
+        scalers=SUGAR_JEPA_SPEC.extract_scalers(train_ds),
         provenance={
             "csv": str(cfg.get("csv", "")),
             "split_scheme": cfg.get("split_scheme", "classic"),

@@ -51,7 +51,6 @@ import torch.nn as nn
 import typer
 from torch.utils.data import DataLoader
 
-from scripts.glumind.glumind_model import GluMindModel
 from scripts.glumind.train_glumind import (
     COL_GROUP,
     COL_SEQ,
@@ -65,7 +64,6 @@ from scripts.glumind.train_glumind import (
     load_splits_streaming as load_splits_glumind,
     mae_rmse_mard,
 )
-from scripts.sugar_one.sugar_one_model import SugarOneModel
 from scripts.sugar_one.train_sugar_one import (
     COL_TS as IC_COL_TS,
     SugarOneWindowDataset,
@@ -73,13 +71,8 @@ from scripts.sugar_one.train_sugar_one import (
     impute_and_sort as impute_and_sort_ic,
     load_splits_streaming as load_splits_ic,
 )
-from scripts.common.scalers import (
-    SCALERS_FILENAME,
-    load_scalers,
-    resolve_scalers_path,
-    save_scalers_for_run,
-)
 from scripts.common.checkpoint import strip_compile_prefix
+from scripts.common.model_spec import detect_family_kind, get_family_spec
 from scripts.common.registry import (
     find_best_run_dir as _common_find_best_run_dir,
     load_run_meta as _load_meta,
@@ -87,10 +80,14 @@ from scripts.common.registry import (
     resolve_csv_path as _common_resolve_csv_path,
     try_resolve_csv_path as _common_try_resolve_csv_path,
 )
+from scripts.common.scalers import (
+    SCALERS_FILENAME,
+    load_scalers,
+    resolve_scalers_path,
+    save_scalers_for_run,
+)
 from scripts.common.evaluation import (
     COVARIATE_NAME_ALIASES,
-    GLUMIND_COVARIATES,
-    SUGAR_ONE_COVARIATES,
     _alias_to_canonical,
     _load_csv_flexible as _common_load_csv_flexible,
     _parse_covariate_names,
@@ -135,38 +132,31 @@ def _resolve_csv_path(csv_value: str | Path) -> Path:
 
 
 def _detect_model_kind(meta: dict, state: dict[str, torch.Tensor]) -> ModelKind:
-    explicit = meta.get("model_type") or meta.get("model")
-    if explicit is not None:
-        explicit_norm = str(explicit).lower().replace("_", "").replace("-", "")
-        if explicit_norm in ("sugarone", "glumindic"):
-            return "sugar_one"
-        if explicit_norm in ("glumind",):
-            return "glumind"
-
-    normalized_keys = {k.removeprefix("_orig_mod.") for k in state}
-    ic_keys = ("embed_basal.weight", "embed_bolus.weight", "embed_carbs.weight")
-    glumind_keys = ("embed_hr.weight", "embed_steps.weight")
-    if any(k in normalized_keys for k in ic_keys):
-        return "sugar_one"
-    if any(k in normalized_keys for k in glumind_keys):
-        return "glumind"
-
-    typer.echo(
-        "Error: Could not auto-detect model type from checkpoint. "
-        "Pass --model-type glumind or sugar_one.",
-        err=True,
-    )
-    raise typer.Exit(1)
+    try:
+        detected = detect_family_kind(meta, state)
+    except ValueError as exc:
+        typer.echo(
+            f"Error: Could not auto-detect model type from checkpoint. "
+            f"Pass --model-type glumind or sugar_one. ({exc})",
+            err=True,
+        )
+        raise typer.Exit(1) from exc
+    if detected not in ("glumind", "sugar_one"):
+        typer.echo(
+            f"Error: evaluate-model supports glumind/sugar_one; got {detected!r}.",
+            err=True,
+        )
+        raise typer.Exit(1)
+    return detected  # type: ignore[return-value]
 
 
 def _covariate_map(model_kind: ModelKind) -> dict[str, list[str]]:
-    return GLUMIND_COVARIATES if model_kind == "glumind" else SUGAR_ONE_COVARIATES
+    spec = get_family_spec(model_kind)
+    return {name: list(aliases) for name, aliases in spec.csv_column_aliases.items()}
 
 
 def _canonical_feature_cols(model_kind: ModelKind) -> list[str]:
-    if model_kind == "glumind":
-        return ["glucose", "hr", "steps"]
-    return ["glucose", "basal", "bolus", "carbs"]
+    return list(get_family_spec(model_kind).feature_names)
 
 
 def _non_glucose_covariate_cols(model_kind: ModelKind) -> list[str]:
@@ -472,18 +462,27 @@ def _resolve_feature_scalers(
     allow_fit_on_eval: bool,
 ) -> tuple[dict, str]:
     """Return ``({feature: scaler}, source_description)``."""
+    expected_features = list(get_family_spec(model_kind).feature_names)
     sidecar = None if refit_scalers else resolve_scalers_path(resolved_run_dir, meta)
     if sidecar is not None:
         kind, scalers, _ = load_scalers(sidecar)
-        if kind != model_kind:
+        if kind is not None and kind != model_kind:
             typer.echo(
                 f"Error: scalers.json kind={kind!r} does not match "
                 f"model type={model_kind!r}.",
                 err=True,
             )
             raise typer.Exit(1)
+        missing = [f for f in expected_features if f not in scalers]
+        if missing:
+            typer.echo(
+                f"Error: scalers.json missing features {missing} "
+                f"(expected {expected_features}).",
+                err=True,
+            )
+            raise typer.Exit(1)
         typer.echo(f"Loaded scalers from: {sidecar}")
-        return scalers, str(sidecar)
+        return {f: scalers[f] for f in expected_features}, str(sidecar)
 
     if allow_fit_on_eval and train_csv is None and not meta.get("csv"):
         train_csv = test_path
@@ -496,21 +495,7 @@ def _resolve_feature_scalers(
         allow_fit_on_eval=allow_fit_on_eval,
     )
     train_ds = _build_train_dataset(train_df, model_kind, meta)
-    if model_kind == "glumind":
-        assert isinstance(train_ds, GlucoseWindowDataset)
-        scalers = {
-            "glucose": train_ds.scaler_glucose,
-            "hr": train_ds.scaler_hr,
-            "steps": train_ds.scaler_steps,
-        }
-    else:
-        assert isinstance(train_ds, SugarOneWindowDataset)
-        scalers = {
-            "glucose": train_ds.scaler_glucose,
-            "basal": train_ds.scaler_basal,
-            "bolus": train_ds.scaler_bolus,
-            "carbs": train_ds.scaler_carbs,
-        }
+    scalers = get_family_spec(model_kind).extract_scalers(train_ds)
     # Backfill sidecar for next eval when we had to re-fit from CSV.
     try:
         save_scalers_for_run(
@@ -531,18 +516,7 @@ def _resolve_feature_scalers(
 
 
 def _build_model(model_kind: ModelKind, meta: dict) -> nn.Module:
-    common = dict(
-        n_time_steps=meta["input_steps"],
-        d_model=meta["d_model"],
-        n_heads=meta["n_heads"],
-        ff_units=meta["ff_units"],
-        n_blocks=meta["n_blocks"],
-        prediction_horizon=meta["horizon"],
-        dropout=meta.get("dropout", 0.1),
-    )
-    if model_kind == "glumind":
-        return GluMindModel(n_features=3, **common)
-    return SugarOneModel(n_features=4, **common)
+    return get_family_spec(model_kind).build_model(meta, torch.device("cpu"))
 
 
 def _load_model_weights(

@@ -45,6 +45,7 @@ from scripts.common.checkpoint import (
     update_latest_symlink as update_latest_symlink,
 )
 from scripts.common.scalers import SCALERS_FILENAME, save_scalers_for_run
+from scripts.glumind.glumind_spec import GLUMIND_SPEC
 
 # ---------------------------------------------------------------------------
 # Source CSV columns (same conventions as tune_nf_baselines_by_group.py)
@@ -567,8 +568,8 @@ def run_train_and_eval(
 
     save_scalers_for_run(
         run_dir,
-        kind="glumind",
-        dataset=train_ds,
+        kind=GLUMIND_SPEC.kind,
+        scalers=GLUMIND_SPEC.extract_scalers(train_ds),
         provenance={
             "csv": str(getattr(args, "csv", "")),
             "split_scheme": getattr(args, "split_scheme", "classic"),

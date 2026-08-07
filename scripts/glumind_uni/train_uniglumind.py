@@ -45,6 +45,7 @@ from scripts.common.checkpoint import (
     update_latest_symlink as update_latest_symlink,
 )
 from scripts.common.scalers import SCALERS_FILENAME, save_scalers_for_run
+from scripts.glumind_uni.glumind_uni_spec import GLUMIND_UNI_SPEC
 
 app = typer.Typer(help="GluMindUni: Univariate glucose transformer trainer.")
 
@@ -547,8 +548,8 @@ def run_train_and_eval(
 
     save_scalers_for_run(
         run_dir,
-        kind="glumind_uni",
-        dataset=train_ds,
+        kind=GLUMIND_UNI_SPEC.kind,
+        scalers=GLUMIND_UNI_SPEC.extract_scalers(train_ds),
         provenance={
             "csv": str((cfg or {}).get("csv", "")),
             "split_scheme": (cfg or {}).get("split_scheme", "classic"),
