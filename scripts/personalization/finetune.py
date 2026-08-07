@@ -45,6 +45,7 @@ from scripts.personalization.constants import (
     SUGAR_ONE_VALUE_COLUMNS,
 )
 from scripts.personalization.registry import build_model_from_meta, load_base_checkpoint
+from scripts.sugar_one.sugar_one_spec import SUGAR_ONE_SPEC
 from scripts.sugar_one.train_sugar_one import (
     SugarOneWindowDataset,
     evaluate,
@@ -315,9 +316,15 @@ def run_finetune(
         sidecar = resolve_scalers_path(base_run_dir, base_meta)
         if sidecar is not None:
             kind, base_scalers, _ = load_scalers(sidecar)
-            if kind != "sugar_one":
+            if kind is not None and kind != "sugar_one":
                 raise ValueError(
                     f"base scalers.json kind={kind!r}; personalization expects sugar_one"
+                )
+            missing = [f for f in SUGAR_ONE_SPEC.feature_names if f not in base_scalers]
+            if missing:
+                raise ValueError(
+                    f"base scalers.json missing features {missing}; "
+                    f"expected {list(SUGAR_ONE_SPEC.feature_names)}"
                 )
             scaler_glucose = base_scalers["glucose"]
             scaler_basal = base_scalers["basal"]
@@ -343,14 +350,15 @@ def run_finetune(
                 base_scaler_ds = SugarOneWindowDataset(
                     base_train_df, input_steps, horizon, fit_scalers=True, window_stride=1
                 )
-                scaler_glucose = base_scaler_ds.scaler_glucose
-                scaler_basal = base_scaler_ds.scaler_basal
-                scaler_bolus = base_scaler_ds.scaler_bolus
-                scaler_carbs = base_scaler_ds.scaler_carbs
+                base_scalers = SUGAR_ONE_SPEC.extract_scalers(base_scaler_ds)
+                scaler_glucose = base_scalers["glucose"]
+                scaler_basal = base_scalers["basal"]
+                scaler_bolus = base_scalers["bolus"]
+                scaler_carbs = base_scalers["carbs"]
                 save_scalers_for_run(
                     base_run_dir,
                     kind="sugar_one",
-                    dataset=base_scaler_ds,
+                    scalers=base_scalers,
                     provenance={"csv": str(resolved_csv), "source": "legacy_refit"},
                 )
                 scaler_source = f"base_csv:{resolved_csv}"
@@ -368,10 +376,11 @@ def run_finetune(
         personal_scaler_ds = SugarOneWindowDataset(
             p_train_full, input_steps, horizon, fit_scalers=True, window_stride=1
         )
-        scaler_glucose = personal_scaler_ds.scaler_glucose
-        scaler_basal = personal_scaler_ds.scaler_basal
-        scaler_bolus = personal_scaler_ds.scaler_bolus
-        scaler_carbs = personal_scaler_ds.scaler_carbs
+        personal_scalers = SUGAR_ONE_SPEC.extract_scalers(personal_scaler_ds)
+        scaler_glucose = personal_scalers["glucose"]
+        scaler_basal = personal_scalers["basal"]
+        scaler_bolus = personal_scalers["bolus"]
+        scaler_carbs = personal_scalers["carbs"]
         scaler_source = "personal_train"
         safe_echo("Fitting scalers on full personal train split.")
 
@@ -434,12 +443,7 @@ def run_finetune(
     save_scalers_for_run(
         run_dir,
         kind="sugar_one",
-        scalers={
-            "glucose": scaler_glucose,
-            "basal": scaler_basal,
-            "bolus": scaler_bolus,
-            "carbs": scaler_carbs,
-        },
+        scalers=SUGAR_ONE_SPEC.extract_scalers(scaler_ds),
         provenance={
             "source": scaler_source,
             "base_run_dir": str(base_run_dir),

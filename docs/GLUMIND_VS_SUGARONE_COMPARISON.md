@@ -208,7 +208,7 @@ T1DM dominates the joined benchmark test split (~49% of test windows; all **`loo
 ## Conclusions
 
 - On `loop_ai_ready_joined2.csv` test data, **SugarOne (trial_0000_bcd3813f) is the best model**, with MAE 12.40 vs 12.73 for the best GluMind global checkpoint.
-- On bundled reviewer checkpoints evaluated on the shared Livia demo file (`test_data/livia_sugar_one_ready.csv`), **SugarOne (`test_model_sugar_one`) wins** — MAE **17.57** with insulin covariates vs 20.11 for `test_model_glumind` (HR/steps absent, 0-filled). With `--zero-cov`, SugarOne MAE is 18.89 (+1.32 vs full cov). Treat this as a sanity check only — not comparable to in-domain joined2 or **ai_ready** benchmarks.
+- On bundled reviewer checkpoints evaluated on the shared Livia demo file (`test_data/livia_sugar_one_ready.csv`) with **train-run `scalers.json`**, **SugarOne (`test_model_sugar_one`) wins** — MAE **17.51** with insulin covariates vs 18.85 for `test_model_glumind` (HR/steps absent, 0-filled). With `--zero-cov`, SugarOne MAE is 18.87 (+1.36 vs full cov). Treat this as a sanity check only — not comparable to in-domain joined2 or **ai_ready** benchmarks.
 - **Covariates matter but are not the whole story:** `--zero-cov` raises SugarOne MAE from 12.40 to 12.63 (+0.23 mg/dL). Zero-cov SugarOne still beats cross-domain GluMind (12.63 vs 12.73), so in-domain joined2 training and model design also contribute.
 - GluMind’s cross-domain deployment on joined2 (no HR/steps columns) is a significant handicap; for **`loop`** pump traces or joined benchmarks with insulin covariates, SugarOne is the appropriate architecture.
 - For **`ai_ready`** wearable data with HR and steps, the best GluMind run (`glumind_global_h12_20260226_032703`, val MAE 11.43) remains the recommended checkpoint.
@@ -218,9 +218,11 @@ T1DM dominates the joined benchmark test split (~49% of test windows; all **`loo
 
 The repo ships reviewer checkpoint bundles (`test_model_glumind/`, `test_model_sugar_one/`) and a shared Livia demo CSV (`test_data/livia_sugar_one_ready.csv`, 139,613 rows) in loop/SugarOne schema: glucose, basal rate, bolus insulin (no carb entries). **All three evaluations use this same file** so comparisons are on identical glucose/insulin traces. (`test_data/livia_glumind_ready.csv` remains available as a GluMind-only wearable-shaped export with HR/steps.)
 
-GluMind and SugarOne (with and without `--zero-cov`) were re-evaluated with `evaluate-model` on **2026-06-06**.
+GluMind and SugarOne (with and without `--zero-cov`) were re-evaluated with `evaluate-model` on **2026-08-07**.
 
-This is a **sanity check / proof-of-life** run, not a headline benchmark: Livia is personal type-1 CGM + pump data, scalers are fit on the demo file (not the original private training CSVs referenced in bundled metadata), and neither model was trained on this subject.
+This is a **sanity check / proof-of-life** run, not a headline benchmark: Livia is personal type-1 CGM + pump data, and neither model was trained on this subject.
+
+**Scaler note (changed behavior):** Eval now loads MinMax params from each run’s bundled **`scalers.json`** (fit on the original training CSV). Older writeups (2026-06-06) re-fit scalers on the Livia demo file via `--train-csv`, which produced different metrics (SugarOne full-cov MAE **17.57**, `--zero-cov` **18.89**, GluMind **20.11**). To reproduce those legacy numbers intentionally: `--refit-scalers --train-csv test_data/livia_sugar_one_ready.csv --allow-fit-on-eval`.
 
 ### Setup
 
@@ -228,7 +230,7 @@ This is a **sanity check / proof-of-life** run, not a headline benchmark: Livia 
 |---------|-------|
 | Test CSV | `test_data/livia_sugar_one_ready.csv` (all models) |
 | Split | All rows (`--test-split ''`; `Recommended Split` column empty) |
-| Scaler fitting | `--train-csv test_data/livia_sugar_one_ready.csv` (demo file only) |
+| Scalers | Bundled `test_model_*/scalers.json` (train-run params; no `--train-csv`) |
 | Covariates in file | basal (444 non-zero rows, 2.0–30.0 U/h), bolus (1,475 rows, 1.0–28.0 U); carbs absent (0-filled) |
 | GluMind at inference | glucose + HR/steps (both missing → 0-filled, same as joined2 cross-domain eval) |
 | SugarOne at inference | glucose + basal/bolus (full cov), or glucose only (`--zero-cov`) |
@@ -239,7 +241,6 @@ uv run evaluate-model `
   --run-dir test_model_glumind `
   --model-type glumind `
   --test-csv test_data/livia_sugar_one_ready.csv `
-  --train-csv test_data/livia_sugar_one_ready.csv `
   --test-split "" `
   --batch-size 4096 `
   --output-json runs/comparison_test_data/glumind_test_model.json
@@ -249,7 +250,6 @@ uv run evaluate-model `
   --run-dir test_model_sugar_one `
   --model-type sugar_one `
   --test-csv test_data/livia_sugar_one_ready.csv `
-  --train-csv test_data/livia_sugar_one_ready.csv `
   --test-split "" `
   --batch-size 256 `
   --output-json runs/comparison_test_data/sugar_one_test_model_full_cov.json
@@ -259,30 +259,29 @@ uv run evaluate-model `
   --run-dir test_model_sugar_one `
   --model-type sugar_one `
   --test-csv test_data/livia_sugar_one_ready.csv `
-  --train-csv test_data/livia_sugar_one_ready.csv `
   --zero-cov `
   --test-split "" `
   --batch-size 256 `
   --output-json runs/comparison_test_data/sugar_one_test_model.json
 ```
 
-### Results (all rows, demo scalers)
+### Results (all rows, train-run `scalers.json`)
 
 | Model | Checkpoint | Covariates at inference | Windows | MAE ↓ | RMSE ↓ | MARD ↓ |
 |-------|------------|---------------------------|---------|-------|--------|--------|
-| **SugarOne** (`test_model_sugar_one`, full cov) | `test_model_sugar_one/best_model.pt` | glucose + basal/bolus (carbs 0-filled) | 127,659 | **17.57** | **26.27** | **14.24%** |
-| **SugarOne** (`test_model_sugar_one`, `--zero-cov`) | `test_model_sugar_one/best_model.pt` | glucose only (basal/bolus/carbs zeroed) | 127,659 | 18.89 | 27.68 | 14.99% |
-| **GluMind** (`test_model_glumind`) | `test_model_glumind/best_model.pt` | glucose + HR/steps (missing → 0-filled) | 131,787 | 20.11 | 28.87 | 17.64% |
+| **SugarOne** (`test_model_sugar_one`, full cov) | `test_model_sugar_one/best_model.pt` | glucose + basal/bolus (carbs 0-filled) | 127,659 | **17.51** | **26.23** | **14.13%** |
+| **SugarOne** (`test_model_sugar_one`, `--zero-cov`) | `test_model_sugar_one/best_model.pt` | glucose only (basal/bolus/carbs zeroed) | 127,659 | 18.87 | 27.67 | 14.95% |
+| **GluMind** (`test_model_glumind`) | `test_model_glumind/best_model.pt` | glucose + HR/steps (missing → 0-filled) | 131,787 | 18.85 | 28.03 | 15.19% |
 
 All rows from `test_data/livia_sugar_one_ready.csv`.
 
-SugarOne with insulin covariates leads on all three metrics. The MAE gap vs GluMind is **2.54 mg/dL** (~12.6% relative). Zeroing covariates (`--zero-cov`) raises SugarOne MAE by **1.32 mg/dL** (~7.0%), showing basal/bolus channels help on this personal pump trace even without carb data.
+SugarOne with insulin covariates leads on all three metrics. The MAE gap vs GluMind is **1.34 mg/dL** (~7.1% relative). Zeroing covariates (`--zero-cov`) raises SugarOne MAE by **1.36 mg/dL** (~7.8%), showing basal/bolus channels help on this personal pump trace even without carb data.
 
 | Metric | SugarOne (full cov) | SugarOne (`--zero-cov`) | GluMind | Δ zero-cov − full cov | Δ GluMind − full cov |
 |--------|----------------------|--------------------------|---------|----------------------|----------------------|
-| MAE | 17.57 | 18.89 | 20.11 | **+1.32** | **+2.54** |
-| RMSE | 26.27 | 27.68 | 28.87 | +1.41 | +2.60 |
-| MARD | 14.24% | 14.99% | 17.64% | +0.75 pp | +3.40 pp |
+| MAE | 17.51 | 18.87 | 18.85 | **+1.36** | **+1.34** |
+| RMSE | 26.23 | 27.67 | 28.03 | +1.45 | +1.80 |
+| MARD | 14.13% | 14.95% | 15.19% | +0.81 pp | +1.06 pp |
 
 ### Covariate influence on Livia (SugarOne ablation)
 
@@ -290,26 +289,26 @@ Same checkpoint, same `livia_sugar_one_ready.csv`, same 127,659 windows — insu
 
 | Condition | MAE | RMSE | MARD | vs full cov |
 |-----------|-----|------|------|-------------|
-| Full covariates (basal + bolus; carbs 0-filled) | **17.57** | **26.27** | **14.24%** | — |
-| `--zero-cov` (glucose only) | 18.89 | 27.68 | 14.99% | +1.32 MAE (+7.5%) |
+| Full covariates (basal + bolus; carbs 0-filled) | **17.51** | **26.23** | **14.13%** | — |
+| `--zero-cov` (glucose only) | 18.87 | 27.67 | 14.95% | +1.36 MAE (+7.8%) |
 
-The Livia covariate gain (+1.32 MAE) is larger than on the joined2 benchmark (+0.23 MAE), likely because this subject is insulin-dependent (T1) and pump bolus/basal events are informative for personal forecasting.
+The Livia covariate gain (+1.36 MAE) is larger than on the joined2 benchmark (+0.23 MAE), likely because this subject is insulin-dependent (T1) and pump bolus/basal events are informative for personal forecasting.
 
 ### Context vs in-domain bundled metrics
 
 Saved training-run test metrics from the bundled folders (different datasets, official splits):
 
-| Model | Training data | In-domain test MAE | Livia demo MAE (full cov) | Livia demo MAE (`--zero-cov`) |
-|-------|---------------|--------------------|---------------------------|-------------------------------|
-| GluMind (`test_model_glumind`) | ai_ready_plus_type1 | 11.70 | 20.11 | — |
-| SugarOne (`test_model_sugar_one`) | loop_ai_ready_joined2 | 12.41 | **17.57** | 18.89 |
+| Model | Training data | In-domain test MAE | Livia MAE (full cov, train scalers) | Livia MAE (`--zero-cov`) |
+|-------|---------------|--------------------|-------------------------------------|--------------------------|
+| GluMind (`test_model_glumind`) | ai_ready_plus_type1 | 11.70 | 18.85 | — |
+| SugarOne (`test_model_sugar_one`) | loop_ai_ready_joined2 | 12.41 | **17.51** | 18.87 |
 
-Both models degrade on out-of-distribution personal data, as expected. With insulin covariates available, SugarOne improves substantially over its glucose-only ablation (17.57 vs 18.89) and over GluMind (20.11).
+Both models degrade on out-of-distribution personal data, as expected. With insulin covariates available, SugarOne improves over its glucose-only ablation (17.51 vs 18.87) and over GluMind (18.85).
 
 **Caveats:**
 
 1. Window counts differ (127,659 vs 131,787) because SugarOne uses `input_steps=128` vs GluMind `input_steps=80` on the same underlying rows.
-2. Demo scalers are fit on all Livia rows; production metrics use train-split scalers from full training CSVs.
+2. Metrics above use train-run `scalers.json`. Re-fitting on Livia (legacy) changes absolute numbers — most for GluMind (20.11 → 18.85 with train scalers) — without changing the ranking of full-cov SugarOne.
 3. GluMind cannot use insulin columns from this CSV (architecture mismatch); it runs glucose-only in practice via 0-filled HR/steps — analogous to its joined2 cross-domain setup.
 4. `livia_sugar_one_ready.csv` has no carbohydrate entries; carbs are 0-filled throughout (per data availability).
 

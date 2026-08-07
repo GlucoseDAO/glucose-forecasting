@@ -101,13 +101,9 @@ def test_save_scalers_for_run_and_resolve(tmp_path: Path) -> None:
     assert resolve_scalers_path(tmp_path / "empty") is None
 
 
-def test_dump_rejects_wrong_features(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="Missing scalers"):
-        dump_scalers(
-            tmp_path / "bad.json",
-            kind="sugar_one",
-            scalers={"glucose": _fit_minmax(0.0, 1.0)},
-        )
+def test_dump_rejects_empty_scalers(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="empty"):
+        dump_scalers(tmp_path / "bad.json", kind="sugar_one", scalers={})
 
 
 def test_sidecar_matches_refit_on_same_data() -> None:
@@ -116,6 +112,5 @@ def test_sidecar_matches_refit_on_same_data() -> None:
     fitted = MinMaxScaler().fit(train)
     restored = deserialize_minmax(serialize_minmax(fitted))
     assert scalers_match_transform(fitted, restored, sample=train)
-    # A different distribution must NOT match (guards against trivial always-true).
     other = MinMaxScaler().fit(np.array([[10.0], [20.0]]))
     assert not scalers_match_transform(fitted, other, sample=train)

@@ -58,6 +58,7 @@ from scripts.common.checkpoint import (
 from scripts.common.checkpoint import load_full_checkpoint as _common_load_full_checkpoint
 from scripts.common.checkpoint import save_full_checkpoint as _common_save_full_checkpoint
 from scripts.common.scalers import SCALERS_FILENAME, save_scalers_for_run
+from scripts.sugar_one.sugar_one_spec import SUGAR_ONE_SPEC
 
 app = typer.Typer(
     name="train_sugar_one",
@@ -748,8 +749,8 @@ def run_train_and_eval(
 
     save_scalers_for_run(
         run_dir,
-        kind="sugar_one",
-        dataset=train_ds,
+        kind=SUGAR_ONE_SPEC.kind,
+        scalers=SUGAR_ONE_SPEC.extract_scalers(train_ds),
         provenance={
             "csv": str(cfg.get("csv", "")),
             "split_scheme": cfg.get("split_scheme", "classic"),

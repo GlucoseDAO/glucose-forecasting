@@ -22,41 +22,41 @@ import torch.nn as nn
 import typer
 from torch.utils.data import DataLoader
 
+from scripts.common.model_spec import get_family_spec
+
 ModelKind = Literal["glumind", "sugar_one"]
 
 COL_EVENT = "Event Type"
 
-GLUMIND_COVARIATES: dict[str, list[str]] = {
-    "glucose": ["Glucose Value (mg/dL)", "Glucose (mg/dL)"],
-    "hr": ["Heart Rate"],
-    "steps": ["Step Count"],
-}
 
-SUGAR_ONE_COVARIATES: dict[str, list[str]] = {
-    "glucose": ["Glucose Value (mg/dL)", "Glucose (mg/dL)"],
-    "basal": ["Basal Rate (U/h)"],
-    "bolus": ["Bolus Insulin (U)"],
-    "carbs": ["Carbohydrates (g)"],
-}
+def _csv_aliases_for_kind(model_kind: str) -> dict[str, list[str]]:
+    spec = get_family_spec(model_kind)
+    return {name: list(aliases) for name, aliases in spec.csv_column_aliases.items()}
+
+
+# Backward-compatible names still imported by older call sites / docs.
+GLUMIND_COVARIATES: dict[str, list[str]] = _csv_aliases_for_kind("glumind")
+SUGAR_ONE_COVARIATES: dict[str, list[str]] = _csv_aliases_for_kind("sugar_one")
+
+
+def _merged_covariate_name_aliases() -> dict[str, list[str]]:
+    merged: dict[str, list[str]] = {}
+    for kind in ("glumind", "sugar_one"):
+        for canonical, aliases in get_family_spec(kind).covariate_aliases.items():
+            merged[canonical] = list(aliases)
+    return merged
+
 
 # User-facing names accepted by --include-cov / --exclude-cov (case-insensitive).
-COVARIATE_NAME_ALIASES: dict[str, list[str]] = {
-    "hr": ["hr", "heart_rate", "heart rate", "heartrate"],
-    "steps": ["steps", "step", "step_count", "step count", "stepcount"],
-    "basal": ["basal", "basal_rate", "basal rate", "basalrate"],
-    "bolus": ["bolus", "bolus_insulin", "bolus insulin", "insulin", "bolusinsulin"],
-    "carbs": ["carbs", "carb", "carbohydrates", "carbohydrate", "carbohydrate_g"],
-}
+COVARIATE_NAME_ALIASES: dict[str, list[str]] = _merged_covariate_name_aliases()
 
 
 def _covariate_map(model_kind: ModelKind) -> dict[str, list[str]]:
-    return GLUMIND_COVARIATES if model_kind == "glumind" else SUGAR_ONE_COVARIATES
+    return _csv_aliases_for_kind(model_kind)
 
 
 def _canonical_feature_cols(model_kind: ModelKind) -> list[str]:
-    if model_kind == "glumind":
-        return ["glucose", "hr", "steps"]
-    return ["glucose", "basal", "bolus", "carbs"]
+    return list(get_family_spec(model_kind).feature_names)
 
 
 def _non_glucose_covariate_cols(model_kind: ModelKind) -> list[str]:
@@ -73,7 +73,8 @@ def _alias_to_canonical(name: str, model_kind: ModelKind) -> str:
     valid = set(_non_glucose_covariate_cols(model_kind))
     if normalized in valid:
         return normalized
-    for canonical, aliases in COVARIATE_NAME_ALIASES.items():
+    aliases_map = get_family_spec(model_kind).covariate_aliases
+    for canonical, aliases in aliases_map.items():
         alias_norms = {_normalize_covariate_token(a) for a in aliases}
         if normalized in alias_norms or normalized == canonical:
             if canonical in valid:

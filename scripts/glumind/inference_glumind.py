@@ -155,9 +155,16 @@ def main(
     # 6. Resolve scalers (prefer sidecar)
     if sidecar is not None:
         kind, scalers, _ = load_scalers(sidecar)
-        if kind != "glumind":
+        if kind is not None and kind != "glumind":
             typer.echo(f"Error: scalers.json kind={kind!r}, expected glumind.", err=True)
             raise typer.Exit(1)
+        for required in ("glucose", "hr", "steps"):
+            if required not in scalers:
+                typer.echo(
+                    f"Error: scalers.json missing feature {required!r}.",
+                    err=True,
+                )
+                raise typer.Exit(1)
         typer.echo(f"Loaded scalers from: {sidecar}")
         scaler_glucose = scalers["glucose"]
         scaler_hr = scalers["hr"]

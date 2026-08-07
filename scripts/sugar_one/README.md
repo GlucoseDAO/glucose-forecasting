@@ -2,7 +2,7 @@
 
 `scripts/sugar_one/evaluate_model.py` is registered as **`uv run evaluate-model`**.
 
-It loads a trained checkpoint, fits MinMax scalers on training rows, runs sliding-window inference on a CSV, and reports **MAE, RMSE, and MARD**. The same entry point works for:
+It loads a trained checkpoint, restores MinMax scalers from **`scalers.json`** when present (otherwise re-fits from `--train-csv` / metadata), runs sliding-window inference on a CSV, and reports **MAE, RMSE, and MARD**. The same entry point works for:
 
 | Model | Covariate channels | Typical CSV schema |
 |-------|-------------------|-------------------|
@@ -32,15 +32,15 @@ uv run evaluate-model \
   --output-json runs/comparison_loop/sugar_one_trial0.json
 ```
 
-Bundled reviewer checkpoints:
+Bundled reviewer checkpoints (loads `scalers.json` from the run dir):
 
 ```bash
 uv run evaluate-model \
   --run-dir test_model_sugar_one \
   --model-type sugar_one \
   --test-csv test_data/livia_sugar_one_ready.csv \
-  --train-csv test_data/livia_sugar_one_ready.csv \
-  --zero-cov
+  --zero-cov \
+  --test-split ""
 ```
 
 ---

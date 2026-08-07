@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Persist and restore sklearn feature scalers for glucose forecasting runs.
 
-Training fits MinMaxScaler (and optionally StandardScaler for SugarJEPA) on the
-train split. Those params are written to ``scalers.json`` beside checkpoint
-weights so eval/inference do not need the original training CSV.
+Schema-free: any ``dict[str, MinMaxScaler | StandardScaler]`` can be saved.
+Model families declare their feature names via ``ModelFamilySpec`` in their
+own package — this module does not maintain a kind → features registry.
 """
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
-from typing import Any, Literal, Mapping
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
@@ -17,27 +18,9 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 SCALERS_FILENAME = "scalers.json"
 SCALERS_SCHEMA_VERSION = 1
 
-ModelKind = Literal["glumind", "sugar_one", "glumind_uni", "sugar_jepa"]
-
-GLUMIND_FEATURES: tuple[str, ...] = ("glucose", "hr", "steps")
-SUGAR_ONE_FEATURES: tuple[str, ...] = ("glucose", "basal", "bolus", "carbs")
-GLUMIND_UNI_FEATURES: tuple[str, ...] = ("glucose",)
-SUGAR_JEPA_FEATURES: tuple[str, ...] = (
-    "glucose",
-    "basal",
-    "bolus",
-    "carbs",
-    "glucose_jepa",
-)
-
-FEATURES_BY_KIND: dict[str, tuple[str, ...]] = {
-    "glumind": GLUMIND_FEATURES,
-    "sugar_one": SUGAR_ONE_FEATURES,
-    "glumind_uni": GLUMIND_UNI_FEATURES,
-    "sugar_jepa": SUGAR_JEPA_FEATURES,
-}
-
 ScalerLike = MinMaxScaler | StandardScaler
+
+_SCALER_ATTR_RE = re.compile(r"^scaler_(.+)$")
 
 
 def scalers_path(run_dir: Path) -> Path:
@@ -167,42 +150,63 @@ def deserialize_scaler(params: Mapping[str, Any]) -> ScalerLike:
     raise ValueError(f"Unsupported scaler type in params: {stype!r}")
 
 
-def extract_scalers_from_dataset(dataset: Any, kind: ModelKind) -> dict[str, ScalerLike]:
-    """Pull fitted scaler attributes off a window dataset instance."""
-    features = FEATURES_BY_KIND[kind]
-    out: dict[str, ScalerLike] = {}
-    for name in features:
-        attr = f"scaler_{name}"
-        if not hasattr(dataset, attr):
-            raise AttributeError(f"{type(dataset).__name__} missing attribute {attr!r}")
-        scaler = getattr(dataset, attr)
-        if scaler is None:
-            raise ValueError(f"{attr} is None; cannot serialize")
-        out[name] = scaler
-    return out
+def extract_scalers_from_dataset(
+    dataset: Any,
+    feature_names: Sequence[str] | None = None,
+) -> dict[str, ScalerLike]:
+    """Pull fitted ``scaler_*`` attributes off a window dataset.
+
+    If ``feature_names`` is given, only those channels are required.
+    Otherwise every attribute matching ``scaler_<name>`` is collected.
+    """
+    if feature_names is not None:
+        out: dict[str, ScalerLike] = {}
+        for name in feature_names:
+            attr = f"scaler_{name}"
+            if not hasattr(dataset, attr):
+                raise AttributeError(
+                    f"{type(dataset).__name__} missing attribute {attr!r}"
+                )
+            scaler = getattr(dataset, attr)
+            if scaler is None:
+                raise ValueError(f"{attr} is None; cannot serialize")
+            out[name] = scaler
+        return out
+
+    discovered: dict[str, ScalerLike] = {}
+    for attr, value in vars(dataset).items():
+        match = _SCALER_ATTR_RE.match(attr)
+        if match is None:
+            continue
+        if value is None:
+            continue
+        if not isinstance(value, (MinMaxScaler, StandardScaler)):
+            continue
+        discovered[match.group(1)] = value
+    if not discovered:
+        raise ValueError(
+            f"No scaler_* attributes found on {type(dataset).__name__}"
+        )
+    return discovered
 
 
 def dump_scalers(
     path: Path,
     *,
-    kind: ModelKind,
     scalers: Mapping[str, ScalerLike],
+    kind: str | None = None,
     provenance: Mapping[str, Any] | None = None,
 ) -> Path:
     """Write ``scalers.json`` (or custom path). Returns the path written."""
-    expected = FEATURES_BY_KIND[kind]
-    missing = [f for f in expected if f not in scalers]
-    if missing:
-        raise ValueError(f"Missing scalers for kind={kind!r}: {missing}")
-    extra = [f for f in scalers if f not in expected]
-    if extra:
-        raise ValueError(f"Unexpected scalers for kind={kind!r}: {extra}")
+    if not scalers:
+        raise ValueError("Cannot dump empty scalers mapping")
 
     payload: dict[str, Any] = {
         "version": SCALERS_SCHEMA_VERSION,
-        "kind": kind,
-        "features": {name: serialize_scaler(scalers[name]) for name in expected},
+        "features": {name: serialize_scaler(scalers[name]) for name in scalers},
     }
+    if kind is not None:
+        payload["kind"] = kind
     if provenance:
         payload["provenance"] = dict(provenance)
 
@@ -212,10 +216,11 @@ def dump_scalers(
     return path
 
 
-def load_scalers(path: Path) -> tuple[ModelKind, dict[str, ScalerLike], dict[str, Any]]:
+def load_scalers(path: Path) -> tuple[str | None, dict[str, ScalerLike], dict[str, Any]]:
     """Load scalers from JSON.
 
-    Returns ``(kind, {feature: scaler}, full_payload)``.
+    Returns ``(kind_or_none, {feature: scaler}, full_payload)``.
+    Unknown / new kinds are accepted — feature set comes from the file itself.
     """
     path = Path(path)
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -226,37 +231,35 @@ def load_scalers(path: Path) -> tuple[ModelKind, dict[str, ScalerLike], dict[str
             f"expected {SCALERS_SCHEMA_VERSION}"
         )
     kind = payload.get("kind")
-    if kind not in FEATURES_BY_KIND:
-        raise ValueError(f"Unknown scaler kind: {kind!r}")
+    if kind is not None:
+        kind = str(kind)
     features_blob = payload.get("features")
-    if not isinstance(features_blob, dict):
-        raise ValueError("scalers.json missing 'features' object")
-    expected = FEATURES_BY_KIND[kind]
-    scalers: dict[str, ScalerLike] = {}
-    for name in expected:
-        if name not in features_blob:
-            raise ValueError(f"scalers.json missing feature {name!r}")
-        scalers[name] = deserialize_scaler(features_blob[name])
-    return kind, scalers, payload  # type: ignore[return-value]
+    if not isinstance(features_blob, dict) or not features_blob:
+        raise ValueError("scalers.json missing non-empty 'features' object")
+    scalers: dict[str, ScalerLike] = {
+        name: deserialize_scaler(params) for name, params in features_blob.items()
+    }
+    return kind, scalers, payload
 
 
 def save_scalers_for_run(
     run_dir: Path,
     *,
-    kind: ModelKind,
     dataset: Any | None = None,
     scalers: Mapping[str, ScalerLike] | None = None,
+    feature_names: Sequence[str] | None = None,
+    kind: str | None = None,
     provenance: Mapping[str, Any] | None = None,
 ) -> Path:
     """Save ``scalers.json`` into ``run_dir`` from a dataset or scaler mapping."""
     if scalers is None:
         if dataset is None:
             raise ValueError("Provide dataset or scalers")
-        scalers = extract_scalers_from_dataset(dataset, kind)
+        scalers = extract_scalers_from_dataset(dataset, feature_names=feature_names)
     return dump_scalers(
         scalers_path(run_dir),
-        kind=kind,
         scalers=scalers,
+        kind=kind,
         provenance=provenance,
     )
 

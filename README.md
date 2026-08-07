@@ -521,7 +521,6 @@ The older GluMind-only script still works for the same demo:
 uv run evaluate-glumind `
   --run-dir test_model_glumind `
   --test-csv test_data/livia_glumind_ready.csv `
-  --train-csv test_data/livia_glumind_ready.csv `
   --test-split ""
 ```
 

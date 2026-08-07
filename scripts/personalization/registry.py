@@ -1,9 +1,8 @@
 """SugarOne-family model registry for personalization scripts.
 
-Any model that accepts the glucose + basal + bolus + carbs schema and uses the
-same checkpoint layout (``best_model.pt`` + ``tuning_meta.json`` / ``config.json``)
-can register here. Personalization CLIs resolve architecture via this registry
-rather than hard-coding ``SugarOneModel``.
+Delegates to ``scripts.sugar_one.sugar_one_spec.SUGAR_ONE_SPEC`` (and any
+additional SugarOne-schema families registered here). Personalization CLIs
+resolve architecture via this registry rather than hard-coding ``SugarOneModel``.
 """
 from __future__ import annotations
 
@@ -16,27 +15,27 @@ import torch
 import torch.nn as nn
 
 from scripts.common.checkpoint import strip_compile_prefix
+from scripts.common.model_spec import arch_hparams_from_meta, get_family_spec
 from scripts.common.registry import load_run_meta, resolve_checkpoint
-from scripts.personalization.constants import SUGAR_ONE_VALUE_COLUMNS
-from scripts.sugar_one.sugar_one_model import SugarOneModel
+from scripts.sugar_one.sugar_one_spec import SUGAR_ONE_SPEC
 
 BuildModelFn = Callable[..., nn.Module]
 
 
 @dataclass(frozen=True)
 class ModelSpec:
-    """Descriptor for a SugarOne-family model type."""
+    """Descriptor for a SugarOne-schema model type used by personalization."""
 
     name: str
     n_features: int
     value_columns: dict[str, str]
     build: BuildModelFn
-    # State-dict key substrings that identify this family in a checkpoint.
     fingerprint_keys: tuple[str, ...]
 
 
-def _build_sugar_one(
+def _build_from_family(
     *,
+    family_kind: str,
     input_steps: int,
     d_model: int,
     n_heads: int,
@@ -45,37 +44,37 @@ def _build_sugar_one(
     horizon: int,
     dropout: float,
     device: torch.device,
-) -> SugarOneModel:
-    model = SugarOneModel(
-        n_time_steps=input_steps,
-        n_features=4,
-        d_model=d_model,
-        n_heads=n_heads,
-        ff_units=ff_units,
-        n_blocks=n_blocks,
-        prediction_horizon=horizon,
-        dropout=dropout,
+) -> nn.Module:
+    meta = {
+        "input_steps": input_steps,
+        "d_model": d_model,
+        "n_heads": n_heads,
+        "ff_units": ff_units,
+        "n_blocks": n_blocks,
+        "horizon": horizon,
+        "dropout": dropout,
+    }
+    return get_family_spec(family_kind).build_model(meta, device)
+
+
+def _spec_from_family(kind: str) -> ModelSpec:
+    family = get_family_spec(kind)
+    return ModelSpec(
+        name=family.kind,
+        n_features=family.n_features,
+        value_columns=dict(family.value_columns),
+        build=lambda **kwargs: _build_from_family(family_kind=family.kind, **kwargs),
+        fingerprint_keys=tuple(family.fingerprint_keys),
     )
-    return model.to(device)
 
 
 _REGISTRY: dict[str, ModelSpec] = {
-    "sugar_one": ModelSpec(
-        name="sugar_one",
-        n_features=4,
-        value_columns=dict(SUGAR_ONE_VALUE_COLUMNS),
-        build=_build_sugar_one,
-        fingerprint_keys=(
-            "embed_basal.weight",
-            "embed_bolus.weight",
-            "embed_carbs.weight",
-        ),
-    ),
+    "sugar_one": _spec_from_family("sugar_one"),
 }
 
 
 def register_model(spec: ModelSpec) -> None:
-    """Register or replace a SugarOne-family model type."""
+    """Register or replace a SugarOne-schema model type."""
     _REGISTRY[spec.name] = spec
 
 
@@ -92,7 +91,7 @@ def get_model_spec(model_type: str) -> ModelSpec:
 
 
 def detect_model_type(meta: dict[str, Any], state: dict[str, torch.Tensor]) -> str:
-    """Detect SugarOne-family type from metadata or checkpoint keys."""
+    """Detect SugarOne-schema type from metadata or checkpoint keys."""
     explicit = meta.get("model_type") or meta.get("model")
     if explicit is not None:
         norm = str(explicit).lower().replace("-", "_")
@@ -106,21 +105,12 @@ def detect_model_type(meta: dict[str, Any], state: dict[str, torch.Tensor]) -> s
         if any(k in normalized_keys for k in spec.fingerprint_keys):
             return name
 
-    # Default for this package: SugarOne-family only.
     return "sugar_one"
 
 
 def arch_from_meta(meta: dict[str, Any]) -> dict[str, Any]:
     """Extract architecture hyperparameters from a run metadata dict."""
-    return {
-        "input_steps": int(meta.get("input_steps", 128)),
-        "d_model": int(meta.get("d_model", 32)),
-        "n_heads": int(meta.get("n_heads", 8)),
-        "ff_units": int(meta.get("ff_units", 128)),
-        "n_blocks": int(meta.get("n_blocks", 5)),
-        "horizon": int(meta.get("horizon", 12)),
-        "dropout": float(meta.get("dropout", 0.1)),
-    }
+    return arch_hparams_from_meta(meta)
 
 
 def build_model_from_meta(
@@ -157,3 +147,7 @@ def load_base_checkpoint(
     model = build_model_from_meta(resolved, meta, dev)
     model.load_state_dict(state)
     return model, meta, resolved, ckpt_path
+
+
+# Re-export for callers that previously imported value columns from constants only.
+SUGAR_ONE_VALUE_COLUMNS = dict(SUGAR_ONE_SPEC.value_columns)

@@ -65,9 +65,16 @@ def main(
     sidecar = None if refit_scalers else resolve_scalers_path(run_dir, cfg)
     if sidecar is not None:
         kind, scalers, _ = load_scalers(sidecar)
-        if kind != "sugar_jepa":
+        if kind is not None and kind != "sugar_jepa":
             typer.echo(f"Error: scalers.json kind={kind!r}, expected sugar_jepa.", err=True)
             raise typer.Exit(1)
+        for required in ("glucose", "basal", "bolus", "carbs", "glucose_jepa"):
+            if required not in scalers:
+                typer.echo(
+                    f"Error: scalers.json missing feature {required!r}.",
+                    err=True,
+                )
+                raise typer.Exit(1)
         typer.echo(f"Loaded scalers from: {sidecar}")
         scaler_glucose = scalers["glucose"]
         scaler_basal = scalers["basal"]
