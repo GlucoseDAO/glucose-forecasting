@@ -33,7 +33,8 @@ The project currently includes:
 - `test_data/livia_glumind_ready.csv`: self-contained demo CSV for quick end-to-end evaluation.
 - `scripts/tune_nf_baselines_by_group.py`: NeuralForecast baselines (NHITS, TFT, NBEATSx).
 - `scripts/eval_gluformer_val_test_masked.py`: GluFormer (Hugging Face) evaluation on val/test.
-- `runs/`: model run outputs (metrics, checkpoints, predictions).
+- `data/input/`: preferred location for local training/eval CSVs (see `docs/DATA.md`).
+- `data/output/runs/`: default root for model run outputs (metrics, checkpoints, predictions).
 - `marked_runs/`: curated run sets and analysis markdown files.
 - `CROSS_MODEL_COMPARISON.md`: cross-model summary report.
 
@@ -240,7 +241,7 @@ Typer subcommand `train` (glucose-only model):
 
 `uv run python scripts/glumind_uni/train_uniglumind.py train --help`
 
-Options match `train-glumind` (same training modes and hyperparameters) except: glucose-only inputs; default `--out-dir` is `runs/glumind_uni`; device flag is `--device`. This Typer app does not expose `--chunk_size`, `--mask_interpolated_targets`, or `--save_predictions` (those exist on the argparse `train_glumind` CLI only).
+Options match `train-glumind` (same training modes and hyperparameters) except: glucose-only inputs; default `--out-dir` is `data/output/runs/glumind_uni`; device flag is `--device`. This Typer app does not expose `--chunk_size`, `--mask_interpolated_targets`, or `--save_predictions` (those exist on the argparse `train_glumind` CLI only).
 
 ### `scripts/sugar_one/train_sugar_one.py` (SugarOne)
 
@@ -248,7 +249,7 @@ Root command `main` (no subcommand name):
 
 `uv run python scripts/sugar_one/train_sugar_one.py --help`
 
-Same shape as GluMindUni: insulin/carb covariates, default `--out-dir` `runs/sugar_one`, `--csv` should be the loop + AI-READI joined CSV (see script docstring). Device: `--device`.
+Same shape as GluMindUni: insulin/carb covariates, default `--out-dir` `data/output/runs/sugar_one`, `--csv` should be the loop + AI-READI joined CSV (see script docstring). Device: `--device`.
 
 Expected loop-style columns (aliases are resolved automatically by `evaluate-model`):
 
@@ -329,7 +330,7 @@ uv run python scripts/glumind/train_glumind.py \
   --val_every_n_epochs 2 \
   --ckpt_every_n_epochs 10 \
   --log_every 1 \
-  --out_dir runs/glumind
+  --out_dir data/output/runs/glumind
 ```
 
 Continual mode example:
@@ -350,7 +351,7 @@ uv run python scripts/glumind/train_glumind.py \
   --val_every_n_epochs 2 \
   --ckpt_every_n_epochs 10 \
   --log_every 1 \
-  --out_dir runs/glumind
+  --out_dir data/output/runs/glumind
 ```
 
 Tune mode using test as validation:
@@ -365,7 +366,7 @@ uv run python scripts/glumind/train_glumind.py \
   --patience 20 \
   --batch_size 4096 \
   --precision bf16 \
-  --out_dir runs/glumind
+  --out_dir data/output/runs/glumind
 ```
 
 Resume training from full checkpoint:
@@ -374,7 +375,7 @@ Resume training from full checkpoint:
 uv run python scripts/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --mode global \
-  --resume_from runs/glumind/<run_name>/last_checkpoint.pt \
+  --resume_from data/output/runs/glumind/<run_name>/last_checkpoint.pt \
   --epochs 250 \
   --device cuda
 ```
@@ -391,7 +392,7 @@ uv run python scripts/sugar_one/train_sugar_one.py \
   --epochs 120 \
   --patience 10 \
   --batch_size 256 \
-  --out_dir runs/sugar_one
+  --out_dir data/output/runs/sugar_one
 ```
 
 Production hyperparameter search:
@@ -419,7 +420,7 @@ uv run python scripts/tune_nf_baselines_by_group.py \
   --early_stop_patience 6 \
   --save_all_checkpoints \
   --eval_checkpoints \
-  --out_dir runs/nhits
+  --out_dir data/output/runs/nhits
 ```
 
 Supported NF models in this repo:
@@ -438,7 +439,7 @@ uv run python scripts/eval_gluformer_val_test_masked.py \
   --splits both \
   --mask_interpolated_targets \
   --save_predictions \
-  --out_dir runs/gluformer/ai_ready_plus_type1
+  --out_dir data/output/runs/gluformer/ai_ready_plus_type1
 ```
 
 ## Checkpoints and Model Reuse
@@ -460,7 +461,7 @@ model = GluMindModel(
     n_time_steps=80, n_features=3, d_model=32, n_heads=4,
     ff_units=128, n_blocks=3, prediction_horizon=12, dropout=0.1
 )
-state = torch.load("runs/.../best_model.pt", map_location="cpu", weights_only=True)
+state = torch.load("data/output/runs/.../best_model.pt", map_location="cpu", weights_only=True)
 model.load_state_dict(state)
 model.eval()
 ```
@@ -542,7 +543,7 @@ Typical run artifacts:
 Main analysis documents:
 - `CROSS_MODEL_COMPARISON.md`
 - `marked_runs/glumind/*/RUNS_ANALYSIS.md`
-- `runs/nhits/RUNS_ANALYSIS.md`
+- `data/output/runs/nhits/RUNS_ANALYSIS.md`
 
 ## Notes
 

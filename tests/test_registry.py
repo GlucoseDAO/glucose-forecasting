@@ -170,3 +170,26 @@ def test_resolve_csv_path_relative_to_project_root(tmp_path: Path) -> None:
 def test_resolve_csv_path_missing_exits(tmp_path: Path) -> None:
     with pytest.raises(typer.Exit):
         resolve_csv_path("does_not_exist.csv", tmp_path)
+
+
+def test_resolve_csv_path_basename_under_data_input(tmp_path: Path) -> None:
+    project_root = tmp_path / "root"
+    target = project_root / "data" / "input" / "train.csv"
+    target.parent.mkdir(parents=True)
+    target.write_text("a,b\n1,2\n")
+    # Absolute Windows-style path from another machine — only basename is usable.
+    legacy = r"D:\other_machine\datasets\train.csv"
+    resolved = resolve_csv_path(legacy, project_root)
+    assert resolved == target
+
+
+def test_resolve_csv_path_prefers_data_input_over_other_data_hits(tmp_path: Path) -> None:
+    project_root = tmp_path / "root"
+    preferred = project_root / "data" / "input" / "shared.csv"
+    other = project_root / "data" / "loop_and_ai_ready" / "shared.csv"
+    preferred.parent.mkdir(parents=True)
+    other.parent.mkdir(parents=True)
+    preferred.write_text("a,b\n1,2\n")
+    other.write_text("a,b\n3,4\n")
+    resolved = resolve_csv_path(r"C:\legacy\shared.csv", project_root)
+    assert resolved == preferred

@@ -21,6 +21,7 @@ from typing import Any, Optional
 import typer
 
 from scripts.common.console import init_cli_console, safe_echo
+from scripts.common.paths import DEFAULT_RUNS_ROOT
 from scripts.personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
     DEFAULT_DATA_SIZE_DAYS,
@@ -133,7 +134,7 @@ def main(
     ),
     personal_csv: Path = typer.Option(..., "--personal-csv"),
     out_dir: Path = typer.Option(
-        Path("runs/personalization/livia/sweeps/data_size"),
+        DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "data_size",
         "--out-dir",
     ),
     recipe_json: Path = typer.Option(

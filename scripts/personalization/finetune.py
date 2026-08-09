@@ -27,6 +27,7 @@ from scripts.common.console import init_cli_console, safe_echo
 from scripts.common.data_loading import resolve_num_workers
 from scripts.common.metrics import mae_rmse_mard, overall_metrics_to_csv
 from scripts.common.registry import try_resolve_csv_path
+from scripts.common.paths import DEFAULT_RUNS_ROOT
 from scripts.common.scalers import (
     SCALERS_FILENAME,
     load_scalers,
@@ -677,7 +678,7 @@ def main(
         "--base-run-dir",
     ),
     personal_csv: Path = typer.Option(..., "--personal-csv"),
-    out_dir: Path = typer.Option(Path("runs/personalization"), "--out-dir"),
+    out_dir: Path = typer.Option(DEFAULT_RUNS_ROOT / "personalization", "--out-dir"),
     run_name: Optional[str] = typer.Option(None, "--run-name"),
     personal_days: Optional[int] = typer.Option(
         None,

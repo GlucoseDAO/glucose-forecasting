@@ -9,7 +9,7 @@
 
 [paths]
 csv = "data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv"
-output_dir = "runs/sugar_one_tune/explore_dev2"
+output_dir = "data/output/runs/sugar_one_tune/explore_dev2"
 
 [dataset]
 unique_id = "sequence_id"

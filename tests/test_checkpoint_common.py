@@ -73,7 +73,7 @@ def test_checkpoint_glumind_shape_args_key_stringify_paths(tmp_path: Path) -> No
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
 
-    cfg = {"out_dir": Path("runs/glumind"), "lr": 0.001}
+    cfg = {"out_dir": Path("data/output/runs/glumind"), "lr": 0.001}
     ckpt_path = run_dir / "checkpoint.pt"
     save_full_checkpoint(
         ckpt_path, model, optimizer, scheduler, epoch=3, best_val_loss=0.25,
@@ -84,7 +84,7 @@ def test_checkpoint_glumind_shape_args_key_stringify_paths(tmp_path: Path) -> No
     assert "args" in raw
     assert "config" not in raw
     assert isinstance(raw["args"]["out_dir"], str)  # Path was stringified
-    assert raw["args"]["out_dir"] == str(Path("runs/glumind"))
+    assert raw["args"]["out_dir"] == str(Path("data/output/runs/glumind"))
 
     model2 = _tiny_uni_model()
     opt2 = torch.optim.AdamW(model2.parameters(), lr=0.001)

@@ -24,12 +24,12 @@ uv run evaluate-model \
 
 # Evaluate SugarOne on the loop benchmark test split
 uv run evaluate-model \
-  --run-dir runs/sugar_one_tune/production/trial_0000_bcd3813f \
+  --run-dir data/output/runs/sugar_one_tune/production/trial_0000_bcd3813f \
   --model-type sugar_one \
   --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --train-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --batch-size 256 \
-  --output-json runs/comparison_loop/sugar_one_trial0.json
+  --output-json data/output/runs/comparison_loop/sugar_one_trial0.json
 ```
 
 Bundled reviewer checkpoints (loads `scalers.json` from the run dir):
@@ -151,13 +151,13 @@ Typical T1DM ablation workflow on `data/loop_and_ai_ready/ablation_test.csv`:
 
 ```bash
 uv run evaluate-model \
-  --run-dir runs/sugar_one_tune/production/trial_0000_bcd3813f \
+  --run-dir data/output/runs/sugar_one_tune/production/trial_0000_bcd3813f \
   --model-type sugar_one \
   --test-csv data/loop_and_ai_ready/ablation_test.csv \
   --train-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --test-split '' \
   --include-cov basal \
-  --output-json runs/ablation/basal_only.json
+  --output-json data/output/runs/ablation/basal_only.json
 ```
 
 Repeat with `--include-cov bolus`, `--include-cov carbs`, `--include-cov basal,bolus`, etc., and compare JSON outputs.

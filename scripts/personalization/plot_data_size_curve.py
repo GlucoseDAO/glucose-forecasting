@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import polars as pl
 import typer
 
+from scripts.common.paths import DEFAULT_RUNS_ROOT
 from scripts.personalization.sweep_utils import estimate_plateau_day
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
@@ -242,11 +243,11 @@ def plot_combined_data_size_curves(
 @app.command("single")
 def main_single(
     summary_csv: Path = typer.Option(
-        Path("runs/personalization/livia/sweeps/data_size/summary.csv"),
+        DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "data_size" / "summary.csv",
         "--summary-csv",
     ),
     out_png: Path = typer.Option(
-        Path("runs/personalization/livia/sweeps/data_size/data_size_curve.png"),
+        DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "data_size" / "data_size_curve.png",
         "--out-png",
     ),
     title: str = typer.Option(
@@ -287,7 +288,7 @@ def main_combined(
         help="Repeatable: subject name matching each --summary-csv (same order).",
     ),
     out_png: Path = typer.Option(
-        Path("runs/personalization/data_size_curves_combined.png"),
+        DEFAULT_RUNS_ROOT / "personalization" / "data_size_curves_combined.png",
         "--out-png",
     ),
     title: str = typer.Option(
@@ -335,11 +336,11 @@ def _default(
     """Default entry: single-curve plot (backward compatible)."""
     if ctx.invoked_subcommand is not None:
         return
-    csv_path = summary_csv or Path(
-        "runs/personalization/livia/sweeps/data_size/summary.csv"
+    csv_path = summary_csv or (
+        DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "data_size" / "summary.csv"
     )
-    png_path = out_png or Path(
-        "runs/personalization/livia/sweeps/data_size/data_size_curve.png"
+    png_path = out_png or (
+        DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "data_size" / "data_size_curve.png"
     )
     plot_title = title or "Personal train days vs test MAE"
     rows = _load_summary_rows(csv_path)

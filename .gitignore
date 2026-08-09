@@ -208,7 +208,20 @@ __marimo__/
 
 runs/
 marked_runs/
-data/
+
+# Keep data/ skeleton trackable; ignore contents via nested .gitignore files.
+/data/*
+!/data/input/
+!/data/input/.gitignore
+!/data/output/
+!/data/output/.gitignore
+!/data/output/runs/
+!/data/output/runs/.gitignore
+!/data/processed/
+!/data/processed/.gitignore
+!/data/cache/
+!/data/cache/.gitignore
+
 temp/
 temp_docs/
 temp_scripts/

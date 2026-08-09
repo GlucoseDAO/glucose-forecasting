@@ -15,8 +15,15 @@ Examples:
 - A script that builds a milestone or interim report → `temp_scripts/`, outputs under `temp_docs/`
 - Training/eval CLIs and shared libraries under `scripts/` that are imported by CLIs/tests → keep in the codebase
 
-- Do not add intermediate markdown or scratch analysis under `docs/` or the repo root; `docs/` is for intentional, durable documentation. Training run outputs still go to `runs/` / `marked_runs/` as today.
+- Do not add intermediate markdown or scratch analysis under `docs/` or the repo root; `docs/` is for intentional, durable documentation. Training run outputs go under `data/output/runs/` (not top-level `runs/`). See `docs/DATA.md`.
 - **Tests must not reference `temp_scripts/` or `temp_docs/`.** Those folders are gitignored and unavailable from a fresh clone. Do not import, invoke, or assert against temporary scripts or their outputs. If a script moves to `temp_scripts/`, delete the tests that covered it rather than skipping or path-hacking around the move.
+
+## Layout direction (platform adoption)
+
+- Code today still lives under `scripts/` (Phase 2 will move it to `src/` as direct packages: `common`, `glumind`, `sugar_one`, … — no nested `src/glucose_forecasting/`, no thin `scripts/` shims).
+- Default run root is `data/output/runs/` (`scripts.common.paths.DEFAULT_RUNS_ROOT`).
+- Implement adoption work **one phase at a time**; verify with `uv run pytest -q` and the demo `evaluate-model` smoke before the next phase.
+- Details: `temp_docs/ANTON_PR_COMPARISON_AND_REQUIREMENTS.md`.
 
 ## Project overview
 
@@ -80,7 +87,8 @@ As of the last refactor, model-agnostic logic that used to be duplicated across 
 - `data_loading.py` — `load_splits_streaming`, `apply_split_scheme` (`classic` vs `trainval_test_as_val`), `impute_and_sort` (per-series forward/backward-fill for continuous signals like glucose/HR/basal, zero-fill for discrete signals like bolus/carbs), `limit_series`, `normalize_study_group_label`/`normalize_study_groups_column`, `resolve_num_workers`. Column names are passed in by the caller (`value_columns: dict[str, str]` mapping canonical → source CSV column) since each model variant reads a different CSV column set.
 - `metrics.py` — `mae_rmse_mard` (MAE/RMSE/MARD — the metric triple used everywhere in this repo), `per_study_group_breakdown`, `overall_metrics_to_csv`.
 - `checkpoint.py` — `save_full_checkpoint`/`load_full_checkpoint` (generalized across the three slightly different checkpoint shapes used by GluMind/SugarOne/GluMind-Uni via a `config_key` param — `"args"`, `"config"`, or `"cfg"`), `read_checkpoint_meta`, `update_latest_symlink`, `strip_compile_prefix` (strips the `_orig_mod.` prefix `torch.compile` adds to state_dict keys).
-- `registry.py` — `find_best_run_dir` (reads `_analysis_registry.csv`, picks lowest `val_mae`), `load_run_meta` (reads `tuning_meta.json` or `config.json`), `resolve_checkpoint` (finds `best_model.pt`/`last_model.pt`), `resolve_csv_path`.
+- `registry.py` — `find_best_run_dir` (reads `_analysis_registry.csv`, picks lowest `val_mae`), `load_run_meta` (reads `tuning_meta.json` or `config.json`), `resolve_checkpoint` (finds `best_model.pt`/`last_model.pt`), `resolve_csv_path` (basename remap toward `data/input/` and legacy data folders).
+- `paths.py` — `DEFAULT_RUNS_ROOT` (`data/output/runs`).
 - `evaluation.py` — covariate alias/ablation machinery (maps derived from each family's `ModelFamilySpec.csv_column_aliases` / `covariate_aliases`; still exports `GLUMIND_COVARIATES`, `SUGAR_ONE_COVARIATES`, `COVARIATE_NAME_ALIASES`) and the shared inference loop (`_run_evaluate`), extracted from `evaluate_model.py`.
 - `model_spec.py` — `ModelFamilySpec` Protocol + registry (`get_family_spec`, `detect_family_kind`). Concrete specs live beside each model (`scripts/glumind/glumind_spec.py`, `scripts/sugar_one/sugar_one_spec.py`, …). Architecture modules (`*_model.py`) stay torch-only for checkpoint reuse.
 - `scalers.py` — schema-free `scalers.json` serialize/load (no kind→features whitelist; feature set comes from Spec or the file).
@@ -127,4 +135,4 @@ One-off Loop+AI-READI join / sample scripts live under `temp_scripts/loop_ai_rea
 
 ### Reports and run artifacts
 
-`runs/` and `marked_runs/` hold training outputs (checkpoints, per-split metrics CSVs, `tuning_meta.json`). `marked_runs/` is curated/annotated subset with `RUNS_ANALYSIS.md` writeups per model/dataset combo. Durable comparison and milestone writeups live under `docs/` (e.g. `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`, `docs/T1DM_COVARIATE_ABLATION_REPORT.md`). Intermediate / working reports go under `temp_docs/`. Root `CROSS_MODEL_COMPARISON.md` is the cross-model summary.
+`data/output/runs/` holds training outputs (checkpoints, per-split metrics CSVs, `tuning_meta.json`). `marked_runs/` is a curated/annotated subset with `RUNS_ANALYSIS.md` writeups per model/dataset combo. Data layout and CSV remap rules: `docs/DATA.md`. Durable comparison and milestone writeups live under `docs/` (e.g. `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`, `docs/T1DM_COVARIATE_ABLATION_REPORT.md`). Intermediate / working reports go under `temp_docs/`. Root `CROSS_MODEL_COMPARISON.md` is the cross-model summary.

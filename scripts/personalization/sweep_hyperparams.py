@@ -16,6 +16,7 @@ from typing import Optional
 import typer
 
 from scripts.common.console import init_cli_console, safe_echo
+from scripts.common.paths import DEFAULT_RUNS_ROOT
 from scripts.personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
     DEFAULT_FT_PATIENCE,
@@ -52,7 +53,7 @@ def main(
     ),
     personal_csv: Path = typer.Option(..., "--personal-csv"),
     out_dir: Path = typer.Option(
-        Path("runs/personalization/livia/sweeps/hyperparams"),
+        DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "hyperparams",
         "--out-dir",
     ),
     lwf_lambdas: Optional[str] = typer.Option(

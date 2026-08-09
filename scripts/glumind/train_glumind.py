@@ -44,6 +44,7 @@ from scripts.common.checkpoint import (
     save_full_checkpoint as _common_save_full_checkpoint,
     update_latest_symlink as update_latest_symlink,
 )
+from scripts.common.paths import DEFAULT_RUNS_ROOT
 from scripts.common.scalers import SCALERS_FILENAME, save_scalers_for_run
 from scripts.glumind.glumind_spec import GLUMIND_SPEC
 
@@ -982,7 +983,7 @@ def parse_args():
     # System
     ap.add_argument("--device", choices=["cpu", "mps", "cuda"], default="cuda")
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--out_dir", type=Path, default=Path("runs/glumind"))
+    ap.add_argument("--out_dir", type=Path, default=DEFAULT_RUNS_ROOT / "glumind")
     ap.add_argument("--save_predictions", action="store_true")
 
     return ap.parse_args()

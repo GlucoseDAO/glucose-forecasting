@@ -19,6 +19,8 @@ except Exception as exc:  # pragma: no cover - runtime dependency check
         f"Original error: {exc}"
     )
 
+from scripts.common.paths import DEFAULT_RUNS_ROOT
+
 # ---- Source CSV columns ----
 COL_SEQ = "sequence_id"
 COL_USER = "User ID"
@@ -75,7 +77,7 @@ def parse_args():
     ap.add_argument("--mask_interpolated_targets", action="store_true",
                     help="Exclude interpolated target rows from metrics.")
 
-    ap.add_argument("--out_dir", type=Path, default=Path("runs"))
+    ap.add_argument("--out_dir", type=Path, default=DEFAULT_RUNS_ROOT)
     ap.add_argument("--save_predictions", action="store_true")
     return ap.parse_args()
 

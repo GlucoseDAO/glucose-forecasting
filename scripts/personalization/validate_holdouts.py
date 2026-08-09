@@ -14,6 +14,7 @@ from typing import Any, Optional
 
 import typer
 
+from scripts.common.paths import DEFAULT_RUNS_ROOT
 from scripts.personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
     DEFAULT_DATA_SIZE_DAYS,
@@ -167,7 +168,7 @@ def main(
         "--holdout-dir",
     ),
     out_dir: Path = typer.Option(
-        Path("runs/personalization/holdout_validation"),
+        DEFAULT_RUNS_ROOT / "personalization" / "holdout_validation",
         "--out-dir",
     ),
     users: Optional[str] = typer.Option(None, "--users"),

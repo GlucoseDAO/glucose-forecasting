@@ -16,6 +16,7 @@ from typing import Any, Optional
 import typer
 
 from scripts.common.console import init_cli_console, safe_echo
+from scripts.common.paths import DEFAULT_RUNS_ROOT
 from scripts.personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
     DEFAULT_FT_PATIENCE,
@@ -278,7 +279,7 @@ def main(
         "--holdout-dir",
     ),
     out_dir: Path = typer.Option(
-        Path("runs/personalization/holdout_lr_sweep"),
+        DEFAULT_RUNS_ROOT / "personalization" / "holdout_lr_sweep",
         "--out-dir",
     ),
     livia_reference_lr: float = typer.Option(

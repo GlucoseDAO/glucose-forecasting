@@ -44,6 +44,7 @@ from scripts.common.checkpoint import (
     save_full_checkpoint as _common_save_full_checkpoint,
     update_latest_symlink as update_latest_symlink,
 )
+from scripts.common.paths import DEFAULT_RUNS_ROOT
 from scripts.common.scalers import SCALERS_FILENAME, save_scalers_for_run
 from scripts.glumind_uni.glumind_uni_spec import GLUMIND_UNI_SPEC
 
@@ -873,7 +874,7 @@ def train(
     continual_val_scope: str = typer.Option("current_group", help="current_group | all_groups."),
     device_name: str = typer.Option("cuda", "--device", help="Device: cpu | mps | cuda."),
     seed: int = typer.Option(42, help="Random seed."),
-    out_dir: Path = typer.Option(Path("runs/glumind_uni"), help="Output directory."),
+    out_dir: Path = typer.Option(DEFAULT_RUNS_ROOT / "glumind_uni", help="Output directory."),
 ) -> None:
     """Train GluMindUni on glucose-only data."""
     torch.manual_seed(seed)

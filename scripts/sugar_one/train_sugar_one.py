@@ -57,6 +57,7 @@ from scripts.common.checkpoint import (
 )
 from scripts.common.checkpoint import load_full_checkpoint as _common_load_full_checkpoint
 from scripts.common.checkpoint import save_full_checkpoint as _common_save_full_checkpoint
+from scripts.common.paths import DEFAULT_RUNS_ROOT
 from scripts.common.scalers import SCALERS_FILENAME, save_scalers_for_run
 from scripts.sugar_one.sugar_one_spec import SUGAR_ONE_SPEC
 
@@ -1113,7 +1114,7 @@ def main(
     continual_val_scope: str = typer.Option("current_group", help="current_group | all_groups."),
     device_name: str = typer.Option("cuda", "--device", help="cpu | mps | cuda."),
     seed: int = typer.Option(42, help="Random seed."),
-    out_dir: Path = typer.Option(Path("runs/sugar_one"), help="Output directory."),
+    out_dir: Path = typer.Option(DEFAULT_RUNS_ROOT / "sugar_one", help="Output directory."),
 ) -> None:
     """Train SugarOne on insulin + carb covariate data (root CLI; do not pass a subcommand)."""
     torch.manual_seed(seed)

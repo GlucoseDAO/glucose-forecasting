@@ -127,14 +127,14 @@ uv run sweep-holdout-lr --device cuda
 uv run sweep-personal-data-size \
   --base-run-dir test_model_sugar_one \
   --personal-csv data/personalization/prepared/livia_chronological.csv \
-  --recipe-json runs/personalization/livia/best_recipe.json \
-  --out-dir runs/personalization/livia/sweeps/data_size \
-  --seed-all-from runs/personalization/livia/tune/run_001_lr0.0002_stride6 \
+  --recipe-json data/output/runs/personalization/livia/best_recipe.json \
+  --out-dir data/output/runs/personalization/livia/sweeps/data_size \
+  --seed-all-from data/output/runs/personalization/livia/tune/run_001_lr0.0002_stride6 \
   --device cuda
 
 # Re-plot after manual edits
 uv run plot-personal-data-size \
-  --summary-csv runs/personalization/livia/sweeps/data_size/summary.csv
+  --summary-csv data/output/runs/personalization/livia/sweeps/data_size/summary.csv
 ```
 
 ### Step 4 тАФ Holdout validation
@@ -158,34 +158,34 @@ uv run tune-personal
 uv run sweep-personal-hyperparams \
   --base-run-dir test_model_sugar_one \
   --personal-csv data/personalization/prepared/livia_chronological.csv \
-  --out-dir runs/personalization/livia/sweeps/hyperparams \
+  --out-dir data/output/runs/personalization/livia/sweeps/hyperparams \
   --device cuda
 
 # Finalize a hung run (eval only, no re-training)
 uv run python temp_scripts/personalization/finalize_personal_run.py \
-  runs/personalization/livia/sweeps/data_size/days_all/livia_days_all --device cuda
+  data/output/runs/personalization/livia/sweeps/data_size/days_all/livia_days_all --device cuda
 
 # Rebuild chart without re-training
 uv run sweep-personal-data-size ... --report-only
 uv run sweep-personal-data-size \
   --base-run-dir test_model_sugar_one \
   --personal-csv data/personalization/prepared/livia_chronological.csv \
-  --recipe-json runs/personalization/livia/best_recipe.json \
-  --out-dir runs/personalization/livia/sweeps/data_size \
+  --recipe-json data/output/runs/personalization/livia/best_recipe.json \
+  --out-dir data/output/runs/personalization/livia/sweeps/data_size \
   --device cuda
 
 # Step 4 тАФ Holdouts
 uv run validate-personal-holdouts \
   --base-run-dir test_model_sugar_one \
-  --recipe-json runs/personalization/livia/best_recipe.json \
-  --livia-data-size-summary runs/personalization/livia/sweeps/data_size/summary.csv \
+  --recipe-json data/output/runs/personalization/livia/best_recipe.json \
+  --livia-data-size-summary data/output/runs/personalization/livia/sweeps/data_size/summary.csv \
   --loop-csv data/loop_and_ai_ready/loop.csv \
-  --out-dir runs/personalization/holdout_validation \
+  --out-dir data/output/runs/personalization/holdout_validation \
   --device cuda
 
 # Step 5 тАФ Aggregate
 uv run python temp_scripts/personalization/aggregate_results.py \
-  --root runs/personalization \
+  --root data/output/runs/personalization \
   --out temp_docs/reports/milestone8_personalization_summary.json
 ```
 
@@ -211,7 +211,7 @@ uv run python temp_scripts/personalization/aggregate_results.py \
 ```bash
 uv run python temp_scripts/personalization/compare_window_stride.py \
   --personal-csv data/personalization/prepared/livia_chronological.csv \
-  --out-dir runs/personalization/livia/window_stride_compare \
+  --out-dir data/output/runs/personalization/livia/window_stride_compare \
   --device cuda --precision bf16
 ```
 

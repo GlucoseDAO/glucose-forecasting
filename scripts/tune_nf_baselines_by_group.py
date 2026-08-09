@@ -19,6 +19,8 @@ from neuralforecast import NeuralForecast
 from neuralforecast.losses.pytorch import MAE
 from neuralforecast.models import NBEATSx, NHITS, TFT
 
+from scripts.common.paths import DEFAULT_RUNS_ROOT
+
 # ---- Source CSV columns ----
 COL_SEQ = "sequence_id"
 COL_USER = "User ID"
@@ -103,7 +105,7 @@ def parse_args():
                     help="Comma-separated list of Study Group values. Empty = all groups.")
     ap.add_argument("--global_model", action="store_true",
                     help="Train a single model on all study groups (no per-group split).")
-    ap.add_argument("--out_dir", type=Path, default=Path("runs"))
+    ap.add_argument("--out_dir", type=Path, default=DEFAULT_RUNS_ROOT)
     ap.add_argument("--save_predictions", action="store_true")
 
     ap.add_argument("--ckpt_every_n_steps", type=int, default=400)
