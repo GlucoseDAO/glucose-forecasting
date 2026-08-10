@@ -1,4 +1,4 @@
-"""Unit tests for scripts/common/checkpoint.py gaps not covered by
+"""Unit tests for src/common/checkpoint.py gaps not covered by
 tests/test_train_checkpoint_resume.py (which only exercises the SugarOne
 config_key="config" shape).
 
@@ -12,15 +12,15 @@ from pathlib import Path
 
 import torch
 
-from scripts.common.checkpoint import (
+from common.checkpoint import (
     load_full_checkpoint,
     read_checkpoint_meta,
     save_full_checkpoint,
     strip_compile_prefix,
     update_latest_symlink,
 )
-from scripts.glumind_uni.glumind_uni_model import GluMindUniModel
-from scripts.sugar_one.sugar_one_model import SugarOneModel
+from glumind_uni.glumind_uni_model import GluMindUniModel
+from sugar_one.sugar_one_model import SugarOneModel
 
 
 def _tiny_uni_model() -> GluMindUniModel:

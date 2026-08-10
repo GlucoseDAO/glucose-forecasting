@@ -21,7 +21,7 @@ Bundled demos stay under `test_data/` (not under `data/`).
 
 ## Run outputs
 
-**Default output root:** `data/output/runs/` (constant `scripts.common.paths.DEFAULT_RUNS_ROOT`).
+**Default output root:** `data/output/runs/` (constant `common.paths.DEFAULT_RUNS_ROOT`).
 
 Examples:
 
@@ -34,7 +34,7 @@ artifacts may still live under `marked_runs/` (read-only reference).
 
 ## CSV path resolution
 
-`scripts.common.registry.resolve_csv_path` remaps checkpoint metadata paths that
+`common.registry.resolve_csv_path` remaps checkpoint metadata paths that
 point at another machine. Preferred lookup for a basename is `data/input/<name>`,
 then known legacy folders under `data/`. Prefer putting shared CSVs in `data/input/`.
 

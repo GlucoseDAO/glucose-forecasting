@@ -1,7 +1,7 @@
 # T1DM Covariate Ablation Report — SugarOne on Loop Test Data
 
 **Date:** 2026-06-13  
-**Evaluation tool:** `uv run evaluate-model` (`scripts/sugar_one/evaluate_model.py`)  
+**Evaluation tool:** `uv run evaluate-model` (`src/sugar_one/evaluate_model.py`)  
 **Model checkpoint:** `runs/sugar_one_tune/production/trial_0000_bcd3813f` (`best_model.pt`)  
 **Test dataset:** `data/loop_and_ai_ready/ablation_test.csv`  
 **Scaler fitting:** `data/loop_and_ai_ready/loop_ai_ready_joined2.csv` (train split)
@@ -187,7 +187,7 @@ uv run evaluate-model ... --include-cov bolus --output-json runs/ablation_t1dm/i
 uv run evaluate-model ... --zero-cov --output-json runs/ablation_t1dm/none_cov.json
 ```
 
-Full flag reference: `scripts/sugar_one/README.md`
+Full flag reference: `src/sugar_one/README.md`
 
 ---
 
@@ -198,4 +198,4 @@ Full flag reference: `scripts/sugar_one/README.md`
 | `data/loop_and_ai_ready/ablation_test.csv` | T1DM test subset used here |
 | `runs/ablation_t1dm/*.json` | Machine-readable metrics for all 8 runs |
 | `docs/GLUMIND_VS_SUGARONE_COMPARISON.md` | Cross-model benchmark on full joined2 test split |
-| `scripts/sugar_one/README.md` | `evaluate-model` CLI documentation |
+| `src/sugar_one/README.md` | `evaluate-model` CLI documentation |

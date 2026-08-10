@@ -20,19 +20,19 @@ The project currently includes:
 
 ## Repository Structure
 
-- `scripts/glumind/train_glumind.py`: GluMind training/tuning entrypoint (also exposed as `train-glumind`).
-- `scripts/glumind/glumind_model.py`: model architecture module (checkpoint-friendly).
-- `scripts/glumind/evaluate_glumind.py`, `inference_glumind.py`, `download_from_huggingface.py`, `upload_to_huggingface.py`: evaluation, reproduction, Hub download/upload.
-- `scripts/glumind_uni/train_uniglumind.py`: univariate GluMind variant (glucose-only).
-- `scripts/sugar_one/train_sugar_one.py`: SugarOne training entrypoint (insulin/carb covariates).
-- `scripts/sugar_one/tune_sugar_one.py`: random-search hyperparameter tuner (`tune-sugar-one`).
-- `scripts/sugar_one/sugar_one_model.py`: SugarOne architecture module.
-- `scripts/sugar_one/evaluate_model.py`: unified evaluation for GluMind and SugarOne (`evaluate-model`).
+- `src/glumind/train_glumind.py`: GluMind training/tuning entrypoint (also exposed as `train-glumind`).
+- `src/glumind/glumind_model.py`: model architecture module (checkpoint-friendly).
+- `src/glumind/evaluate_glumind.py`, `inference_glumind.py`, `download_from_huggingface.py`, `upload_to_huggingface.py`: evaluation, reproduction, Hub download/upload.
+- `src/glumind_uni/train_uniglumind.py`: univariate GluMind variant (glucose-only).
+- `src/sugar_one/train_sugar_one.py`: SugarOne training entrypoint (insulin/carb covariates).
+- `src/sugar_one/tune_sugar_one.py`: random-search hyperparameter tuner (`tune-sugar-one`).
+- `src/sugar_one/sugar_one_model.py`: SugarOne architecture module.
+- `src/sugar_one/evaluate_model.py`: unified evaluation for GluMind and SugarOne (`evaluate-model`).
 - `test_model_glumind/`: bundled GluMind checkpoint for reviewers (weights + metrics).
 - `test_model_sugar_one/`: bundled SugarOne checkpoint for reviewers (weights + metrics).
 - `test_data/livia_glumind_ready.csv`: self-contained demo CSV for quick end-to-end evaluation.
-- `scripts/tune_nf_baselines_by_group.py`: NeuralForecast baselines (NHITS, TFT, NBEATSx).
-- `scripts/eval_gluformer_val_test_masked.py`: GluFormer (Hugging Face) evaluation on val/test.
+- `src/nf_baselines/tune_nf_baselines_by_group.py`: NeuralForecast baselines (NHITS, TFT, NBEATSx).
+- `src/glumind/eval_gluformer_val_test_masked.py`: GluFormer (Hugging Face) evaluation on val/test.
 - `data/input/`: preferred location for local training/eval CSVs (see `docs/DATA.md`).
 - `data/output/runs/`: default root for model run outputs (metrics, checkpoints, predictions).
 - `marked_runs/`: curated run sets and analysis markdown files.
@@ -49,9 +49,9 @@ Every script supports **built-in help** when run with `uv`:
 
 Argparse-based CLIs (`train_glumind.py`, `tune_nf_baselines_by_group.py`, `eval_gluformer_val_test_masked.py`) print defaults in `--help` via `ArgumentDefaultsHelpFormatter` where configured. Typer apps list each option with `--help`.
 
-### `train-glumind` — `scripts/glumind/train_glumind.py`
+### `train-glumind` — `src/glumind/train_glumind.py`
 
-`uv run train-glumind --help` or `uv run python scripts/glumind/train_glumind.py --help`
+`uv run train-glumind --help` or `uv run python src/glumind/train_glumind.py --help`
 
 | Option | Meaning |
 |--------|---------|
@@ -88,7 +88,7 @@ Argparse-based CLIs (`train_glumind.py`, `tune_nf_baselines_by_group.py`, `eval_
 | `--out_dir` | Base output directory for runs. |
 | `--save_predictions` | Defined in CLI; not wired in the current training script (no effect). |
 
-### `evaluate-glumind` — `scripts/glumind/evaluate_glumind.py`
+### `evaluate-glumind` — `src/glumind/evaluate_glumind.py`
 
 `uv run evaluate-glumind --help`
 
@@ -110,7 +110,7 @@ You must pass either `--registry-dir` or `--run-dir`.
 
 For cross-model evaluation (GluMind or SugarOne on any compatible CSV), prefer **`evaluate-model`** below.
 
-### `evaluate-model` — `scripts/sugar_one/evaluate_model.py`
+### `evaluate-model` — `src/sugar_one/evaluate_model.py`
 
 `uv run evaluate-model --help`
 
@@ -136,11 +136,11 @@ Unified evaluation for **GluMind** (HR + steps) and **SugarOne** (basal + bolus 
 | `--exclude-cov` | Comma-separated covariates to zero; keep the rest (e.g. `carbs`). |
 | `--covariates` | Print covariate columns and fill stats for `--test-csv`; no checkpoint required. |
 
-Full usage, ablation examples, and alias list: `scripts/sugar_one/README.md`.
+Full usage, ablation examples, and alias list: `src/sugar_one/README.md`.
 
 You must pass either `--registry-dir` or `--run-dir` (unless using `--covariates` only).
 
-### `inference-glumind` — `scripts/glumind/inference_glumind.py`
+### `inference-glumind` — `src/glumind/inference_glumind.py`
 
 `uv run inference-glumind --help`
 
@@ -154,7 +154,7 @@ You must pass either `--registry-dir` or `--run-dir` (unless using `--covariates
 
 Re-runs inference on the **training CSV** from metadata and compares to saved `val_metrics_overall.csv` / `test_metrics_overall.csv` when present.
 
-### `download-glumind-hf` — `scripts/glumind/download_from_huggingface.py`
+### `download-glumind-hf` — `src/glumind/download_from_huggingface.py`
 
 `uv run download-glumind-hf --help`
 
@@ -169,7 +169,7 @@ Skips `checkpoints/` and `README.md` in the remote repo; downloads everything el
 
 ### `upload_to_huggingface.py` (not a console script)
 
-`uv run python scripts/glumind/upload_to_huggingface.py --help`
+`uv run python src/glumind/upload_to_huggingface.py --help`
 
 | Option | Meaning |
 |--------|---------|
@@ -181,7 +181,7 @@ Skips `checkpoints/` and `README.md` in the remote repo; downloads everything el
 
 ### `tune_nf_baselines_by_group.py`
 
-`uv run python scripts/tune_nf_baselines_by_group.py -h`
+`uv run python src/nf_baselines/tune_nf_baselines_by_group.py -h`
 
 | Option | Meaning |
 |--------|---------|
@@ -218,7 +218,7 @@ Skips `checkpoints/` and `README.md` in the remote repo; downloads everything el
 
 ### `eval_gluformer_val_test_masked.py`
 
-`uv run python scripts/eval_gluformer_val_test_masked.py -h`
+`uv run python src/glumind/eval_gluformer_val_test_masked.py -h`
 
 | Option | Meaning |
 |--------|---------|
@@ -235,19 +235,19 @@ Skips `checkpoints/` and `README.md` in the remote repo; downloads everything el
 | `--out_dir` | Base run output directory. |
 | `--save_predictions` | Save per-row predictions. |
 
-### `scripts/glumind_uni/train_uniglumind.py` (GluMindUni)
+### `src/glumind_uni/train_uniglumind.py` (GluMindUni)
 
 Typer subcommand `train` (glucose-only model):
 
-`uv run python scripts/glumind_uni/train_uniglumind.py train --help`
+`uv run python src/glumind_uni/train_uniglumind.py train --help`
 
 Options match `train-glumind` (same training modes and hyperparameters) except: glucose-only inputs; default `--out-dir` is `data/output/runs/glumind_uni`; device flag is `--device`. This Typer app does not expose `--chunk_size`, `--mask_interpolated_targets`, or `--save_predictions` (those exist on the argparse `train_glumind` CLI only).
 
-### `scripts/sugar_one/train_sugar_one.py` (SugarOne)
+### `src/sugar_one/train_sugar_one.py` (SugarOne)
 
 Root command `main` (no subcommand name):
 
-`uv run python scripts/sugar_one/train_sugar_one.py --help`
+`uv run python src/sugar_one/train_sugar_one.py --help`
 
 Same shape as GluMindUni: insulin/carb covariates, default `--out-dir` `data/output/runs/sugar_one`, `--csv` should be the loop + AI-READI joined CSV (see script docstring). Device: `--device`.
 
@@ -258,7 +258,7 @@ Expected loop-style columns (aliases are resolved automatically by `evaluate-mod
 - `Bolus Insulin (U)`
 - `Carbohydrates (g)`
 
-### `tune-sugar-one` — `scripts/sugar_one/tune_sugar_one.py`
+### `tune-sugar-one` — `src/sugar_one/tune_sugar_one.py`
 
 `uv run tune-sugar-one --help`
 
@@ -266,7 +266,7 @@ Random hyperparameter search for SugarOne (global mode only). Behaviour is drive
 
 | Option | Meaning |
 |--------|---------|
-| `--config`, `-c` | TOML config path (default: `scripts/sugar_one/tune_sugar_one_full.toml`). |
+| `--config`, `-c` | TOML config path (default: `src/sugar_one/tune_sugar_one_full.toml`). |
 | `--device` | `cuda`, `cpu`, or `mps` (default `cuda`). |
 | `--seed` | Override `.random_seed` from the config. |
 
@@ -316,7 +316,7 @@ Loop / SugarOne columns (in addition to the core id/timestamp/split columns):
 Global mode example:
 
 ```bash
-uv run python scripts/glumind/train_glumind.py \
+uv run python src/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --mode global \
   --device cuda \
@@ -336,7 +336,7 @@ uv run python scripts/glumind/train_glumind.py \
 Continual mode example:
 
 ```bash
-uv run python scripts/glumind/train_glumind.py \
+uv run python src/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --mode continual \
   --lwf_lambda 0.2 \
@@ -357,7 +357,7 @@ uv run python scripts/glumind/train_glumind.py \
 Tune mode using test as validation:
 
 ```bash
-uv run python scripts/glumind/train_glumind.py \
+uv run python src/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --split_scheme trainval_test_as_val \
   --mode global \
@@ -372,7 +372,7 @@ uv run python scripts/glumind/train_glumind.py \
 Resume training from full checkpoint:
 
 ```bash
-uv run python scripts/glumind/train_glumind.py \
+uv run python src/glumind/train_glumind.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --mode global \
   --resume_from data/output/runs/glumind/<run_name>/last_checkpoint.pt \
@@ -385,7 +385,7 @@ uv run python scripts/glumind/train_glumind.py \
 Train on loop + AI-READI joined data:
 
 ```bash
-uv run python scripts/sugar_one/train_sugar_one.py \
+uv run python src/sugar_one/train_sugar_one.py \
   --csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --mode global \
   --device cuda \
@@ -401,14 +401,14 @@ Production hyperparameter search:
 uv run tune-sugar-one --device cuda
 ```
 
-Use `-c scripts/sugar_one/tune_sugar_one_dev.toml` for a smaller dev search.
+Use `-c src/sugar_one/tune_sugar_one_dev.toml` for a smaller dev search.
 
 ## NeuralForecast Baselines
 
 NHITS example:
 
 ```bash
-uv run python scripts/tune_nf_baselines_by_group.py \
+uv run python src/nf_baselines/tune_nf_baselines_by_group.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --model nhits \
   --global_model \
@@ -433,7 +433,7 @@ Supported NF models in this repo:
 Evaluate val/test splits:
 
 ```bash
-uv run python scripts/eval_gluformer_val_test_masked.py \
+uv run python src/glumind/eval_gluformer_val_test_masked.py \
   --csv data/actual/with_complex_steps_processing/ai_ready_plus_type1_v2_val_only_in_test.csv \
   --device cuda \
   --splits both \
@@ -449,13 +449,13 @@ GluMind checkpoints are saved as:
 - `checkpoint.pt` / `last_checkpoint.pt` (full training state)
 
 The architecture is now separated in:
-- `scripts/glumind/glumind_model.py`
+- `src/glumind/glumind_model.py`
 
 So you can load checkpoints without the full training script:
 
 ```python
 import torch
-from scripts.glumind.glumind_model import GluMindModel
+from glumind.glumind_model import GluMindModel
 
 model = GluMindModel(
     n_time_steps=80, n_features=3, d_model=32, n_heads=4,
@@ -476,7 +476,7 @@ The repo ships reviewer checkpoint bundles and a demo CSV so you can run inferen
 | `test_model_sugar_one/` | SugarOne weights (same layout) |
 | `test_data/livia_glumind_ready.csv` | Self-contained CGM sample (~140k rows) in GluMind CSV shape |
 
-Use **`evaluate-model`** (`scripts/sugar_one/evaluate_model.py`) for both architectures. It reads run metadata, restores the checkpoint, loads **`scalers.json`** (train-fit MinMax params), and prints **MAE, RMSE, MARD**.
+Use **`evaluate-model`** (`src/sugar_one/evaluate_model.py`) for both architectures. It reads run metadata, restores the checkpoint, loads **`scalers.json`** (train-fit MinMax params), and prints **MAE, RMSE, MARD**.
 
 **Important for this demo file:**
 
@@ -525,7 +525,7 @@ uv run evaluate-glumind `
   --test-split ""
 ```
 
-For every flag, see [CLI reference](#cli-reference) → **evaluate-model** / **evaluate-glumind**. To fetch GluMind weights from Hugging Face into a local folder, use `download-glumind-hf` (see `scripts/glumind/README.md`).
+For every flag, see [CLI reference](#cli-reference) → **evaluate-model** / **evaluate-glumind**. To fetch GluMind weights from Hugging Face into a local folder, use `download-glumind-hf` (see `src/glumind/README.md`).
 
 ## Outputs
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import polars as pl
 
-from scripts.sugar_one.tune_sugar_one import (
+from sugar_one.tune_sugar_one import (
     DEFAULT_CONFIG_FILENAME,
     STATUS_FAILED,
     STATUS_INTERRUPTED,
@@ -328,7 +328,7 @@ def test_default_config_is_production_full() -> None:
 
 def test_full_toml_production_defaults() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    cfg_path = repo_root / "scripts" / "sugar_one" / "tune_sugar_one_full.toml"
+    cfg_path = repo_root / "src" / "sugar_one" / "tune_sugar_one_full.toml"
     cfg = load_user_config(cfg_path)
     assert cfg["paths"]["csv"].endswith("loop_ai_ready_joined2.csv")
     assert "space" not in cfg.get("tune", {})
@@ -342,7 +342,7 @@ def test_full_toml_production_defaults() -> None:
 
 def test_dev_toml_loads_without_tune_space() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    cfg_path = repo_root / "scripts" / "sugar_one" / "tune_sugar_one_dev.toml"
+    cfg_path = repo_root / "src" / "sugar_one" / "tune_sugar_one_dev.toml"
     cfg = load_user_config(cfg_path)
     assert "tune" in cfg
     assert "space" in cfg.get("tune", {})

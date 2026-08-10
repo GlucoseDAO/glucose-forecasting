@@ -12,7 +12,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from scripts.sugar_one.train_sugar_one import app
+from sugar_one.train_sugar_one import app
 from tests.conftest import write_sugar_one_csv
 
 runner = CliRunner()

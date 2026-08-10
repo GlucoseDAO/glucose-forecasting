@@ -13,15 +13,15 @@ Put all intermediate reports, scratch notes, evaluation dumps, and other tempora
 Examples:
 - A script that prepares a dataset once → `temp_scripts/`
 - A script that builds a milestone or interim report → `temp_scripts/`, outputs under `temp_docs/`
-- Training/eval CLIs and shared libraries under `scripts/` that are imported by CLIs/tests → keep in the codebase
+- Training/eval CLIs and shared libraries under `src/` that are imported by CLIs/tests → keep in the codebase
 
 - Do not add intermediate markdown or scratch analysis under `docs/` or the repo root; `docs/` is for intentional, durable documentation. Training run outputs go under `data/output/runs/` (not top-level `runs/`). See `docs/DATA.md`.
 - **Tests must not reference `temp_scripts/` or `temp_docs/`.** Those folders are gitignored and unavailable from a fresh clone. Do not import, invoke, or assert against temporary scripts or their outputs. If a script moves to `temp_scripts/`, delete the tests that covered it rather than skipping or path-hacking around the move.
 
 ## Layout direction (platform adoption)
 
-- Code today still lives under `scripts/` (Phase 2 will move it to `src/` as direct packages: `common`, `glumind`, `sugar_one`, … — no nested `src/glucose_forecasting/`, no thin `scripts/` shims).
-- Default run root is `data/output/runs/` (`scripts.common.paths.DEFAULT_RUNS_ROOT`).
+- Product code lives under `src/` as direct packages (`common`, `glumind`, `sugar_one`, `neuralforecast`, …). There is **no** `scripts/` tree and **no** nested `src/glucose_forecasting/` wrapper.
+- Default run root is `data/output/runs/` (`common.paths.DEFAULT_RUNS_ROOT`).
 - Implement adoption work **one phase at a time**; verify with `uv run pytest -q` and the demo `evaluate-model` smoke before the next phase.
 - Details: `temp_docs/ANTON_PR_COMPARISON_AND_REQUIREMENTS.md`.
 
@@ -29,11 +29,11 @@ Examples:
 
 Training, tuning, and evaluation pipelines for blood-glucose forecasting from CGM (continuous glucose monitor) data, on AI-READI-style and Loop-pump-style datasets. Several model variants exist as parallel experiments sharing similar training/eval scaffolding but different covariates:
 
-- **GluMind** (`scripts/glumind/`) — glucose + heart rate + step count. Primary architecture (Farahmand et al., 2025b, arXiv:2509.18457): parallel cross-attention multimodal fusion + multi-scale self-attention, with optional LwF (learning-without-forgetting) for continual cross-cohort training.
-- **GluMind-Uni** (`scripts/glumind_uni/`) — glucose-only variant of the same architecture.
-- **SugarOne** (`scripts/sugar_one/`) — glucose + basal rate + bolus insulin + carbohydrates (Loop pump data), 3-way cross-attention with learnable softmax mixing weights (vs. GluMind's fixed 2-way averaging).
-- **NeuralForecast baselines** (`scripts/tune_nf_baselines_by_group.py`) — NHITS / TFT / NBEATSx, glucose-only.
-- **GluFormer** (`scripts/eval_gluformer_val_test_masked.py`) — evaluation only, against a pretrained Hugging Face model (`njeffrie/Gluformer`).
+- **GluMind** (`src/glumind/`) — glucose + heart rate + step count. Primary architecture (Farahmand et al., 2025b, arXiv:2509.18457): parallel cross-attention multimodal fusion + multi-scale self-attention, with optional LwF (learning-without-forgetting) for continual cross-cohort training.
+- **GluMind-Uni** (`src/glumind_uni/`) — glucose-only variant of the same architecture.
+- **SugarOne** (`src/sugar_one/`) — glucose + basal rate + bolus insulin + carbohydrates (Loop pump data), 3-way cross-attention with learnable softmax mixing weights (vs. GluMind's fixed 2-way averaging).
+- **NeuralForecast baselines** (`src/nf_baselines/tune_nf_baselines_by_group.py`) — NHITS / TFT / NBEATSx, glucose-only.
+- **GluFormer** (`src/glumind/eval_gluformer_val_test_masked.py`) — evaluation only, against a pretrained Hugging Face model (`njeffrie/Gluformer`).
 
 Forecast horizon defaults to 12 steps = 60 minutes at 5-minute sampling frequency.
 
@@ -53,20 +53,20 @@ uv run pytest tests/test_train_checkpoint_resume.py::test_checkpoint_stores_wait
 No lint/format command is configured in `pyproject.toml`.
 
 Installed console commands (defined in `pyproject.toml` `[project.scripts]`, all runnable as `uv run <name> --help`):
-- `train-glumind` → `scripts/glumind/train_glumind.py:main` (argparse CLI)
-- `evaluate-glumind` → `scripts/glumind/evaluate_glumind.py:app` (Typer; GluMind-only)
-- `evaluate-model` → `scripts/sugar_one/evaluate_model.py:app` (Typer; **unified** GluMind + SugarOne eval — preferred for new work)
-- `inference-glumind` → `scripts/glumind/inference_glumind.py:app`
-- `tune-sugar-one` → `scripts/sugar_one/tune_sugar_one.py:app` (TOML-driven random hyperparameter search)
-- `download-glumind-hf` → `scripts/glumind/download_from_huggingface.py:app`
+- `train-glumind` → `src/glumind/train_glumind.py:main` (argparse CLI)
+- `evaluate-glumind` → `src/glumind/evaluate_glumind.py:app` (Typer; GluMind-only)
+- `evaluate-model` → `src/sugar_one/evaluate_model.py:app` (Typer; **unified** GluMind + SugarOne eval — preferred for new work)
+- `inference-glumind` → `src/glumind/inference_glumind.py:app`
+- `tune-sugar-one` → `src/sugar_one/tune_sugar_one.py:app` (TOML-driven random hyperparameter search)
+- `download-glumind-hf` → `src/glumind/download_from_huggingface.py:app`
 
 Scripts without a console entry point are run directly, e.g.:
 ```bash
-uv run python scripts/sugar_one/train_sugar_one.py --help          # Typer, no subcommand name
-uv run python scripts/glumind_uni/train_uniglumind.py train --help # Typer, `train` subcommand
-uv run python scripts/tune_nf_baselines_by_group.py -h              # argparse
-uv run python scripts/eval_gluformer_val_test_masked.py -h          # argparse
-uv run python scripts/glumind/upload_to_huggingface.py --help
+uv run python src/sugar_one/train_sugar_one.py --help          # Typer, no subcommand name
+uv run python src/glumind_uni/train_uniglumind.py train --help # Typer, `train` subcommand
+uv run python src/nf_baselines/tune_nf_baselines_by_group.py -h              # argparse
+uv run python src/glumind/eval_gluformer_val_test_masked.py -h          # argparse
+uv run python src/glumind/upload_to_huggingface.py --help
 ```
 
 Full flag reference and worked examples for every script live in the root `README.md` — read that before guessing at a flag name; it documents which flags exist per-CLI (argparse vs. Typer scripts have different flags even for equivalent features, e.g. `--csv` vs `--csv`, snake_case vs kebab-case).
@@ -80,7 +80,7 @@ This uses the bundled reviewer checkpoint (`test_model_glumind/`), its **`scaler
 
 ## Architecture
 
-### Shared utilities: `scripts/common/`
+### Shared utilities: `src/common/`
 
 As of the last refactor, model-agnostic logic that used to be duplicated across the training scripts (and re-imported cross-model, e.g. `evaluate_model.py` importing from `train_glumind.py`) now lives here. **New model variants or eval tools should use these instead of reimplementing.**
 
@@ -90,16 +90,16 @@ As of the last refactor, model-agnostic logic that used to be duplicated across 
 - `registry.py` — `find_best_run_dir` (reads `_analysis_registry.csv`, picks lowest `val_mae`), `load_run_meta` (reads `tuning_meta.json` or `config.json`), `resolve_checkpoint` (finds `best_model.pt`/`last_model.pt`), `resolve_csv_path` (basename remap toward `data/input/` and legacy data folders).
 - `paths.py` — `DEFAULT_RUNS_ROOT` (`data/output/runs`).
 - `evaluation.py` — covariate alias/ablation machinery (maps derived from each family's `ModelFamilySpec.csv_column_aliases` / `covariate_aliases`; still exports `GLUMIND_COVARIATES`, `SUGAR_ONE_COVARIATES`, `COVARIATE_NAME_ALIASES`) and the shared inference loop (`_run_evaluate`), extracted from `evaluate_model.py`.
-- `model_spec.py` — `ModelFamilySpec` Protocol + registry (`get_family_spec`, `detect_family_kind`). Concrete specs live beside each model (`scripts/glumind/glumind_spec.py`, `scripts/sugar_one/sugar_one_spec.py`, …). Architecture modules (`*_model.py`) stay torch-only for checkpoint reuse.
+- `model_spec.py` — `ModelFamilySpec` Protocol + registry (`get_family_spec`, `detect_family_kind`). Concrete specs live beside each model (`src/glumind/glumind_spec.py`, `src/sugar_one/sugar_one_spec.py`, …). Architecture modules (`*_model.py`) stay torch-only for checkpoint reuse.
 - `scalers.py` — schema-free `scalers.json` serialize/load (no kind→features whitelist; feature set comes from Spec or the file).
 
-`train_glumind.py`, `train_sugar_one.py`, `train_uniglumind.py`, `evaluate_glumind.py`, and `evaluate_model.py` all import from `scripts/common/*` internally but **re-export the same names under their original locations** — e.g. `from scripts.glumind.train_glumind import load_splits_streaming` still works. Do not break this: `evaluate_model.py` still cross-imports several names from `train_glumind.py`/`train_sugar_one.py` by their original names, and `tests/test_evaluate_model_covariates.py` imports covariate helpers from `scripts.sugar_one.evaluate_model` directly.
+`train_glumind.py`, `train_sugar_one.py`, `train_uniglumind.py`, `evaluate_glumind.py`, and `evaluate_model.py` all import from `common.*` internally but **re-export the same names under their original locations** — e.g. `from glumind.train_glumind import load_splits_streaming` still works. Do not break this: `evaluate_model.py` still cross-imports several names from `train_glumind.py`/`train_sugar_one.py` by their original names, and `tests/test_evaluate_model_covariates.py` imports covariate helpers from `sugar_one.evaluate_model` directly.
 
 ### Model files — checkpoint-friendly, kept separate from training logic
 
-- `scripts/glumind/glumind_model.py` — `GluMindModel`. 2-auxiliary parallel cross-attention (HR, steps) with fixed averaging + multi-scale self-attention.
-- `scripts/sugar_one/sugar_one_model.py` — `SugarOneModel`. 3-auxiliary parallel cross-attention (basal, bolus, carbs) with **learnable softmax mixing weights** (the main architectural difference from GluMind).
-- `scripts/glumind_uni/glumind_uni_model.py` — glucose-only variant, same block structure.
+- `src/glumind/glumind_model.py` — `GluMindModel`. 2-auxiliary parallel cross-attention (HR, steps) with fixed averaging + multi-scale self-attention.
+- `src/sugar_one/sugar_one_model.py` — `SugarOneModel`. 3-auxiliary parallel cross-attention (basal, bolus, carbs) with **learnable softmax mixing weights** (the main architectural difference from GluMind).
+- `src/glumind_uni/glumind_uni_model.py` — glucose-only variant, same block structure.
 
 These are intentionally isolated from the training scripts so a checkpoint can be loaded with just the model file + `torch.load(..., weights_only=True)` — no training-script imports needed (see README.md "Checkpoints and Model Reuse" for a minimal load example). `PositionalEncoding` and much of `MultiScaleAttentionBlock` are near-duplicated between `glumind_model.py` and `sugar_one_model.py`; this has been left as-is (not deduplicated) to avoid touching model internals and risking checkpoint/behavior drift — treat these files as intentionally frozen unless a change is specifically requested.
 

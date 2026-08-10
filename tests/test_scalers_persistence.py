@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
-from scripts.common.scalers import (
+from common.scalers import (
     SCALERS_FILENAME,
     dump_scalers,
     load_scalers,

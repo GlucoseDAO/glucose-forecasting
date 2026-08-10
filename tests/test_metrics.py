@@ -1,4 +1,4 @@
-"""Unit tests for scripts/common/metrics.py."""
+"""Unit tests for src/common/metrics.py."""
 from __future__ import annotations
 
 import math
@@ -9,7 +9,7 @@ import polars as pl
 import pytest
 from sklearn.preprocessing import MinMaxScaler
 
-from scripts.common.metrics import mae_rmse_mard, overall_metrics_to_csv, per_study_group_breakdown
+from common.metrics import mae_rmse_mard, overall_metrics_to_csv, per_study_group_breakdown
 
 
 def test_mae_rmse_mard_hand_computed() -> None:

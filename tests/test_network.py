@@ -1,4 +1,4 @@
-"""Unit test for the Windows TLS workaround helper (scripts/common/network.py).
+"""Unit test for the Windows TLS workaround helper (src/common/network.py).
 
 See that module's docstring for the two issues it works around (an
 OPENSSL_Uplink native crash and a certificate-verification failure), both
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 
-from scripts.common.network import apply_windows_tls_workarounds
+from common.network import apply_windows_tls_workarounds
 
 
 def test_apply_windows_tls_workarounds_clears_sslkeylogfile(monkeypatch) -> None:

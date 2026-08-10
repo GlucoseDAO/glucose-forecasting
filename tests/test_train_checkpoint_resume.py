@@ -5,8 +5,8 @@ from pathlib import Path
 
 import torch
 
-from scripts.sugar_one.sugar_one_model import SugarOneModel
-from scripts.sugar_one.train_sugar_one import (
+from sugar_one.sugar_one_model import SugarOneModel
+from sugar_one.train_sugar_one import (
     load_full_checkpoint,
     read_checkpoint_meta,
     save_full_checkpoint,

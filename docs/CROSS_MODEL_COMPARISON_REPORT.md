@@ -41,7 +41,7 @@ GluMind shows a significant lead, particularly in RMSE and MARD, indicating more
 
 ## 4. Why GluMind Wins?
 
-Based on the architecture (`scripts/glumind/glumind_model.py`):
+Based on the architecture (`src/glumind/glumind_model.py`):
 - **Multimodal Fusion**: GluMind uses parallel cross-attention to effectively integrate heart rate and step count with glucose history.
 - **Multi-scale Attention**: Captures both long-term trends and short-term glucose fluctuations.
 - **Optimized for AI-READI**: The model architecture was specifically designed for the data characteristics of this dataset.

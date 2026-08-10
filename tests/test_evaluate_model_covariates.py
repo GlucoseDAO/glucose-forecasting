@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.sugar_one.evaluate_model import (
+from sugar_one.evaluate_model import (
     _alias_to_canonical,
     _parse_covariate_names,
     _resolve_covariate_zeroing,

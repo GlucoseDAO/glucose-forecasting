@@ -1,0 +1,68 @@
+# SugarJepa proof-of-concept run on the dev subset of loop_ai_ready_joined2.
+#
+# [defaults] (model architecture + optimizer) mirror
+# src/sugar_one/tune_sugar_one_full.toml exactly (same d_model/n_heads/
+# n_blocks/ff_units/dropout/input_steps/horizon/lr/weight_decay/batch_size)
+# — those are the best-tuned hyperparameters, so results are directly
+# comparable to the existing tuned SugarOne production run.
+#
+# [train] (epochs/patience/val cadence/num_workers/log cadence) instead
+# mirrors src/sugar_one/tune_sugar_one_dev.toml's [tune] section, NOT
+# tune_sugar_one_full.toml's — the full.toml training-loop settings
+# (epochs=120, patience=10) are sized for the production run on the full
+# ~1GB CSV and would take far too long against this dev-CSV comparison
+# workflow. dev.toml's shorter loop (epochs=30, patience=3, more frequent
+# validation) is meant for exactly this: fast turnaround on the dev CSV.
+#
+# There is no tuner script for SugarJepa yet (tune_sugar_one.py's random
+# search over [tune.space] was not ported — out of scope for the POC). This
+# file exists as a single source of truth for the parameters to pass to
+# train_sugar_jepa.py; there is no CLI that reads it directly yet.
+#
+# Run (pass these values on the command line — see src/sugar_jepa/README.md):
+#   uv run python src/sugar_jepa/train_sugar_jepa.py --csv data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv ...
+
+[paths]
+csv = "data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv"
+output_dir = "data/output/runs/sugar_jepa"
+
+[dataset]
+unique_id = "sequence_id"
+drop_interpolated = false
+study_groups = ""
+split_scheme = "classic"
+max_train_series = 0
+max_eval_series = 0
+
+[defaults]
+d_model = 32
+n_heads = 8
+n_blocks = 5
+ff_units = 128
+dropout = 0.1
+input_steps = 128
+horizon = 12
+lr = 0.0004
+weight_decay = 0.00003
+batch_size = 256
+
+[train]
+epochs = 30
+patience = 3
+log_every = 1
+val_every_n_epochs = 5
+precision = "bf16"
+compile_mode = "none"
+disable_tf32 = false
+# 0 on Windows avoids worker spawn stalls (matches tune_sugar_one_dev.toml); GPU is the bottleneck anyway.
+num_workers = 0
+prefetch_factor = 4
+batch_log_every = 200
+eval_batch_log_every = 300
+
+[jepa]
+weights_dir = "src/sugar_jepa/pretrained/cgm_jepa"
+window = 288
+patch_size = 12
+finetune = false
+lr = 0.00004

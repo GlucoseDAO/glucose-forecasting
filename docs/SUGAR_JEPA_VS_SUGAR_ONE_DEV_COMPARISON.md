@@ -4,7 +4,7 @@
 **Dataset:** `data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv` (dev subset, 664,339 rows, 1,050 series)
 **SugarJepa run:** `runs/sugar_jepa/sugar_jepa_global_h12_20260705_021724`
 **SugarOne runs:** `runs/sugar_one_tune/explore_dev2/` (`leaderboard.csv`, trials 0 and 1)
-**Evaluation:** `scripts/sugar_jepa/evaluate_sugar_jepa.py` (SugarJepa) / already-recorded `val_metrics_overall.csv` + `test_metrics_overall.csv` per trial (SugarOne)
+**Evaluation:** `src/sugar_jepa/evaluate_sugar_jepa.py` (SugarJepa) / already-recorded `val_metrics_overall.csv` + `test_metrics_overall.csv` per trial (SugarOne)
 
 ## TL;DR
 
@@ -96,7 +96,7 @@ SugarJepa needs a 288-step (24h) glucose-only lookback for the JEPA branch (`jep
 the 128-step backbone window. `lookback = max(input_steps, jepa_window) = 288`, so any series shorter than
 `288 + horizon = 300` rows contributes **zero windows** to SugarJepa, whereas SugarOne only needs
 `128 + 12 = 140` rows and keeps series SugarOne would use. This is exactly the tradeoff flagged in
-`scripts/sugar_jepa/README.md`'s known limitations, and it shows up directly in the window counts above:
+`src/sugar_jepa/README.md`'s known limitations, and it shows up directly in the window counts above:
 
 | Split | SugarJepa windows | SugarOne windows | Series skipped by SugarJepa |
 |---|---|---|---|
@@ -129,7 +129,7 @@ embeddings once instead of recomputing them every forward pass.
 
 ## Interpretation
 
-This is consistent with the "ablation, not a final architecture" framing in `scripts/sugar_jepa/README.md`:
+This is consistent with the "ablation, not a final architecture" framing in `src/sugar_jepa/README.md`:
 a frozen, off-the-shelf CGM-JEPA embedding — pretrained on a population/device mix that may not resemble
 this repo's Loop-pump-heavy dev CSV — measurably helped here, by a modest but consistent margin, across
 nearly every study group and both splits. That's a genuine positive signal worth building on, with two
@@ -150,6 +150,6 @@ this as settled:
 ## Raw sources
 
 - SugarJepa: `runs/sugar_jepa/sugar_jepa_global_h12_20260705_021724/{tuning_meta.json,best_info.json,last_checkpoint.pt}`,
-  evaluated via `uv run python scripts/sugar_jepa/evaluate_sugar_jepa.py --run-dir runs/sugar_jepa/sugar_jepa_global_h12_20260705_021724 --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv --test-split {val,test} --device cuda`
+  evaluated via `uv run python src/sugar_jepa/evaluate_sugar_jepa.py --run-dir runs/sugar_jepa/sugar_jepa_global_h12_20260705_021724 --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv --test-split {val,test} --device cuda`
 - SugarOne: `runs/sugar_one_tune/explore_dev2/leaderboard.csv`, `runs/sugar_one_tune/explore_dev2/tune_report.md`,
   `runs/sugar_one_tune/explore_dev2/trial_000{0,1}_*/{val,test}_metrics_{overall,by_study_group}.csv`

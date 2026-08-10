@@ -8,7 +8,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from scripts.sugar_one.train_sugar_one import app as train_sugar_one_app
+from sugar_one.train_sugar_one import app as train_sugar_one_app
 from tests.conftest import write_glumind_csv, write_sugar_one_csv
 
 runner = CliRunner()
@@ -51,7 +51,7 @@ def _train_sugar_one(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def test_evaluate_model_cli_smoke(tmp_path: Path) -> None:
-    from scripts.sugar_one.evaluate_model import app as evaluate_model_app
+    from sugar_one.evaluate_model import app as evaluate_model_app
 
     csv_path, run_dir = _train_sugar_one(tmp_path)
 
@@ -72,8 +72,8 @@ def test_evaluate_model_cli_smoke(tmp_path: Path) -> None:
 
 
 def test_evaluate_glumind_cli_smoke(tmp_path: Path) -> None:
-    from scripts.glumind.evaluate_glumind import app as evaluate_glumind_app
-    from scripts.glumind.train_glumind import main as train_glumind_main
+    from glumind.evaluate_glumind import app as evaluate_glumind_app
+    from glumind.train_glumind import main as train_glumind_main
     import sys
 
     csv_path = tmp_path / "glumind_mini.csv"

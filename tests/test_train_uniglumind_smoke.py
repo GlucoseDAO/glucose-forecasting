@@ -1,38 +1,17 @@
-"""Smoke test for train_uniglumind.py's Typer app on a tiny CPU run.
-
-train_uniglumind.py does ``from glumind_uni_model import GluMindUniModel``
-(a bare, package-relative-free import) rather than
-``from scripts.glumind_uni.glumind_uni_model import ...``, so it is only
-importable when ``scripts/glumind_uni`` itself is on sys.path (i.e. how it's
-actually run: ``cd scripts/glumind_uni && python train_uniglumind.py``). It
-is also not registered under [project.scripts] in pyproject.toml. We
-replicate that invocation shape here rather than modifying the script.
-"""
+"""Smoke test for train_uniglumind.py's Typer app on a tiny CPU run."""
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 from typer.testing import CliRunner
 
+from glumind_uni.train_uniglumind import app
 from tests.conftest import write_glumind_csv
 
 runner = CliRunner()
 
-_GLUMIND_UNI_DIR = str(Path(__file__).resolve().parents[1] / "scripts" / "glumind_uni")
-
-
-def _import_app():
-    if _GLUMIND_UNI_DIR not in sys.path:
-        sys.path.insert(0, _GLUMIND_UNI_DIR)
-    from train_uniglumind import app  # noqa: PLC0415
-
-    return app
-
 
 def test_train_uniglumind_cli_smoke_cpu(tmp_path: Path) -> None:
-    app = _import_app()
-
     csv_path = tmp_path / "glumind_uni_mini.csv"
     write_glumind_csv(
         csv_path,

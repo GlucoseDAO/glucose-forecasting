@@ -2,8 +2,8 @@
 
 **Status:** Tooling updated; experiment results pending GPU runs.  
 **Base model:** [`test_model_sugar_one/`](../test_model_sugar_one/)  
-**Package:** [`scripts/personalization/`](../scripts/personalization/)  
-**Plan:** [`scripts/personalization/plan.md`](../scripts/personalization/plan.md)
+**Package:** [`src/personalization/`](../src/personalization/)  
+**Plan:** [`src/personalization/plan.md`](../src/personalization/plan.md)
 
 ## Summary
 
@@ -27,7 +27,7 @@ Personal vs general data mixing was removed from the plan.
 | **2** | Second, on Livia | `sweep-personal-hyperparams` | LwF × LR × weight_decay on **full** personal train data |
 | **3** | Third, on Livia | `sweep-personal-data-size` | Days curve with fixed LwF/LR; plateau estimate |
 | **4** | Fourth, holdouts | `validate-personal-holdouts` | Frozen Livia recipe + per-user days curves |
-| **5** | Last | `temp_scripts/personalization/aggregate_results.py` | Merge all summaries |
+| **5** | Last | `temp_src/personalization/aggregate_results.py` | Merge all summaries |
 
 Optional: `finetune-personal` for a single manual run (debug or one-off).
 
@@ -106,7 +106,7 @@ uv run validate-personal-holdouts \
   --device cuda
 
 # 5) Aggregate
-uv run python temp_scripts/personalization/aggregate_results.py \
+uv run python temp_src/personalization/aggregate_results.py \
   --root runs/personalization \
   --out temp_docs/reports/milestone8_personalization_summary.json
 ```

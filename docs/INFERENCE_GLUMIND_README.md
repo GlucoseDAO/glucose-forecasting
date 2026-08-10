@@ -13,7 +13,7 @@ The `inference_glumind.py` script is used to evaluate trained GluMind models fro
 Run the script using `uv run`:
 
 ```bash
-uv run scripts/glumind/inference_glumind.py --run-dir <path_to_run> [OPTIONS]
+uv run src/glumind/inference_glumind.py --run-dir <path_to_run> [OPTIONS]
 ```
 
 ### Main Options
@@ -31,13 +31,13 @@ uv run scripts/glumind/inference_glumind.py --run-dir <path_to_run> [OPTIONS]
 ### 1. Standard Evaluation (Auto Mode)
 Evaluate a run using its original split scheme and compare with saved metrics:
 ```bash
-uv run scripts/glumind/inference_glumind.py --run-dir "marked_runs/glumind/ai_ready/glumind_global_h12_20260222_194108"
+uv run src/glumind/inference_glumind.py --run-dir "marked_runs/glumind/ai_ready/glumind_global_h12_20260222_194108"
 ```
 
 ### 2. Glucose-Only Sensitivity Test
 Evaluate how the model performs without heart rate or step data by replacing them with their mean values from the training set:
 ```bash
-uv run scripts/glumind/inference_glumind.py \
+uv run src/glumind/inference_glumind.py \
   --run-dir "marked_runs/glumind/type1_only/glumind_global_h12_20260225_120905" \
   --glucose-only \
   --default-value mean
@@ -46,7 +46,7 @@ uv run scripts/glumind/inference_glumind.py \
 ### 3. Explicit Validation Check
 Force evaluation on the validation split even if the run was a final test run:
 ```bash
-uv run scripts/glumind/inference_glumind.py \
+uv run src/glumind/inference_glumind.py \
   --run-dir "marked_runs/glumind/ai_ready/glumind_global_h12_20260222_194108" \
   --mode val_as_test
 ```

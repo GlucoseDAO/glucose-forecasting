@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import torch
 
-from scripts.glumind.glumind_model import GluMindModel
-from scripts.glumind_uni.glumind_uni_model import GluMindUniModel
-from scripts.sugar_one.sugar_one_model import SugarOneModel
+from glumind.glumind_model import GluMindModel
+from glumind_uni.glumind_uni_model import GluMindUniModel
+from sugar_one.sugar_one_model import SugarOneModel
 
 BATCH = 3
 INPUT_STEPS = 8

@@ -8,8 +8,8 @@ import polars as pl
 import pytest
 import torch
 
-from scripts.glumind.train_glumind import GlucoseWindowDataset
-from scripts.sugar_one.train_sugar_one import SugarOneWindowDataset
+from glumind.train_glumind import GlucoseWindowDataset
+from sugar_one.train_sugar_one import SugarOneWindowDataset
 
 
 def _glumind_df(n_rows_per_series: dict[str, int]) -> pl.DataFrame:

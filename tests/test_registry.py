@@ -1,4 +1,4 @@
-"""Unit tests for scripts/common/registry.py."""
+"""Unit tests for src/common/registry.py."""
 from __future__ import annotations
 
 import json
@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import typer
 
-from scripts.common.registry import (
+from common.registry import (
     find_best_run_dir,
     load_run_meta,
     resolve_checkpoint,

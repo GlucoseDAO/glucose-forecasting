@@ -1,0 +1,55 @@
+# Dev / laptop random search. Run:
+#   uv run tune-sugar-one -c src/sugar_one/tune_sugar_one_dev.toml
+#
+# Focused run: batch 1024 only (~2x faster than 128 when d_model=32 on 6 GB GPU).
+# LR grid scaled from best trial 15 (lr=0.0007 @ batch 256):
+#   linear 4x -> 0.0028, sqrt 2x -> 0.0014, step down/up -> 0.0021 / 0.0035.
+# Architecture locked to trial 15 (d_model=32); do NOT sample d_model=64 with batch 1024
+# on 6 GB VRAM — it thrashes (~0.05 batch/s, ~48 min/epoch vs ~2 min/epoch).
+
+[paths]
+csv = "data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv"
+output_dir = "data/output/runs/sugar_one_tune/explore_dev2"
+
+[dataset]
+unique_id = "sequence_id"
+drop_interpolated = false
+study_groups = ""
+split_scheme = "classic"
+max_train_series = 0
+max_eval_series = 0
+
+# Trial 15 best region + batch 1024 + linear-scaled default lr.
+[defaults]
+d_model = 32
+n_heads = 8
+n_blocks = 4
+ff_units = 128
+dropout = 0.1
+input_steps = 128
+horizon = 12
+lr = 0.0004
+weight_decay = 0.00003
+batch_size = 256
+
+[tune]
+n_trials = 1024
+random_seed = 42
+max_random_draws = 2000
+resume_from = ""
+epochs = 30
+patience = 3
+log_every = 1
+val_every_n_epochs = 5
+ckpt_every_n_epochs = 0
+precision = "bf16"
+compile_mode = "none"
+disable_tf32 = false
+# 0 on Windows avoids worker spawn stalls; GPU is the bottleneck anyway.
+num_workers = 0
+prefetch_factor = 4
+batch_log_every = 200
+eval_batch_log_every = 300
+
+[tune.space]
+n_blocks = [4, 5]

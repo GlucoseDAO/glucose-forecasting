@@ -1,9 +1,9 @@
-"""Smoke tests for the SugarJepa proof-of-concept (scripts/sugar_jepa/).
+"""Smoke tests for the SugarJepa proof-of-concept (src/sugar_jepa/).
 
 Not full coverage (time-boxed POC per AGENTS.md) — just enough to catch
 shape regressions in the model, the sliding-window dataset, and the
 checkpoint round-trip. Uses the vendored, locally-cached pretrained CGM-JEPA
-encoder (scripts/sugar_jepa/pretrained/cgm_jepa/) — no network access needed.
+encoder (src/sugar_jepa/pretrained/cgm_jepa/) — no network access needed.
 """
 from __future__ import annotations
 
@@ -13,11 +13,11 @@ import polars as pl
 import pytest
 import torch
 
-from scripts.common.checkpoint import load_full_checkpoint, save_full_checkpoint
-from scripts.sugar_jepa.sugar_jepa_model import SugarJepaModel
-from scripts.sugar_jepa.train_sugar_jepa import SugarJepaWindowDataset
+from common.checkpoint import load_full_checkpoint, save_full_checkpoint
+from sugar_jepa.sugar_jepa_model import SugarJepaModel
+from sugar_jepa.train_sugar_jepa import SugarJepaWindowDataset
 
-JEPA_WEIGHTS_DIR = "scripts/sugar_jepa/pretrained/cgm_jepa"
+JEPA_WEIGHTS_DIR = "src/sugar_jepa/pretrained/cgm_jepa"
 JEPA_PATCH_SIZE = 12
 
 BATCH = 3

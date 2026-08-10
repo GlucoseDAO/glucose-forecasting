@@ -14,9 +14,9 @@ import polars as pl
 import pytest
 import torch
 
-from scripts.glumind.glumind_model import GluMindModel
-from scripts.glumind_uni.glumind_uni_model import GluMindUniModel
-from scripts.sugar_one.sugar_one_model import SugarOneModel
+from glumind.glumind_model import GluMindModel
+from glumind_uni.glumind_uni_model import GluMindUniModel
+from sugar_one.sugar_one_model import SugarOneModel
 
 # ---------------------------------------------------------------------------
 # Tiny model dims shared across tests (fast forward/backward passes on CPU).
@@ -73,7 +73,7 @@ def tiny_glumind_uni_model() -> GluMindUniModel:
 # ---------------------------------------------------------------------------
 # Tiny in-memory Polars DataFrames matching the "canonical" post-load schema
 # (unique_id, ds, glucose, ..., study_group, split, event_type) used by
-# scripts/common/data_loading.py and scripts/common/evaluation.py.
+# src/common/data_loading.py and src/common/evaluation.py.
 # ---------------------------------------------------------------------------
 
 

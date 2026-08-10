@@ -9,18 +9,18 @@ import polars as pl
 import torch
 from typer.testing import CliRunner
 
-from scripts.personalization.constants import LOOP_HOLDOUT_QUALITY_USERS, SPARSE_WINDOW_STRIDE
-from scripts.personalization.finetune import run_finetune
-from scripts.personalization.prepare_personal_csv import app as prepare_app
-from scripts.personalization.registry import (
+from personalization.constants import LOOP_HOLDOUT_QUALITY_USERS, SPARSE_WINDOW_STRIDE
+from personalization.finetune import run_finetune
+from personalization.prepare_personal_csv import app as prepare_app
+from personalization.registry import (
     detect_model_type,
     get_model_spec,
     list_model_types,
     load_base_checkpoint,
     register_model,
 )
-from scripts.personalization.splits import chronological_split_labels, limit_train_days, split_meta
-from scripts.personalization.leaderboard import (
+from personalization.splits import chronological_split_labels, limit_train_days, split_meta
+from personalization.leaderboard import (
     STATUS_FAILED,
     STATUS_OK,
     build_run_combos,
@@ -30,7 +30,7 @@ from scripts.personalization.leaderboard import (
     import_existing_runs,
     write_leaderboard_csv,
 )
-from scripts.personalization.sweep_utils import (
+from personalization.sweep_utils import (
     build_holdout_lr_comparison,
     estimate_plateau_day,
     holdout_run_complete,
@@ -40,8 +40,8 @@ from scripts.personalization.sweep_utils import (
     weight_decay_grid,
     write_summary,
 )
-from scripts.sugar_one.train_sugar_one import SugarOneWindowDataset
-from scripts.sugar_one.sugar_one_model import SugarOneModel
+from sugar_one.train_sugar_one import SugarOneWindowDataset
+from sugar_one.sugar_one_model import SugarOneModel
 from tests.conftest import (
     TINY_D_MODEL,
     TINY_FF_UNITS,
@@ -162,7 +162,7 @@ def test_window_stride_reduces_train_windows(tmp_path: Path) -> None:
         ["livia", "--input", str(raw), "--out-dir", str(prepared_dir), "--out-name", "p.csv"],
     )
     assert prep.exit_code == 0, prep.output
-    from scripts.personalization.finetune import _load_split_frames
+    from personalization.finetune import _load_split_frames
 
     train_df, _, _ = _load_split_frames(prepared_dir / "p.csv")
     dense = SugarOneWindowDataset(train_df, TINY_INPUT_STEPS, TINY_HORIZON, fit_scalers=True)
@@ -349,7 +349,7 @@ def test_personalization_tune_grid_lr_only() -> None:
     import tomllib
 
     cfg = tomllib.loads(
-        Path("scripts/personalization/personalization_tune.toml").read_text(encoding="utf-8")
+        Path("src/personalization/personalization_tune.toml").read_text(encoding="utf-8")
     )
     combos = build_run_combos(cfg)
     assert len(combos) == 3
@@ -526,9 +526,9 @@ def test_leaderboard_excludes_failed_trials(tmp_path: Path) -> None:
 
 
 def test_tune_personal_dry_run_cli() -> None:
-    from scripts.personalization.tune_personal import app as tune_app
+    from personalization.tune_personal import app as tune_app
 
-    cfg = Path("scripts/personalization/personalization_tune_window_stride.toml")
+    cfg = Path("src/personalization/personalization_tune_window_stride.toml")
     result = runner.invoke(tune_app, ["-c", str(cfg), "--dry-run", "--no-import-existing"])
     assert result.exit_code == 0, result.output
     assert "Pending" in result.output
@@ -538,7 +538,7 @@ def test_safe_echo_unicode_on_ascii_stdout() -> None:
     import io
     import sys
 
-    from scripts.common.console import safe_echo
+    from common.console import safe_echo
 
     buf = io.BytesIO()
     text_io = io.TextIOWrapper(buf, encoding="ascii", errors="strict")
@@ -555,7 +555,7 @@ def test_safe_echo_unicode_on_ascii_stdout() -> None:
 
 def test_holdout_constants() -> None:
     assert len(LOOP_HOLDOUT_QUALITY_USERS) == 6
-    from scripts.personalization.constants import (
+    from personalization.constants import (
         HOLDOUT_LR_DEFERRED_USERS,
         HOLDOUT_LR_PILOT_USERS,
     )
@@ -566,7 +566,7 @@ def test_holdout_constants() -> None:
 
 
 def test_plot_data_size_curve(tmp_path: Path) -> None:
-    from scripts.personalization.plot_data_size_curve import plot_data_size_curve
+    from personalization.plot_data_size_curve import plot_data_size_curve
 
     rows = [
         {
@@ -595,7 +595,7 @@ def test_plot_data_size_curve(tmp_path: Path) -> None:
 
 
 def test_plot_combined_data_size_curves(tmp_path: Path) -> None:
-    from scripts.personalization.plot_data_size_curve import plot_combined_data_size_curves
+    from personalization.plot_data_size_curve import plot_combined_data_size_curves
 
     livia = [
         {"status": "ok", "personal_days": "7", "ft_test_mae": 19.5, "zs_test_mae": 19.3},

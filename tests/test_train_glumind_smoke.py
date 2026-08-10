@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from scripts.glumind.train_glumind import main
+from glumind.train_glumind import main
 from tests.conftest import write_glumind_csv
 
 

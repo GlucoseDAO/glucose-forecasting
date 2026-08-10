@@ -1,4 +1,4 @@
-"""Integration tests for scripts/common/evaluation.py's _load_csv_flexible and
+"""Integration tests for src/common/evaluation.py's _load_csv_flexible and
 _run_evaluate — the two biggest previously-untested, highest-risk pieces of
 the evaluation pipeline (a shape/wiring regression here is otherwise silent).
 """
@@ -13,8 +13,8 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from scripts.common.evaluation import _load_csv_flexible, _run_evaluate
-from scripts.glumind.glumind_model import GluMindModel
+from common.evaluation import _load_csv_flexible, _run_evaluate
+from glumind.glumind_model import GluMindModel
 
 TS_FORMAT = "%Y-%m-%dT%H:%M:%S"
 COL_SEQ = "sequence_id"
