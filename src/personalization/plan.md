@@ -126,7 +126,7 @@ uv run sweep-holdout-lr --device cuda
 # Archive any legacy fp32/wrong-scaler runs first, then:
 uv run sweep-personal-data-size \
   --base-run-dir test_model_sugar_one \
-  --personal-csv data/personalization/prepared/livia_chronological.csv \
+  --personal-csv data/input/personalization/prepared/livia_chronological.csv \
   --recipe-json data/output/runs/personalization/livia/best_recipe.json \
   --out-dir data/output/runs/personalization/livia/sweeps/data_size \
   --seed-all-from data/output/runs/personalization/livia/tune/run_001_lr0.0002_stride6 \
@@ -148,8 +148,8 @@ uv run plot-personal-data-size \
 ```bash
 # Step 1 тАФ Livia
 uv run prepare-personal-csv livia \
-  --input data/personalization/livia_glumind_ic_ready_full.csv \
-  --out-dir data/personalization/prepared
+  --input data/input/personalization/livia_glumind_ic_ready_full.csv \
+  --out-dir data/input/personalization/prepared
 
 # Step 2 тАФ LR grid on full Livia train (plain fine-tune)
 uv run tune-personal
@@ -157,7 +157,7 @@ uv run tune-personal
 # Or legacy sweep script (same defaults):
 uv run sweep-personal-hyperparams \
   --base-run-dir test_model_sugar_one \
-  --personal-csv data/personalization/prepared/livia_chronological.csv \
+  --personal-csv data/input/personalization/prepared/livia_chronological.csv \
   --out-dir data/output/runs/personalization/livia/sweeps/hyperparams \
   --device cuda
 
@@ -169,7 +169,7 @@ uv run python temp_src/personalization/finalize_personal_run.py \
 uv run sweep-personal-data-size ... --report-only
 uv run sweep-personal-data-size \
   --base-run-dir test_model_sugar_one \
-  --personal-csv data/personalization/prepared/livia_chronological.csv \
+  --personal-csv data/input/personalization/prepared/livia_chronological.csv \
   --recipe-json data/output/runs/personalization/livia/best_recipe.json \
   --out-dir data/output/runs/personalization/livia/sweeps/data_size \
   --device cuda
@@ -179,7 +179,7 @@ uv run validate-personal-holdouts \
   --base-run-dir test_model_sugar_one \
   --recipe-json data/output/runs/personalization/livia/best_recipe.json \
   --livia-data-size-summary data/output/runs/personalization/livia/sweeps/data_size/summary.csv \
-  --loop-csv data/loop_and_ai_ready/loop.csv \
+  --loop-csv data/input/loop_and_ai_ready/loop.csv \
   --out-dir data/output/runs/personalization/holdout_validation \
   --device cuda
 
@@ -210,7 +210,7 @@ uv run python temp_src/personalization/aggregate_results.py \
 
 ```bash
 uv run python temp_src/personalization/compare_window_stride.py \
-  --personal-csv data/personalization/prepared/livia_chronological.csv \
+  --personal-csv data/input/personalization/prepared/livia_chronological.csv \
   --out-dir data/output/runs/personalization/livia/window_stride_compare \
   --device cuda --precision bf16
 ```

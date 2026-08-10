@@ -1,9 +1,9 @@
 # SugarJepa vs SugarOne — Dev-CSV Comparison Report
 
 **Date:** 2026-07-05
-**Dataset:** `data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv` (dev subset, 664,339 rows, 1,050 series)
-**SugarJepa run:** `runs/sugar_jepa/sugar_jepa_global_h12_20260705_021724`
-**SugarOne runs:** `runs/sugar_one_tune/explore_dev2/` (`leaderboard.csv`, trials 0 and 1)
+**Dataset:** `data/input/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv` (dev subset, 664,339 rows, 1,050 series)
+**SugarJepa run:** `data/output/runs/sugar_jepa/sugar_jepa_global_h12_20260705_021724`
+**SugarOne runs:** `data/output/runs/sugar_one_tune/explore_dev2/` (`leaderboard.csv`, trials 0 and 1)
 **Evaluation:** `src/sugar_jepa/evaluate_sugar_jepa.py` (SugarJepa) / already-recorded `val_metrics_overall.csv` + `test_metrics_overall.csv` per trial (SugarOne)
 
 ## TL;DR
@@ -137,7 +137,7 @@ honest asterisks: the run was stopped a bit early by hand rather than by patienc
 evaluation population differs slightly (longer-series-only) from SugarOne's. Recommended before treating
 this as settled:
 
-1. **Resume the interrupted run** (`--resume-from runs/sugar_jepa/sugar_jepa_global_h12_20260705_021724/last_checkpoint.pt`)
+1. **Resume the interrupted run** (`--resume-from data/output/runs/sugar_jepa/sugar_jepa_global_h12_20260705_021724/last_checkpoint.pt`)
    for a few more validation checks to see if `wait` actually reaches `patience=3`, confirming genuine
    convergence rather than a one-off dip.
 2. **Re-run SugarOne restricted to the same longer-series subset** SugarJepa can use, to isolate "JEPA
@@ -149,7 +149,7 @@ this as settled:
 
 ## Raw sources
 
-- SugarJepa: `runs/sugar_jepa/sugar_jepa_global_h12_20260705_021724/{tuning_meta.json,best_info.json,last_checkpoint.pt}`,
-  evaluated via `uv run python src/sugar_jepa/evaluate_sugar_jepa.py --run-dir runs/sugar_jepa/sugar_jepa_global_h12_20260705_021724 --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv --test-split {val,test} --device cuda`
-- SugarOne: `runs/sugar_one_tune/explore_dev2/leaderboard.csv`, `runs/sugar_one_tune/explore_dev2/tune_report.md`,
-  `runs/sugar_one_tune/explore_dev2/trial_000{0,1}_*/{val,test}_metrics_{overall,by_study_group}.csv`
+- SugarJepa: `data/output/runs/sugar_jepa/sugar_jepa_global_h12_20260705_021724/{tuning_meta.json,best_info.json,last_checkpoint.pt}`,
+  evaluated via `uv run python src/sugar_jepa/evaluate_sugar_jepa.py --run-dir data/output/runs/sugar_jepa/sugar_jepa_global_h12_20260705_021724 --test-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv --test-split {val,test} --device cuda`
+- SugarOne: `data/output/runs/sugar_one_tune/explore_dev2/leaderboard.csv`, `data/output/runs/sugar_one_tune/explore_dev2/tune_report.md`,
+  `data/output/runs/sugar_one_tune/explore_dev2/trial_000{0,1}_*/{val,test}_metrics_{overall,by_study_group}.csv`

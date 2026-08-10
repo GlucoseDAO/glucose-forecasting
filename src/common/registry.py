@@ -13,6 +13,18 @@ from pathlib import Path
 
 import typer
 
+from common.paths import legacy_relpath_candidates, rewrite_legacy_relpath
+
+
+def _resolve_project_relpath(rel: str | Path, project_root: Path) -> Path:
+    """Resolve a project-relative path, rewriting known legacy prefixes when needed."""
+    candidates = [project_root / c for c in legacy_relpath_candidates(rel)]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    # Prefer the rewritten layout even when the path is not on disk yet.
+    return project_root / rewrite_legacy_relpath(rel)
+
 
 def find_best_run_dir(registry_dir: Path, project_root: Path) -> tuple[Path, dict]:
     """Parse _analysis_registry.csv and return (step_dir, row) for lowest val_mae."""
@@ -39,9 +51,9 @@ def find_best_run_dir(registry_dir: Path, project_root: Path) -> tuple[Path, dic
         typer.echo("Error: No valid rows with val_mae found in the registry.", err=True)
         raise typer.Exit(1)
 
-    run_dir_rel = Path(best_row["run_dir"])
-    # run_dir in the registry is relative to the project root
-    run_dir_abs = project_root / run_dir_rel
+    run_dir_rel = best_row["run_dir"]
+    # run_dir in the registry is relative to the project root (may use legacy prefixes)
+    run_dir_abs = _resolve_project_relpath(run_dir_rel, project_root)
 
     # For continual runs there is a final_step subdirectory
     final_step = best_row.get("final_step", "").strip()
@@ -50,8 +62,13 @@ def find_best_run_dir(registry_dir: Path, project_root: Path) -> tuple[Path, dic
     else:
         step_dir = run_dir_abs
 
+    display_rel = (
+        str(run_dir_abs.relative_to(project_root))
+        if run_dir_abs.is_relative_to(project_root)
+        else str(run_dir_abs)
+    )
     typer.echo(
-        f"Best run (val_mae={best_mae:.6f}): {run_dir_rel}"
+        f"Best run (val_mae={best_mae:.6f}): {display_rel}"
         + (f"  step={final_step}" if final_step else "")
     )
     return step_dir, best_row
@@ -94,9 +111,9 @@ def resolve_csv_path(csv_value: str | Path, project_root: Path) -> Path:
 
     Tries, in order:
     1. Absolute path as given (when absolute)
-    2. ``project_root / csv_value``
-    3. Basename under preferred local folders (``data/input/``, then legacy data dirs)
-    4. Suffix starting at a ``data/`` component (other-machine absolutes)
+    2. ``project_root / csv_value`` (and legacy→new layout rewrites)
+    3. Basename under preferred local folders under ``data/input/``
+    4. Suffix starting at a ``data/`` component (other-machine absolutes), with rewrite
     5. Unique basename match under ``project_root / data``
     6. Relative CWD path (last resort)
     """
@@ -104,22 +121,29 @@ def resolve_csv_path(csv_value: str | Path, project_root: Path) -> Path:
     candidates: list[Path] = []
     if csv_path.is_absolute():
         candidates.append(csv_path)
-    candidates.append(project_root / csv_path)
+    for rel in legacy_relpath_candidates(csv_value):
+        candidates.append(project_root / rel)
 
     name = _csv_basename(csv_value)
+    preferred_basenames = [
+        project_root / "data" / "input" / name,
+        project_root / "data" / "input" / "loop_and_ai_ready" / name,
+        project_root / "data" / "input" / "actual" / "with_complex_steps_processing" / name,
+        project_root / "data" / "input" / "actual" / "type_1" / name,
+        project_root / "data" / "input" / "personalization" / name,
+        # Legacy pre-move locations (kept for transition / partial checkouts).
+        project_root / "data" / "loop_and_ai_ready" / name,
+        project_root / "data" / "actual" / "with_complex_steps_processing" / name,
+    ]
     if name:
-        candidates.extend(
-            [
-                project_root / "data" / "input" / name,
-                project_root / "data" / "loop_and_ai_ready" / name,
-                project_root / "data" / "actual" / "with_complex_steps_processing" / name,
-            ]
-        )
+        candidates.extend(preferred_basenames)
 
     parts = Path(str(csv_value).replace("\\", "/")).parts
     if "data" in parts:
         idx = list(parts).index("data")
-        candidates.append(project_root.joinpath(*parts[idx:]))
+        suffix = Path(*parts[idx:])
+        for rel in legacy_relpath_candidates(suffix):
+            candidates.append(project_root / rel)
 
     if name:
         data_root = project_root / "data"
@@ -129,12 +153,7 @@ def resolve_csv_path(csv_value: str | Path, project_root: Path) -> Path:
                 candidates.append(hits[0])
             elif len(hits) > 1:
                 # Prefer an earlier explicit candidate if it exists; otherwise fail clearly.
-                preferred = [
-                    project_root / "data" / "input" / name,
-                    project_root / "data" / "loop_and_ai_ready" / name,
-                    project_root / "data" / "actual" / "with_complex_steps_processing" / name,
-                ]
-                if not any(p.is_file() for p in preferred):
+                if not any(p.is_file() for p in preferred_basenames):
                     typer.echo(
                         f"Error: Ambiguous CSV basename {name!r} under data/: "
                         + ", ".join(str(h.relative_to(project_root)) for h in hits[:5]),
@@ -144,6 +163,7 @@ def resolve_csv_path(csv_value: str | Path, project_root: Path) -> Path:
 
     if not csv_path.is_absolute():
         candidates.append(csv_path)
+        candidates.append(rewrite_legacy_relpath(csv_path))
 
     seen: set[Path] = set()
     for candidate in candidates:

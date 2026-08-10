@@ -29,10 +29,10 @@ important in univariate glucose forecasting.
 ```bash
 # Global model, 1 epoch smoke test
 uv run src/glumind_uni/train_uniglumind.py train \
-    --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
+    --csv data/input/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
     --epochs 1 \
     --batch-size 128 \
-    --out-dir runs/glumind_uni
+    --out-dir data/output/runs/glumind_uni
 ```
 
 ## Training modes
@@ -61,7 +61,7 @@ uv run src/glumind_uni/train_uniglumind.py train \
 --lr FLOAT              Learning rate  [1e-3]
 --patience INT          Early stopping patience (0=off)  [20]
 --device TEXT           cpu | cuda | mps  [cuda]
---out-dir PATH          Output directory  [runs/glumind_uni]
+--out-dir PATH          Output directory  [data/output/runs/glumind_uni]
 --resume-from TEXT      Path to checkpoint.pt to resume
 --lwf-lambda FLOAT      LwF distillation weight (continual mode)  [0.5]
 --precision TEXT        fp32 | bf16 | fp16  [bf16]
@@ -89,7 +89,7 @@ checkpoints/epoch_NNNN/     # periodic checkpoints (--ckpt-every-n-epochs)
 
 ```bash
 uv run src/glumind_uni/train_uniglumind.py train \
-    --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
-    --resume-from runs/glumind_uni/my_run/last_checkpoint.pt \
+    --csv data/input/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
+    --resume-from data/output/runs/glumind_uni/my_run/last_checkpoint.pt \
     --epochs 100
 ```

@@ -20,7 +20,7 @@ uv run src/glumind/inference_glumind.py --run-dir <path_to_run> [OPTIONS]
 
 | Option | Description |
 | :--- | :--- |
-| `--run-dir` | **Required**. Path to the specific run directory (e.g., `marked_runs/glumind/ai_ready/run_name`). |
+| `--run-dir` | **Required**. Path to the specific run directory (e.g., `data/output/marked_runs/glumind/ai_ready/run_name`). |
 | `--mode` | Evaluation mode. Default is `auto`. Options: `auto`, `test`, `val_as_test`. |
 | `--glucose-only` | If set, replaces all non-glucose features (HR, Steps) with a default value. |
 | `--default-value` | Strategy for `--glucose-only`. Options: `zero` (default), `mean`, `median`. |
@@ -31,14 +31,14 @@ uv run src/glumind/inference_glumind.py --run-dir <path_to_run> [OPTIONS]
 ### 1. Standard Evaluation (Auto Mode)
 Evaluate a run using its original split scheme and compare with saved metrics:
 ```bash
-uv run src/glumind/inference_glumind.py --run-dir "marked_runs/glumind/ai_ready/glumind_global_h12_20260222_194108"
+uv run src/glumind/inference_glumind.py --run-dir "data/output/marked_runs/glumind/ai_ready/glumind_global_h12_20260222_194108"
 ```
 
 ### 2. Glucose-Only Sensitivity Test
 Evaluate how the model performs without heart rate or step data by replacing them with their mean values from the training set:
 ```bash
 uv run src/glumind/inference_glumind.py \
-  --run-dir "marked_runs/glumind/type1_only/glumind_global_h12_20260225_120905" \
+  --run-dir "data/output/marked_runs/glumind/type1_only/glumind_global_h12_20260225_120905" \
   --glucose-only \
   --default-value mean
 ```
@@ -47,7 +47,7 @@ uv run src/glumind/inference_glumind.py \
 Force evaluation on the validation split even if the run was a final test run:
 ```bash
 uv run src/glumind/inference_glumind.py \
-  --run-dir "marked_runs/glumind/ai_ready/glumind_global_h12_20260222_194108" \
+  --run-dir "data/output/marked_runs/glumind/ai_ready/glumind_global_h12_20260222_194108" \
   --mode val_as_test
 ```
 

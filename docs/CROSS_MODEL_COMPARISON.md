@@ -8,12 +8,12 @@
 
 ## Input Files Reviewed
 
-- `marked_runs/glumind/ai_ready/RUNS_ANALYSIS.md`
-- `marked_runs/glumind/ai_ready_plus_type1/RUNS_ANALYSIS.md`
-- `marked_runs/glumind/type1_only/RUNS_ANALYSIS.md`
-- `runs/nhits/RUNS_ANALYSIS.md`
-- `runs/gluformer/ai_ready_plus_type1/gluformer_20260227_005453/test_metrics_overall.csv`
-- `runs/gluformer/ai_ready_plus_type1/gluformer_20260227_005453/test_metrics_by_study_group.csv`
+- `data/output/marked_runs/glumind/ai_ready/RUNS_ANALYSIS.md`
+- `data/output/marked_runs/glumind/ai_ready_plus_type1/RUNS_ANALYSIS.md`
+- `data/output/marked_runs/glumind/type1_only/RUNS_ANALYSIS.md`
+- `data/output/runs/nhits/RUNS_ANALYSIS.md`
+- `data/output/runs/gluformer/ai_ready_plus_type1/gluformer_20260227_005453/test_metrics_overall.csv`
+- `data/output/runs/gluformer/ai_ready_plus_type1/gluformer_20260227_005453/test_metrics_by_study_group.csv`
 
 ## Executive Summary
 
@@ -29,8 +29,8 @@
 
 | model | run | metric_source | overall_path | by_group_path |
 | --- | --- | --- | --- | --- |
-| GluMind (our) | glumind_global_h12_20260223_195526 | val_as_test | `marked_runs/glumind/ai_ready/glumind_global_h12_20260223_195526/val_metrics_overall.csv` | `marked_runs/glumind/ai_ready/glumind_global_h12_20260223_195526/val_metrics_by_study_group.csv` |
-| NHITS | nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_012925 @ step-step=100 | val_as_test | `runs/nhits/__ALL__/nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_012925/eval_checkpoints/step-step=100/val_metrics_overall.csv` | `runs/nhits/__ALL__/nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_012925/eval_checkpoints/step-step=100/val_metrics_by_study_group.csv` |
+| GluMind (our) | glumind_global_h12_20260223_195526 | val_as_test | `data/output/marked_runs/glumind/ai_ready/glumind_global_h12_20260223_195526/val_metrics_overall.csv` | `data/output/marked_runs/glumind/ai_ready/glumind_global_h12_20260223_195526/val_metrics_by_study_group.csv` |
+| NHITS | nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_012925 @ step-step=100 | val_as_test | `data/output/runs/nhits/__ALL__/nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_012925/eval_checkpoints/step-step=100/val_metrics_overall.csv` | `data/output/runs/nhits/__ALL__/nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_012925/eval_checkpoints/step-step=100/val_metrics_by_study_group.csv` |
 | GluFormer | not available for this dataset scope in provided files | NA | NA | NA |
 
 ### Overall Metrics
@@ -109,8 +109,8 @@
 
 | model | run | metric_source | overall_path | by_group_path |
 | --- | --- | --- | --- | --- |
-| GluMind (our) | glumind_global_h12_20260225_120905 | test | `marked_runs/glumind/type1_only/glumind_global_h12_20260225_120905/test_metrics_overall.csv` | `marked_runs/glumind/type1_only/glumind_global_h12_20260225_120905/test_metrics_by_study_group.csv` |
-| NHITS | nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_013800 @ step-step=150 | test | `runs/nhits/nf_nhits_type1_only/__ALL__/nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_013800/eval_checkpoints/step-step=150/test_metrics_overall.csv` | `runs/nhits/nf_nhits_type1_only/__ALL__/nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_013800/eval_checkpoints/step-step=150/test_metrics_by_study_group.csv` |
+| GluMind (our) | glumind_global_h12_20260225_120905 | test | `data/output/marked_runs/glumind/type1_only/glumind_global_h12_20260225_120905/test_metrics_overall.csv` | `data/output/marked_runs/glumind/type1_only/glumind_global_h12_20260225_120905/test_metrics_by_study_group.csv` |
+| NHITS | nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_013800 @ step-step=150 | test | `data/output/runs/nhits/nf_nhits_type1_only/__ALL__/nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_013800/eval_checkpoints/step-step=150/test_metrics_overall.csv` | `data/output/runs/nhits/nf_nhits_type1_only/__ALL__/nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_013800/eval_checkpoints/step-step=150/test_metrics_by_study_group.csv` |
 | GluFormer | not available for this dataset scope in provided files | NA | NA | NA |
 
 ### Overall Metrics
@@ -141,9 +141,9 @@
 
 | model | run | metric_source | overall_path | by_group_path |
 | --- | --- | --- | --- | --- |
-| GluMind (our) | glumind_global_h12_20260226_032703 | test | `marked_runs/glumind/ai_ready_plus_type1/glumind_global_h12_20260226_032703/test_metrics_overall.csv` | `marked_runs/glumind/ai_ready_plus_type1/glumind_global_h12_20260226_032703/test_metrics_by_study_group.csv` |
-| NHITS | nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_014043 @ step-step=150 | test | `runs/nhits/nf_nhits_ai_plus_type1_classic/__ALL__/nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_014043/eval_checkpoints/step-step=150/test_metrics_overall.csv` | `runs/nhits/nf_nhits_ai_plus_type1_classic/__ALL__/nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_014043/eval_checkpoints/step-step=150/test_metrics_by_study_group.csv` |
-| GluFormer | gluformer_20260227_005453 | test | `runs/gluformer/ai_ready_plus_type1/gluformer_20260227_005453/test_metrics_overall.csv` | `runs/gluformer/ai_ready_plus_type1/gluformer_20260227_005453/test_metrics_by_study_group.csv` |
+| GluMind (our) | glumind_global_h12_20260226_032703 | test | `data/output/marked_runs/glumind/ai_ready_plus_type1/glumind_global_h12_20260226_032703/test_metrics_overall.csv` | `data/output/marked_runs/glumind/ai_ready_plus_type1/glumind_global_h12_20260226_032703/test_metrics_by_study_group.csv` |
+| NHITS | nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_014043 @ step-step=150 | test | `data/output/runs/nhits/nf_nhits_ai_plus_type1_classic/__ALL__/nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_014043/eval_checkpoints/step-step=150/test_metrics_overall.csv` | `data/output/runs/nhits/nf_nhits_ai_plus_type1_classic/__ALL__/nhits_lr0.001_ms300_bs8_ws256_ss12_20260227_014043/eval_checkpoints/step-step=150/test_metrics_by_study_group.csv` |
+| GluFormer | gluformer_20260227_005453 | test | `data/output/runs/gluformer/ai_ready_plus_type1/gluformer_20260227_005453/test_metrics_overall.csv` | `data/output/runs/gluformer/ai_ready_plus_type1/gluformer_20260227_005453/test_metrics_by_study_group.csv` |
 
 ### Overall Metrics
 
@@ -192,7 +192,7 @@
 
 #### Direct Comparison to Original GluMind “Best” Table (Requested)
 
-- Run used: `marked_runs/glumind/ai_ready_plus_type1/glumind_global_h12_20260226_032703/test_metrics_by_study_group.csv`
+- Run used: `data/output/marked_runs/glumind/ai_ready_plus_type1/glumind_global_h12_20260226_032703/test_metrics_by_study_group.csv`
 - Original values used (as provided):  
 `RMSE/MAE -> Healthy 13.56/9.99, PreT2DM 15.84/12.27, Oral 16.64/12.59, Insulin 21.17/16.76`
 - Positive delta means `original - ours` (positive = our run is better).

@@ -18,7 +18,7 @@ From the repository root (after `uv sync`):
 ```bash
 # Inspect covariates in a CSV (no model required)
 uv run evaluate-model \
-  --test-csv data/loop_and_ai_ready/ablation_test.csv \
+  --test-csv data/input/loop_and_ai_ready/ablation_test.csv \
   --covariates \
   --model-type sugar_one
 
@@ -26,8 +26,8 @@ uv run evaluate-model \
 uv run evaluate-model \
   --run-dir data/output/runs/sugar_one_tune/production/trial_0000_bcd3813f \
   --model-type sugar_one \
-  --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
-  --train-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
+  --test-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv \
+  --train-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --batch-size 256 \
   --output-json data/output/runs/comparison_loop/sugar_one_trial0.json
 ```
@@ -87,7 +87,7 @@ Print which covariate columns exist in `--test-csv`, how many rows have non-empt
 
 ```bash
 uv run evaluate-model \
-  --test-csv data/loop_and_ai_ready/ablation_test.csv \
+  --test-csv data/input/loop_and_ai_ready/ablation_test.csv \
   --covariates \
   --model-type sugar_one
 ```
@@ -147,14 +147,14 @@ uv run evaluate-model ... --exclude-cov carbs
 uv run evaluate-model ... --include-cov basal
 ```
 
-Typical T1DM ablation workflow on `data/loop_and_ai_ready/ablation_test.csv`:
+Typical T1DM ablation workflow on `data/input/loop_and_ai_ready/ablation_test.csv`:
 
 ```bash
 uv run evaluate-model \
   --run-dir data/output/runs/sugar_one_tune/production/trial_0000_bcd3813f \
   --model-type sugar_one \
-  --test-csv data/loop_and_ai_ready/ablation_test.csv \
-  --train-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
+  --test-csv data/input/loop_and_ai_ready/ablation_test.csv \
+  --train-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --test-split '' \
   --include-cov basal \
   --output-json data/output/runs/ablation/basal_only.json

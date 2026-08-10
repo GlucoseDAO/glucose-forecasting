@@ -2,9 +2,9 @@
 
 **Date:** 2026-06-13  
 **Evaluation tool:** `uv run evaluate-model` (`src/sugar_one/evaluate_model.py`)  
-**Model checkpoint:** `runs/sugar_one_tune/production/trial_0000_bcd3813f` (`best_model.pt`)  
-**Test dataset:** `data/loop_and_ai_ready/ablation_test.csv`  
-**Scaler fitting:** `data/loop_and_ai_ready/loop_ai_ready_joined2.csv` (train split)
+**Model checkpoint:** `data/output/runs/sugar_one_tune/production/trial_0000_bcd3813f` (`best_model.pt`)  
+**Test dataset:** `data/input/loop_and_ai_ready/ablation_test.csv`  
+**Scaler fitting:** `data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv` (train split)
 
 ---
 
@@ -92,7 +92,7 @@ The full-covariate run on this file (MAE **13.08**, 819,013 windows) matches the
 | 7 | Exclude bolus | `--exclude-cov bolus` | basal, carbs |
 | 8 | Exclude carbs | `--exclude-cov carbs` | basal, bolus |
 
-Raw JSON outputs: `runs/ablation_t1dm/*.json`
+Raw JSON outputs: `data/output/runs/ablation_t1dm/*.json`
 
 ---
 
@@ -172,19 +172,19 @@ RMSE spreads are larger than MAE spreads (e.g. All → None: **+0.85 RMSE** vs *
 ```bash
 # Example: all covariates (best)
 uv run evaluate-model \
-  --run-dir runs/sugar_one_tune/production/trial_0000_bcd3813f \
+  --run-dir data/output/runs/sugar_one_tune/production/trial_0000_bcd3813f \
   --model-type sugar_one \
-  --test-csv data/loop_and_ai_ready/ablation_test.csv \
-  --train-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
+  --test-csv data/input/loop_and_ai_ready/ablation_test.csv \
+  --train-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --test-split "" \
   --batch-size 256 \
-  --output-json runs/ablation_t1dm/all_cov.json
+  --output-json data/output/runs/ablation_t1dm/all_cov.json
 
 # Example: bolus only
-uv run evaluate-model ... --include-cov bolus --output-json runs/ablation_t1dm/include_bolus.json
+uv run evaluate-model ... --include-cov bolus --output-json data/output/runs/ablation_t1dm/include_bolus.json
 
 # Example: glucose only
-uv run evaluate-model ... --zero-cov --output-json runs/ablation_t1dm/none_cov.json
+uv run evaluate-model ... --zero-cov --output-json data/output/runs/ablation_t1dm/none_cov.json
 ```
 
 Full flag reference: `src/sugar_one/README.md`
@@ -195,7 +195,7 @@ Full flag reference: `src/sugar_one/README.md`
 
 | Path | Description |
 |------|-------------|
-| `data/loop_and_ai_ready/ablation_test.csv` | T1DM test subset used here |
-| `runs/ablation_t1dm/*.json` | Machine-readable metrics for all 8 runs |
+| `data/input/loop_and_ai_ready/ablation_test.csv` | T1DM test subset used here |
+| `data/output/runs/ablation_t1dm/*.json` | Machine-readable metrics for all 8 runs |
 | `docs/GLUMIND_VS_SUGARONE_COMPARISON.md` | Cross-model benchmark on full joined2 test split |
 | `src/sugar_one/README.md` | `evaluate-model` CLI documentation |

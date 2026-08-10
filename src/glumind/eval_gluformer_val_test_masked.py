@@ -372,4 +372,4 @@ if __name__ == "__main__":
     main()
 
 # Example:
-# uv run python src/glumind/eval_gluformer_val_test_masked.py --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv --device mps --mask_interpolated_targets --save_predictions
+# uv run python src/glumind/eval_gluformer_val_test_masked.py --csv data/input/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv --device mps --mask_interpolated_targets --save_predictions

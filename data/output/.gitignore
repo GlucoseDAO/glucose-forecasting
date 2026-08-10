@@ -2,3 +2,5 @@
 !.gitignore
 !runs/
 !runs/.gitignore
+!marked_runs/
+!marked_runs/.gitignore

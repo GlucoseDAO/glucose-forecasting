@@ -111,12 +111,12 @@ def prepare_person_frame(
 @app.command("livia")
 def prepare_livia(
     input: Path = typer.Option(
-        Path("data/personalization/livia_glumind_ic_ready_full.csv"),
+        Path("data/input/personalization/livia_glumind_ic_ready_full.csv"),
         "--input",
         help="Livia insulin-schema CSV.",
     ),
     out_dir: Path = typer.Option(
-        Path("data/personalization/prepared"),
+        Path("data/input/personalization/prepared"),
         "--out-dir",
         help="Output directory for prepared CSV + split_meta.json.",
     ),
@@ -165,12 +165,12 @@ def prepare_livia(
 @app.command("holdouts")
 def prepare_holdouts(
     loop_csv: Path = typer.Option(
-        Path("data/loop_and_ai_ready/loop.csv"),
+        Path("data/input/loop_and_ai_ready/loop.csv"),
         "--loop-csv",
         help="Full Loop export CSV.",
     ),
     out_dir: Path = typer.Option(
-        Path("data/personalization/holdouts"),
+        Path("data/input/personalization/holdouts"),
         "--out-dir",
     ),
     users: Optional[str] = typer.Option(

@@ -3,11 +3,11 @@
 evaluate_glumind.py — Evaluate a trained GluMind checkpoint on arbitrary test data.
 
 Three ways to specify the model:
-  1. --registry-dir  path to a marked_runs/.../.../ folder containing
+  1. --registry-dir  path to a data/output/marked_runs/.../.../ folder containing
                      _analysis_registry.csv — auto-picks the run with the
                      lowest val_mae.
   2. --run-dir       path to a specific run step directory (e.g.
-                     marked_runs/glumind/.../step_05_T1DM_...) that holds
+                     data/output/marked_runs/glumind/.../step_05_T1DM_...) that holds
                      tuning_meta.json and best_model.pt.
   3. --checkpoint    path to a raw .pt weights file; requires --run-dir for
                      the architecture meta (or --meta-override).
@@ -20,7 +20,7 @@ Test data is fully decoupled from the training CSV stored in the metadata:
 
 Example:
   uv run src/glumind/evaluate_glumind.py \\
-      --registry-dir marked_runs/glumind/ai_ready_plus_type1 \\
+      --registry-dir data/output/marked_runs/glumind/ai_ready_plus_type1 \\
       --test-csv data/livia/livia_glumind_ready.csv
 """
 from __future__ import annotations
@@ -67,6 +67,7 @@ from common.registry import (
     resolve_checkpoint as _common_resolve_checkpoint,
     try_resolve_csv_path,
 )
+from common.paths import resolve_project_path
 from common.scalers import (
     SCALERS_FILENAME,
     load_scalers,
@@ -184,7 +185,7 @@ def main(
         "--registry-dir",
         help=(
             "Directory containing _analysis_registry.csv (e.g. "
-            "marked_runs/glumind/ai_ready_plus_type1). "
+            "data/output/marked_runs/glumind/ai_ready_plus_type1). "
             "Auto-selects the run with the lowest val_mae."
         ),
     ),
@@ -256,10 +257,11 @@ def main(
     # 1. Resolve run directory and metadata
     # -----------------------------------------------------------------------
     if run_dir is not None:
-        resolved_run_dir = run_dir
+        resolved_run_dir = resolve_project_path(run_dir, project_root)
         typer.echo(f"Using run directory: {resolved_run_dir}")
     elif registry_dir is not None:
-        resolved_run_dir, _ = _find_best_run_dir(registry_dir)
+        resolved_registry = resolve_project_path(registry_dir, project_root)
+        resolved_run_dir, _ = _find_best_run_dir(resolved_registry)
         typer.echo(f"Resolved run directory: {resolved_run_dir}")
     else:
         typer.echo(

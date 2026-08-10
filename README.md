@@ -35,7 +35,7 @@ The project currently includes:
 - `src/glumind/eval_gluformer_val_test_masked.py`: GluFormer (Hugging Face) evaluation on val/test.
 - `data/input/`: preferred location for local training/eval CSVs (see `docs/DATA.md`).
 - `data/output/runs/`: default root for model run outputs (metrics, checkpoints, predictions).
-- `marked_runs/`: curated run sets and analysis markdown files.
+- `data/output/marked_runs/`: curated run sets and analysis markdown files.
 - `CROSS_MODEL_COMPARISON.md`: cross-model summary report.
 
 ## CLI reference
@@ -317,7 +317,7 @@ Global mode example:
 
 ```bash
 uv run python src/glumind/train_glumind.py \
-  --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
+  --csv data/input/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --mode global \
   --device cuda \
   --epochs 120 \
@@ -337,7 +337,7 @@ Continual mode example:
 
 ```bash
 uv run python src/glumind/train_glumind.py \
-  --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
+  --csv data/input/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --mode continual \
   --lwf_lambda 0.2 \
   --device cuda \
@@ -358,7 +358,7 @@ Tune mode using test as validation:
 
 ```bash
 uv run python src/glumind/train_glumind.py \
-  --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
+  --csv data/input/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --split_scheme trainval_test_as_val \
   --mode global \
   --device cuda \
@@ -373,7 +373,7 @@ Resume training from full checkpoint:
 
 ```bash
 uv run python src/glumind/train_glumind.py \
-  --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
+  --csv data/input/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --mode global \
   --resume_from data/output/runs/glumind/<run_name>/last_checkpoint.pt \
   --epochs 250 \
@@ -386,7 +386,7 @@ Train on loop + AI-READI joined data:
 
 ```bash
 uv run python src/sugar_one/train_sugar_one.py \
-  --csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
+  --csv data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --mode global \
   --device cuda \
   --epochs 120 \
@@ -409,7 +409,7 @@ NHITS example:
 
 ```bash
 uv run python src/nf_baselines/tune_nf_baselines_by_group.py \
-  --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
+  --csv data/input/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
   --model nhits \
   --global_model \
   --device cuda \
@@ -434,7 +434,7 @@ Evaluate val/test splits:
 
 ```bash
 uv run python src/glumind/eval_gluformer_val_test_masked.py \
-  --csv data/actual/with_complex_steps_processing/ai_ready_plus_type1_v2_val_only_in_test.csv \
+  --csv data/input/actual/with_complex_steps_processing/ai_ready_plus_type1_v2_val_only_in_test.csv \
   --device cuda \
   --splits both \
   --mask_interpolated_targets \
@@ -512,7 +512,7 @@ uv run evaluate-model `
   --output-json docs/reports/milestone7_smoke_livia.json
 ```
 
-With access to the full loop benchmark CSV, drop `--zero-cov` and point both `--test-csv` and `--train-csv` at `data/loop_and_ai_ready/loop_ai_ready_joined2.csv` to reproduce in-domain test metrics (~12.4 MAE on the bundled SugarOne checkpoint). See `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`.
+With access to the full loop benchmark CSV, drop `--zero-cov` and point both `--test-csv` and `--train-csv` at `data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv` to reproduce in-domain test metrics (~12.4 MAE on the bundled SugarOne checkpoint). See `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`.
 
 ### GluMind-only alternative (`evaluate-glumind`)
 
@@ -542,7 +542,7 @@ Typical run artifacts:
 
 Main analysis documents:
 - `CROSS_MODEL_COMPARISON.md`
-- `marked_runs/glumind/*/RUNS_ANALYSIS.md`
+- `data/output/marked_runs/glumind/*/RUNS_ANALYSIS.md`
 - `data/output/runs/nhits/RUNS_ANALYSIS.md`
 
 ## Notes

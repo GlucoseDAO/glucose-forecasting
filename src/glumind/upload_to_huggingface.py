@@ -8,7 +8,7 @@ Hugging Face repository under a given organisation.
 
 Example:
   uv run src/glumind/upload_to_huggingface.py \\
-      --model-dir marked_runs/glumind/ai_ready_plus_type1/glumind_global_h12_20260226_032703 \\
+      --model-dir data/output/marked_runs/glumind/ai_ready_plus_type1/glumind_global_h12_20260226_032703 \\
       --repo-name glumind-global-h12 \\
       --org GlucoseDao \\
       --token hf_xxx

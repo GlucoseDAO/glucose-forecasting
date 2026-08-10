@@ -747,9 +747,9 @@ if __name__ == "__main__":
 
 # ["tft", "nhits", "nbeatsx"]
 
-# uv run python src/neuralforecast/tune_nf_baselines_by_group.py --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv --model tft --global_model --save_all_checkpoints --eval_checkpoints --mask_interpolated_targets
-# uv run python src/neuralforecast/tune_nf_baselines_by_group.py --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv --model tft --mask_interpolated_targets
+# uv run python src/neuralforecast/tune_nf_baselines_by_group.py --csv data/input/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv --model tft --global_model --save_all_checkpoints --eval_checkpoints --mask_interpolated_targets
+# uv run python src/neuralforecast/tune_nf_baselines_by_group.py --csv data/input/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv --model tft --mask_interpolated_targets
 
-# uv run python src/neuralforecast/tune_nf_baselines_by_group.py --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv --model nhits --global_model --save_all_checkpoints --eval_checkpoints --mask_interpolated_targets
+# uv run python src/neuralforecast/tune_nf_baselines_by_group.py --csv data/input/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv --model nhits --global_model --save_all_checkpoints --eval_checkpoints --mask_interpolated_targets
 
-# uv run python src/neuralforecast/tune_nf_baselines_by_group.py --csv data/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv --model nbeatsx --global_model --save_all_checkpoints --eval_checkpoints --mask_interpolated_targets
+# uv run python src/neuralforecast/tune_nf_baselines_by_group.py --csv data/input/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv --model nbeatsx --global_model --save_all_checkpoints --eval_checkpoints --mask_interpolated_targets

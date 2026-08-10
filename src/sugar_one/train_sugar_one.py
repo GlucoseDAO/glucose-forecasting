@@ -3,7 +3,7 @@
 SugarOne — Insulin & Carb Parallel-Attention Transformer for Blood Glucose Forecasting.
 
 Covariates: Basal Rate (U/h), Bolus Insulin (U), Carbohydrates (g).
-Dataset:    data/loop_and_ai_ready/loop_ai_ready_joined_loop_columns.csv
+Dataset:    data/input/loop_and_ai_ready/loop_ai_ready_joined_loop_columns.csv
 
 Architecture: SugarOneModel (see sugar_one_model.py).
   - Identical parallel cross-attention + multi-scale self-attention structure

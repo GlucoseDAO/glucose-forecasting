@@ -1,7 +1,7 @@
 # GluFormer Run Analysis (ai_ready_plus_type1)
 
 - Scope: **test-only analysis**.
-- Source folder: `runs/gluformer/ai_ready_plus_type1/gluformer_20260227_005453`
+- Source folder: `data/output/runs/gluformer/ai_ready_plus_type1/gluformer_20260227_005453`
 - Total runs analyzed: **1**
 - Total predictions: **6,435** (`unique_id` count: **560**)
 

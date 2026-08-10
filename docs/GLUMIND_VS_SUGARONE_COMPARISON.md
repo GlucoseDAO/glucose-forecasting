@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-06 (updated with `test_data` demo evaluation)  
 **Evaluation script:** `src/sugar_one/evaluate_model.py` (`uv run evaluate-model`)  
-**Primary benchmark:** `data/loop_and_ai_ready/loop_ai_ready_joined2.csv` (test split)  
+**Primary benchmark:** `data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv` (test split)  
 **Demo / sanity check:** `test_data/livia_sugar_one_ready.csv` (all models; bundled reviewer checkpoints)
 
 ## Datasets and terminology
@@ -70,22 +70,22 @@ SugarOne with full covariates wins on all three metrics on this benchmark. Zeroi
 
 ### GluMind (best checkpoint)
 
-Scanned **53** runs under `marked_runs/glumind/ai_ready_plus_type1` and selected the run with the lowest **validation MAE** from each run’s `val_metrics_overall.csv`.
+Scanned **53** runs under `data/output/marked_runs/glumind/ai_ready_plus_type1` and selected the run with the lowest **validation MAE** from each run’s `val_metrics_overall.csv`.
 
-**Selected run:** `marked_runs/glumind/ai_ready_plus_type1/glumind_global_h12_20260226_032703`
+**Selected run:** `data/output/marked_runs/glumind/ai_ready_plus_type1/glumind_global_h12_20260226_032703`
 
 | Split | MAE | RMSE | MARD |
 |-------|-----|------|------|
 | Validation (in-domain, **ai_ready** + type-1 supplement) | **11.43** | 17.87 | 8.46% |
 | Test (in-domain, **ai_ready** + type-1 supplement) | 11.70 | 18.46 | 8.52% |
 
-**Architecture / training:** global mode, `input_steps=80`, `horizon=12`, `d_model=32`, `n_heads=4`, `n_blocks=3`, trained on `data/actual/with_complex_steps_processing/ai_ready_plus_type1_v1_val_in_val_and_test.csv` (6.84M rows: ~90% **`ai_ready`** cohorts, ~10% type-1 **`T1DM`** supplement — wearable schema with HR/steps; **not** `loop_ai_ready_joined2`).
+**Architecture / training:** global mode, `input_steps=80`, `horizon=12`, `d_model=32`, `n_heads=4`, `n_blocks=3`, trained on `data/input/actual/with_complex_steps_processing/ai_ready_plus_type1_v1_val_in_val_and_test.csv` (6.84M rows: ~90% **`ai_ready`** cohorts, ~10% type-1 **`T1DM`** supplement — wearable schema with HR/steps; **not** `loop_ai_ready_joined2`).
 
 The next-best runs were continual-learning steps (val MAE 11.69–11.82); the global run was clearly best on validation.
 
 ### SugarOne
 
-**Selected run:** `runs/sugar_one_tune/production/trial_0000_bcd3813f`  
+**Selected run:** `data/output/runs/sugar_one_tune/production/trial_0000_bcd3813f`  
 Best trial from production hyperparameter search (`leaderboard.csv`, combo hash `bcd3813f`).
 
 | Split | MAE | RMSE | MARD |
@@ -93,7 +93,7 @@ Best trial from production hyperparameter search (`leaderboard.csv`, combo hash 
 | Validation (in-domain, joined2) | 12.69 | 19.73 | 9.64% |
 | Test (in-domain, joined2, from training run) | 12.41 | 19.05 | 9.90% |
 
-**Architecture / training:** global mode, `input_steps=128`, `horizon=12`, `d_model=32`, `n_heads=8`, `n_blocks=5`, trained on `data/loop_and_ai_ready/loop_ai_ready_joined2.csv` (full **`ai_ready`** + **`loop`** join).
+**Architecture / training:** global mode, `input_steps=128`, `horizon=12`, `d_model=32`, `n_heads=8`, `n_blocks=5`, trained on `data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv` (full **`ai_ready`** + **`loop`** join).
 
 Re-evaluated test metrics (12.40 / 19.03 / 9.91%) match the saved training-run test metrics within rounding, confirming reproducibility.
 
@@ -104,30 +104,30 @@ Both models were evaluated on the **same `loop_ai_ready_joined2` test split** us
 ```bash
 # GluMind (scalers fit on ai_ready train split)
 uv run evaluate-model \
-  --run-dir marked_runs/glumind/ai_ready_plus_type1/glumind_global_h12_20260226_032703 \
+  --run-dir data/output/marked_runs/glumind/ai_ready_plus_type1/glumind_global_h12_20260226_032703 \
   --model-type glumind \
-  --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
+  --test-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --batch-size 4096 \
-  --output-json runs/comparison_loop/glumind_global.json
+  --output-json data/output/runs/comparison_loop/glumind_global.json
 
 # SugarOne (scalers fit on joined2 train split)
 uv run evaluate-model \
-  --run-dir runs/sugar_one_tune/production/trial_0000_bcd3813f \
+  --run-dir data/output/runs/sugar_one_tune/production/trial_0000_bcd3813f \
   --model-type sugar_one \
-  --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
-  --train-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
+  --test-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv \
+  --train-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --batch-size 256 \
-  --output-json runs/comparison_loop/sugar_one_trial0.json
+  --output-json data/output/runs/comparison_loop/sugar_one_trial0.json
 
 # SugarOne covariate ablation (basal/bolus/carbs zeroed after imputation)
 uv run evaluate-model \
-  --run-dir runs/sugar_one_tune/production/trial_0000_bcd3813f \
+  --run-dir data/output/runs/sugar_one_tune/production/trial_0000_bcd3813f \
   --model-type sugar_one \
-  --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
-  --train-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv \
+  --test-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv \
+  --train-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --batch-size 256 \
   --zero-cov \
-  --output-json runs/comparison_loop/sugar_one_trial0_zero_cov.json
+  --output-json data/output/runs/comparison_loop/sugar_one_trial0_zero_cov.json
 ```
 
 **GluMind on joined2 (cross-domain):** the joined CSV uses loop-style columns only — no HR or Step Count. Missing wearable covariates are filled with **0.0** before imputation, so GluMind runs in effective glucose-only mode even on **`ai_ready`**-origin rows where it was trained with HR/steps.
@@ -243,7 +243,7 @@ uv run evaluate-model `
   --test-csv test_data/livia_sugar_one_ready.csv `
   --test-split "" `
   --batch-size 4096 `
-  --output-json runs/comparison_test_data/glumind_test_model.json
+  --output-json data/output/runs/comparison_test_data/glumind_test_model.json
 
 # SugarOne (bundled reviewer checkpoint, full covariate path — no --zero-cov)
 uv run evaluate-model `
@@ -252,7 +252,7 @@ uv run evaluate-model `
   --test-csv test_data/livia_sugar_one_ready.csv `
   --test-split "" `
   --batch-size 256 `
-  --output-json runs/comparison_test_data/sugar_one_test_model_full_cov.json
+  --output-json data/output/runs/comparison_test_data/sugar_one_test_model_full_cov.json
 
 # SugarOne (bundled reviewer checkpoint, glucose-only ablation via --zero-cov)
 uv run evaluate-model `
@@ -262,7 +262,7 @@ uv run evaluate-model `
   --zero-cov `
   --test-split "" `
   --batch-size 256 `
-  --output-json runs/comparison_test_data/sugar_one_test_model.json
+  --output-json data/output/runs/comparison_test_data/sugar_one_test_model.json
 ```
 
 ### Results (all rows, train-run `scalers.json`)
@@ -316,12 +316,12 @@ Both models degrade on out-of-distribution personal data, as expected. With insu
 
 | File | Description |
 |------|-------------|
-| `runs/comparison_loop/glumind_global.json` | GluMind on joined2 test split (cross-domain) |
-| `runs/comparison_loop/sugar_one_trial0.json` | SugarOne on joined2 test split (full covariates) |
-| `runs/comparison_loop/sugar_one_trial0_zero_cov.json` | SugarOne on joined2 test split (`--zero-cov` ablation) |
-| `runs/comparison_test_data/glumind_test_model.json` | GluMind on `test_data/livia_sugar_one_ready.csv` |
-| `runs/comparison_test_data/sugar_one_test_model_full_cov.json` | SugarOne on `test_data/livia_sugar_one_ready.csv` (no `--zero-cov`) |
-| `runs/comparison_test_data/sugar_one_test_model.json` | SugarOne on `test_data/livia_sugar_one_ready.csv` (`--zero-cov`) |
+| `data/output/runs/comparison_loop/glumind_global.json` | GluMind on joined2 test split (cross-domain) |
+| `data/output/runs/comparison_loop/sugar_one_trial0.json` | SugarOne on joined2 test split (full covariates) |
+| `data/output/runs/comparison_loop/sugar_one_trial0_zero_cov.json` | SugarOne on joined2 test split (`--zero-cov` ablation) |
+| `data/output/runs/comparison_test_data/glumind_test_model.json` | GluMind on `test_data/livia_sugar_one_ready.csv` |
+| `data/output/runs/comparison_test_data/sugar_one_test_model_full_cov.json` | SugarOne on `test_data/livia_sugar_one_ready.csv` (no `--zero-cov`) |
+| `data/output/runs/comparison_test_data/sugar_one_test_model.json` | SugarOne on `test_data/livia_sugar_one_ready.csv` (`--zero-cov`) |
 | `docs/reports/milestone7_smoke_livia.json` | Earlier SugarOne smoke run (`--zero-cov` on old glucose-only file; superseded) |
 | `src/sugar_one/evaluate_model.py` | Unified evaluation CLI with `--zero-cov` and progress logging |
 

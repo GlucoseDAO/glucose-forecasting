@@ -13,6 +13,7 @@ from common.registry import (
     resolve_checkpoint,
     resolve_csv_path,
 )
+from common.paths import resolve_project_path, rewrite_legacy_relpath
 
 
 def _write_registry_csv(path: Path, rows: list[dict[str, str]]) -> None:
@@ -44,7 +45,8 @@ def test_find_best_run_dir_picks_lowest_val_mae(tmp_path: Path) -> None:
         ],
     )
     step_dir, row = find_best_run_dir(registry_dir, project_root)
-    assert step_dir == project_root / "runs" / "b"
+    # Legacy top-level runs/ is rewritten to data/output/runs/ when resolving.
+    assert step_dir == project_root / "data" / "output" / "runs" / "b"
     assert row["run_dir"] == "runs/b"
 
 
@@ -57,7 +59,36 @@ def test_find_best_run_dir_resolves_final_step_subdir(tmp_path: Path) -> None:
         [{"run_dir": "runs/continual", "val_mae": "1.0", "final_step": "step_03_T1DM"}],
     )
     step_dir, row = find_best_run_dir(registry_dir, project_root)
-    assert step_dir == project_root / "runs" / "continual" / "step_03_T1DM"
+    assert step_dir == project_root / "data" / "output" / "runs" / "continual" / "step_03_T1DM"
+
+
+def test_find_best_run_dir_prefers_existing_legacy_path(tmp_path: Path) -> None:
+    """If a legacy path still exists on disk, keep it (partial migrations)."""
+    project_root = tmp_path
+    registry_dir = tmp_path / "registry"
+    registry_dir.mkdir()
+    legacy = project_root / "marked_runs" / "glumind" / "best"
+    legacy.mkdir(parents=True)
+    _write_registry_csv(
+        registry_dir / "_analysis_registry.csv",
+        [{"run_dir": "marked_runs/glumind/best", "val_mae": "1.0"}],
+    )
+    step_dir, _ = find_best_run_dir(registry_dir, project_root)
+    assert step_dir == legacy
+
+
+def test_find_best_run_dir_rewrites_marked_runs_when_moved(tmp_path: Path) -> None:
+    project_root = tmp_path
+    registry_dir = tmp_path / "registry"
+    registry_dir.mkdir()
+    moved = project_root / "data" / "output" / "marked_runs" / "glumind" / "best"
+    moved.mkdir(parents=True)
+    _write_registry_csv(
+        registry_dir / "_analysis_registry.csv",
+        [{"run_dir": "marked_runs/glumind/best", "val_mae": "1.0"}],
+    )
+    step_dir, _ = find_best_run_dir(registry_dir, project_root)
+    assert step_dir == moved
 
 
 def test_find_best_run_dir_missing_file_exits(tmp_path: Path) -> None:
@@ -186,10 +217,60 @@ def test_resolve_csv_path_basename_under_data_input(tmp_path: Path) -> None:
 def test_resolve_csv_path_prefers_data_input_over_other_data_hits(tmp_path: Path) -> None:
     project_root = tmp_path / "root"
     preferred = project_root / "data" / "input" / "shared.csv"
-    other = project_root / "data" / "loop_and_ai_ready" / "shared.csv"
+    other = project_root / "data" / "input" / "loop_and_ai_ready" / "shared.csv"
     preferred.parent.mkdir(parents=True)
     other.parent.mkdir(parents=True)
     preferred.write_text("a,b\n1,2\n")
     other.write_text("a,b\n3,4\n")
     resolved = resolve_csv_path(r"C:\legacy\shared.csv", project_root)
     assert resolved == preferred
+
+
+def test_resolve_csv_path_rewrites_legacy_loop_folder(tmp_path: Path) -> None:
+    project_root = tmp_path / "root"
+    target = project_root / "data" / "input" / "loop_and_ai_ready" / "joined.csv"
+    target.parent.mkdir(parents=True)
+    target.write_text("a,b\n1,2\n")
+    resolved = resolve_csv_path("data/loop_and_ai_ready/joined.csv", project_root)
+    assert resolved == target
+
+
+def test_resolve_csv_path_rewrites_legacy_actual_folder(tmp_path: Path) -> None:
+    project_root = tmp_path / "root"
+    target = (
+        project_root
+        / "data"
+        / "input"
+        / "actual"
+        / "with_complex_steps_processing"
+        / "ai_ready.csv"
+    )
+    target.parent.mkdir(parents=True)
+    target.write_text("a,b\n1,2\n")
+    resolved = resolve_csv_path(
+        "data/actual/with_complex_steps_processing/ai_ready.csv",
+        project_root,
+    )
+    assert resolved == target
+
+
+def test_rewrite_legacy_relpath_runs_and_datasets() -> None:
+    assert rewrite_legacy_relpath("runs/glumind/x") == Path("data/output/runs/glumind/x")
+    assert rewrite_legacy_relpath("marked_runs/glumind/x") == Path(
+        "data/output/marked_runs/glumind/x"
+    )
+    assert rewrite_legacy_relpath("data/loop_and_ai_ready/a.csv") == Path(
+        "data/input/loop_and_ai_ready/a.csv"
+    )
+    # Already-new paths must not double-rewrite.
+    assert rewrite_legacy_relpath("data/output/runs/glumind/x") == Path(
+        "data/output/runs/glumind/x"
+    )
+
+
+def test_resolve_project_path_rewrites_missing_legacy(tmp_path: Path) -> None:
+    project_root = tmp_path
+    target = project_root / "data" / "output" / "marked_runs" / "glumind"
+    target.mkdir(parents=True)
+    resolved = resolve_project_path("marked_runs/glumind", project_root)
+    assert resolved == target

@@ -160,11 +160,11 @@ def main(
         help="Livia data_size/summary.csv for curve comparison.",
     ),
     loop_csv: Path = typer.Option(
-        Path("data/loop_and_ai_ready/loop.csv"),
+        Path("data/input/loop_and_ai_ready/loop.csv"),
         "--loop-csv",
     ),
     holdout_dir: Path = typer.Option(
-        Path("data/personalization/holdouts"),
+        Path("data/input/personalization/holdouts"),
         "--holdout-dir",
     ),
     out_dir: Path = typer.Option(

@@ -10,7 +10,7 @@
 
 [paths]
 base_run_dir = "test_model_sugar_one"
-personal_csv = "data/personalization/prepared/livia_chronological.csv"
+personal_csv = "data/input/personalization/prepared/livia_chronological.csv"
 output_dir = "data/output/runs/personalization/livia/tune"
 
 [defaults]

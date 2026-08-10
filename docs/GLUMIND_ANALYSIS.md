@@ -63,7 +63,7 @@ To navigate the metrics:
 
 ## 6. Where to find Checkpoints
 
-Checkpoints are located in `marked_runs/glumind/<category>/<run_name>/checkpoints/`.
+Checkpoints are located in `data/output/marked_runs/glumind/<category>/<run_name>/checkpoints/`.
 - `best_model.pt`: Weights for the best validation loss.
 - `last_model.pt`: Weights at the end of training.
 - `checkpoint.pt`: Full state (optimizer, scheduler) for resuming training.

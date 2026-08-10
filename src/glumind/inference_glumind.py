@@ -33,6 +33,7 @@ from glumind.train_glumind import (
     evaluate,
 )
 from common.registry import try_resolve_csv_path
+from common.paths import resolve_project_path
 from common.scalers import load_scalers, resolve_scalers_path, save_scalers_for_run
 
 _SPLIT_SCHEME_TO_MODE: dict[str, str] = {
@@ -76,7 +77,7 @@ def _load_saved_metrics(run_dir: Path, mode: str) -> dict[str, float] | None:
 
 @app.command()
 def main(
-    run_dir: Path = typer.Option(..., help="Path to the run directory in marked_runs"),
+    run_dir: Path = typer.Option(..., help="Path to the run directory under data/output/marked_runs"),
     mode: str = typer.Option(
         "auto",
         help=(
@@ -95,6 +96,7 @@ def main(
         help="Torch device to run inference on.",
     ),
 ) -> None:
+    run_dir = resolve_project_path(run_dir, project_root)
     if not run_dir.exists():
         typer.echo(f"Error: Run directory {run_dir} does not exist.", err=True)
         raise typer.Exit(1)

@@ -11,7 +11,7 @@ This is a separate, self-contained experiment folder — nothing in `src/sugar_o
 
 ```bash
 uv run python src/sugar_jepa/train_sugar_jepa.py \
-  --csv data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv \
+  --csv data/input/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv \
   --device cuda \
   --d-model 32 --n-heads 8 --n-blocks 5 --ff-units 128 --input-steps 128 --horizon 12 \
   --lr 0.0004 --weight-decay 0.00003 --batch-size 256 \
@@ -55,7 +55,7 @@ the production 120/10), this should finish in well under an hour on a single con
 ```bash
 uv run python src/sugar_jepa/evaluate_sugar_jepa.py \
   --run-dir data/output/runs/sugar_jepa/<run_name> \
-  --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv \
+  --test-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv \
   --device cuda
 ```
 
@@ -65,7 +65,7 @@ not the dev subset, so it's not directly comparable — regenerate a baseline on
 `evaluate-model` for a fair before/after):
 
 ```bash
-uv run evaluate-model --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv \
+uv run evaluate-model --test-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv \
   --run-dir <a SugarOne run trained on the same dev CSV> --model-type sugar_one
 ```
 
@@ -75,7 +75,7 @@ Before a long run, sanity-check the pipeline end-to-end on a tiny slice:
 
 ```bash
 uv run python src/sugar_jepa/train_sugar_jepa.py \
-  --csv data/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv \
+  --csv data/input/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv \
   --device cuda --epochs 2 --max-train-series 20 --max-eval-series 10 \
   --batch-size 32 --n-blocks 2 --out-dir data/output/runs/sugar_jepa_smoketest
 ```
@@ -140,6 +140,6 @@ still works (`from_pretrained` accepts a Hub id or local path interchangeably) i
    version where the whole model runs at 288 steps is cleaner architecturally but forfeits today's
    apples-to-apples comparison — worth trying only once there's a positive signal.
 5. **Fold results into the repo's existing comparison-doc convention**
-   (`docs/GLUMIND_VS_SUGARONE_COMPARISON.md`, the per-model/dataset `marked_runs/*/RUNS_ANALYSIS.md`
+   (`docs/GLUMIND_VS_SUGARONE_COMPARISON.md`, the per-model/dataset `data/output/marked_runs/*/RUNS_ANALYSIS.md`
    writeups) rather than treating this as
    a one-off side experiment.

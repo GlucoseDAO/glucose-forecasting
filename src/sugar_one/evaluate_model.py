@@ -24,12 +24,12 @@ Model resolution (same as evaluate_glumind.py):
 Examples:
   uv run evaluate-model \\
       --run-dir test_model \\
-      --test-csv data/actual/with_complex_steps_processing/ai_ready_plus_type1_v1_val_in_val_and_test.csv
+      --test-csv data/input/actual/with_complex_steps_processing/ai_ready_plus_type1_v1_val_in_val_and_test.csv
 
   uv run evaluate-model \\
-      --run-dir runs/sugar_one_tune/production/trial_0 \\
+      --run-dir data/output/runs/sugar_one_tune/production/trial_0 \\
       --model-type sugar_one \\
-      --test-csv data/loop_and_ai_ready/loop_ai_ready_joined2.csv
+      --test-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv
 """
 from __future__ import annotations
 
@@ -73,6 +73,7 @@ from sugar_one.train_sugar_one import (
 )
 from common.checkpoint import strip_compile_prefix
 from common.model_spec import detect_family_kind, get_family_spec
+from common.paths import resolve_project_path
 from common.registry import (
     find_best_run_dir as _common_find_best_run_dir,
     load_run_meta as _load_meta,
@@ -673,9 +674,10 @@ def main(
         raise typer.Exit(1)
 
     if run_dir is not None:
-        resolved_run_dir = run_dir
+        resolved_run_dir = resolve_project_path(run_dir, project_root)
     else:
-        resolved_run_dir, _ = _find_best_run_dir(registry_dir)  # type: ignore[arg-type]
+        resolved_registry = resolve_project_path(registry_dir, project_root)  # type: ignore[arg-type]
+        resolved_run_dir, _ = _find_best_run_dir(resolved_registry)
 
     if not resolved_run_dir.exists():
         typer.echo(f"Error: Run directory does not exist: {resolved_run_dir}", err=True)

@@ -18,7 +18,7 @@ LOOP_HOLDOUT_QUALITY_USERS: Final[tuple[str, ...]] = (
 )
 
 # Additional Loop users from loop_ai_ready_joined2 Recommended Split == test
-# (largest row counts among the 9 Loop test users; see data/personalization/subjects/).
+# (largest row counts among the 9 Loop test users; see data/input/personalization/subjects/).
 LOOP_TEST_EXTRA_USERS: Final[tuple[str, ...]] = (
     "467",
     "745",

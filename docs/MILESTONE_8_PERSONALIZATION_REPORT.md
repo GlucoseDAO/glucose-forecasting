@@ -53,7 +53,7 @@ Secondary reference (ai_ready only): `lwf_lambda = 0.2` in [`AI_READY_TUNED_MODE
 | **weight_decay** | **`3e-5`** (`0.00003`) | `1.5e-5, 3e-5, 6e-5` (0.5×, 1×, 2×) |
 | **Patience** | From base model meta | `10` (fixed) |
 
-**Output:** `runs/personalization/livia/sweeps/hyperparams/best_recipe.json`
+**Output:** `data/output/runs/personalization/livia/sweeps/hyperparams/best_recipe.json`
 
 ## Step 3 — Personal train days (fixed recipe)
 
@@ -78,36 +78,36 @@ Use `lwf_lambda`, `lr`, and `weight_decay` from step 2. Sweep days: `1, 3, 7, 14
 ```bash
 # 1) Prepare Livia
 uv run prepare-personal-csv livia \
-  --input data/personalization/livia_glumind_ic_ready_full.csv \
-  --out-dir data/personalization/prepared
+  --input data/input/personalization/livia_glumind_ic_ready_full.csv \
+  --out-dir data/input/personalization/prepared
 
 # 2) LwF + LR sweep (full train)
 uv run sweep-personal-hyperparams \
   --base-run-dir test_model_sugar_one \
-  --personal-csv data/personalization/prepared/livia_chronological.csv \
-  --out-dir runs/personalization/livia/sweeps/hyperparams \
+  --personal-csv data/input/personalization/prepared/livia_chronological.csv \
+  --out-dir data/output/runs/personalization/livia/sweeps/hyperparams \
   --device cuda
 
 # 3) Days sweep
 uv run sweep-personal-data-size \
   --base-run-dir test_model_sugar_one \
-  --personal-csv data/personalization/prepared/livia_chronological.csv \
-  --recipe-json runs/personalization/livia/sweeps/hyperparams/best_recipe.json \
-  --out-dir runs/personalization/livia/sweeps/data_size \
+  --personal-csv data/input/personalization/prepared/livia_chronological.csv \
+  --recipe-json data/output/runs/personalization/livia/sweeps/hyperparams/best_recipe.json \
+  --out-dir data/output/runs/personalization/livia/sweeps/data_size \
   --device cuda
 
 # 4) Holdouts
 uv run validate-personal-holdouts \
   --base-run-dir test_model_sugar_one \
-  --recipe-json runs/personalization/livia/sweeps/hyperparams/best_recipe.json \
-  --livia-data-size-summary runs/personalization/livia/sweeps/data_size/summary.csv \
-  --loop-csv data/loop_and_ai_ready/loop.csv \
-  --out-dir runs/personalization/holdout_validation \
+  --recipe-json data/output/runs/personalization/livia/sweeps/hyperparams/best_recipe.json \
+  --livia-data-size-summary data/output/runs/personalization/livia/sweeps/data_size/summary.csv \
+  --loop-csv data/input/loop_and_ai_ready/loop.csv \
+  --out-dir data/output/runs/personalization/holdout_validation \
   --device cuda
 
 # 5) Aggregate
 uv run python temp_src/personalization/aggregate_results.py \
-  --root runs/personalization \
+  --root data/output/runs/personalization \
   --out temp_docs/reports/milestone8_personalization_summary.json
 ```
 

@@ -1,6 +1,6 @@
 # NHITS Runs Analysis
 
-- Folder: `runs/nhits`
+- Folder: `data/output/runs/nhits`
 - Scope: NHITS runs only (`model==nhits`).
 - Primary ranking uses **effective test metrics**: `test` when available, otherwise `val_as_test`.
 - Checkpoint rule: when `eval_checkpoints` exists, each run is scored by its **best checkpoint** (lowest effective test MAE). Otherwise run summary metrics are used.
