@@ -8,6 +8,7 @@ The project currently includes:
 - NeuralForecast baselines (`NHITS`, `TFT`, `NBEATSx`) tuning pipeline.
 - `GluFormer` evaluation script.
 - Unified `evaluate-model` CLI for GluMind and SugarOne checkpoints on arbitrary CSVs.
+- Platform CLI `glucose` (`info`, `evaluate`) wrapping shared evaluation under `src/common/evaluation/`.
 - Run analysis artifacts and cross-model comparison reports.
 
 ## Project Scope
@@ -20,6 +21,8 @@ The project currently includes:
 
 ## Repository Structure
 
+- `src/cli.py`: top-level `glucose` Typer app (`info`, `evaluate`).
+- `src/glucose_evaluate.yaml`: default models/dataset/out/plot settings for `glucose evaluate`.
 - `src/glumind/train_glumind.py`: GluMind training/tuning entrypoint (also exposed as `train-glumind`).
 - `src/glumind/glumind_model.py`: model architecture module (checkpoint-friendly).
 - `src/glumind/evaluate_glumind.py`, `inference_glumind.py`, `download_from_huggingface.py`, `upload_to_huggingface.py`: evaluation, reproduction, Hub download/upload.

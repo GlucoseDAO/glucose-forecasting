@@ -1,0 +1,29 @@
+# Default settings for `uv run glucose evaluate` (override with CLI flags).
+# Paths are relative to the repo root unless absolute.
+
+data: data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv
+train_data: data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv
+out: data/output/compare
+device: auto
+test_split: test
+# Global fallback; prefer per-model batch_size below on 6–8GB GPUs.
+batch_size: 2048
+plot: true
+
+# Global covariate defaults (overridable per model below).
+zero_cov: false
+include_cov: null
+exclude_cov: null
+model_type: auto
+
+# Models to compare when --run-dir is omitted.
+models:
+  - run_dir: test_model_glumind
+    label: GluMind
+    model_type: glumind
+    batch_size: 8192
+  - run_dir: test_model_sugar_one
+    label: SugarOne
+    model_type: sugar_one
+    # SugarOne (input_steps=128, 3-way cross-attn) OOMs at 8192 on 6GB GPUs.
+    batch_size: 2048

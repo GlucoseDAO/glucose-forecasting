@@ -543,6 +543,218 @@ def _run_evaluate(
     return _common_run_evaluate(model, loader, device, n_windows, log_interval_s)
 
 
+def evaluate_checkpoint(
+    *,
+    test_csv: Path,
+    run_dir: Path | None = None,
+    registry_dir: Path | None = None,
+    checkpoint: Path | None = None,
+    train_csv: Path | None = None,
+    refit_scalers: bool = False,
+    allow_fit_on_eval: bool = False,
+    model_type: str = "auto",
+    test_split: str | None = "test",
+    batch_size: int | None = None,
+    device: str = "auto",
+    log_interval: float = DEFAULT_INFERENCE_LOG_INTERVAL_S,
+    zero_cov: bool = False,
+    include_cov: str | None = None,
+    exclude_cov: str | None = None,
+    project_root: Path | None = None,
+    echo: bool = True,
+) -> dict:
+    """Evaluate a GluMind/SugarOne checkpoint; return metrics payload dict.
+
+    Shared by ``evaluate-model`` and ``glucose evaluate``. Raises ``typer.Exit``
+    on user-facing errors (same behavior as the CLI).
+    """
+    from common.evaluation.device import resolve_torch_device
+
+    root = project_root if project_root is not None else globals()["project_root"]
+    device = resolve_torch_device(device)
+    test_path = _common_resolve_csv_path(test_csv, root)
+    eval_split = test_split if test_split else None
+
+    if run_dir is None and registry_dir is None:
+        typer.echo("Error: Provide at least one of --run-dir or --registry-dir.", err=True)
+        raise typer.Exit(1)
+
+    if run_dir is not None:
+        resolved_run_dir = resolve_project_path(run_dir, root)
+    else:
+        resolved_registry = resolve_project_path(registry_dir, root)  # type: ignore[arg-type]
+        resolved_run_dir, _ = _common_find_best_run_dir(resolved_registry, root)
+
+    if not resolved_run_dir.exists():
+        typer.echo(f"Error: Run directory does not exist: {resolved_run_dir}", err=True)
+        raise typer.Exit(1)
+
+    meta = _load_meta(resolved_run_dir)
+    ckpt_path = _common_resolve_checkpoint(resolved_run_dir, checkpoint)
+
+    if echo:
+        typer.echo(f"Run directory: {resolved_run_dir}")
+        typer.echo(f"Checkpoint   : {ckpt_path}")
+        typer.echo(f"Test CSV     : {test_path}")
+
+    state_probe = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    if model_type in ("", "auto"):
+        resolved_kind = _detect_model_kind(meta, state_probe)
+    else:
+        resolved_kind = model_type  # type: ignore[assignment]
+        if resolved_kind not in ("glumind", "sugar_one"):
+            typer.echo(
+                f"Error: model_type must be auto/glumind/sugar_one, got {model_type!r}.",
+                err=True,
+            )
+            raise typer.Exit(1)
+
+    if echo:
+        typer.echo(f"Model type   : {resolved_kind}")
+        typer.echo(f"Device       : {device}")
+
+    try:
+        active_cov, zeroed_cov = _resolve_covariate_zeroing(
+            resolved_kind,
+            zero_cov=zero_cov,
+            include_cov=include_cov,
+            exclude_cov=exclude_cov,
+        )
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    if echo and zeroed_cov:
+        if zero_cov:
+            typer.echo(f"  --zero-cov: covariates set to 0.0: {', '.join(zeroed_cov)}")
+        elif include_cov:
+            typer.echo(
+                f"  --include-cov {include_cov}: active={', '.join(active_cov)}; "
+                f"zeroed={', '.join(zeroed_cov)}"
+            )
+        else:
+            typer.echo(
+                f"  --exclude-cov {exclude_cov}: active={', '.join(active_cov)}; "
+                f"zeroed={', '.join(zeroed_cov)}"
+            )
+
+    # _resolve_feature_scalers / _load_csv_flexible use module-level helpers that
+    # bind to the package project_root; temporarily swap if a custom root is used.
+    global_root = globals()["project_root"]
+    globals()["project_root"] = root
+    try:
+        scalers, scaler_source = _resolve_feature_scalers(
+            resolved_run_dir,
+            meta,
+            resolved_kind,
+            test_path,
+            train_csv,
+            refit_scalers=refit_scalers,
+            allow_fit_on_eval=allow_fit_on_eval,
+        )
+        if echo:
+            typer.echo(f"Scaler source: {scaler_source}")
+
+        impute = impute_and_sort_glumind if resolved_kind == "glumind" else impute_and_sort_ic
+        if echo:
+            typer.echo(f"Loading evaluation data from: {test_path}")
+        eval_df = _load_csv_flexible(
+            test_path,
+            model_kind=resolved_kind,
+            unique_id_choice=meta.get("unique_id", "sequence_id"),
+            drop_interpolated=meta.get("drop_interpolated", False),
+            eval_split=eval_split,
+            train_only=False,
+        )
+        eval_df = impute(eval_df)
+        if zeroed_cov:
+            eval_df = _zero_covariates(eval_df, zeroed_cov)
+    finally:
+        globals()["project_root"] = global_root
+
+    if eval_df.is_empty():
+        typer.echo("Error: Evaluation dataframe is empty after loading/filtering.", err=True)
+        raise typer.Exit(1)
+
+    eval_ds = _build_eval_dataset_from_scalers(eval_df, scalers, resolved_kind, meta)
+    if len(eval_ds) == 0:
+        typer.echo(
+            f"Error: No windows could be built. Each series needs at least "
+            f"{meta['input_steps'] + meta['horizon']} rows.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    if echo:
+        typer.echo(f"Evaluation windows: {len(eval_ds):,}")
+    resolved_batch_size = batch_size or meta.get("batch_size", 4096)
+    eval_loader = DataLoader(eval_ds, batch_size=resolved_batch_size, shuffle=False)
+
+    model = _build_model(resolved_kind, meta)
+    _load_model_weights(model, ckpt_path, device)
+
+    if echo:
+        typer.echo("Running inference...")
+    log_interval_s = max(0.0, log_interval)
+    y_true_scaled, y_pred_scaled = _run_evaluate(
+        model,
+        eval_loader,
+        device,
+        n_windows=len(eval_ds),
+        log_interval_s=log_interval_s,
+    )
+
+    scaler_glucose = scalers["glucose"]
+    y_true = scaler_glucose.inverse_transform(
+        y_true_scaled.ravel().reshape(-1, 1)
+    ).ravel()
+    y_pred = scaler_glucose.inverse_transform(
+        y_pred_scaled.ravel().reshape(-1, 1)
+    ).ravel()
+
+    mae, rmse, mard = mae_rmse_mard(y_true, y_pred)
+    split_used = eval_split if eval_split else "all"
+    payload = {
+        "model_type": resolved_kind,
+        "test_csv": str(test_path),
+        "run_dir": str(resolved_run_dir),
+        "checkpoint": str(ckpt_path),
+        "split_used": split_used,
+        "zero_cov": zero_cov,
+        "include_cov": _split_cov_arg(include_cov) or None,
+        "exclude_cov": _split_cov_arg(exclude_cov) or None,
+        "active_covariates": active_cov,
+        "zeroed_covariates": zeroed_cov,
+        "windows": len(eval_ds),
+        "scaler_source": scaler_source,
+        "device": device,
+        "mae": mae,
+        "rmse": rmse,
+        "mard": mard,
+    }
+
+    if echo:
+        typer.echo("\n" + "=" * 50)
+        typer.echo("EVALUATION RESULTS")
+        typer.echo(f"  Model type : {resolved_kind}")
+        typer.echo(f"  Test CSV   : {test_path}")
+        typer.echo(f"  Split used : {split_used}")
+        typer.echo(f"  Zero cov   : {zero_cov}")
+        if active_cov:
+            typer.echo(f"  Active cov : {', '.join(active_cov)}")
+        if zeroed_cov:
+            typer.echo(f"  Zeroed cov : {', '.join(zeroed_cov)}")
+        typer.echo(f"  Checkpoint : {ckpt_path}")
+        typer.echo(f"  Windows    : {len(eval_ds):,}")
+        typer.echo("-" * 50)
+        typer.echo(f"  MAE : {mae:.4f}")
+        typer.echo(f"  RMSE: {rmse:.4f}")
+        typer.echo(f"  MARD: {mard:.4f}%")
+        typer.echo("=" * 50)
+
+    return payload
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -609,8 +821,8 @@ def main(
         help="DataLoader batch size (default: from tuning_meta.json).",
     ),
     device: str = typer.Option(
-        "cuda" if torch.cuda.is_available() else "cpu",
-        help="Torch device for inference.",
+        "auto",
+        help="Torch device for inference (auto|cuda|mps|cpu).",
     ),
     output_json: Path | None = typer.Option(
         None,
@@ -669,162 +881,26 @@ def main(
         _print_dataset_covariates(test_path, resolved_kind, eval_split)
         raise typer.Exit(0)
 
-    if run_dir is None and registry_dir is None:
-        typer.echo("Error: Provide at least one of --run-dir or --registry-dir.", err=True)
-        raise typer.Exit(1)
-
-    if run_dir is not None:
-        resolved_run_dir = resolve_project_path(run_dir, project_root)
-    else:
-        resolved_registry = resolve_project_path(registry_dir, project_root)  # type: ignore[arg-type]
-        resolved_run_dir, _ = _find_best_run_dir(resolved_registry)
-
-    if not resolved_run_dir.exists():
-        typer.echo(f"Error: Run directory does not exist: {resolved_run_dir}", err=True)
-        raise typer.Exit(1)
-
-    meta = _load_meta(resolved_run_dir)
-    ckpt_path = _resolve_checkpoint(resolved_run_dir, checkpoint)
-
-    typer.echo(f"Run directory: {resolved_run_dir}")
-    typer.echo(f"Checkpoint   : {ckpt_path}")
-    typer.echo(f"Test CSV     : {test_path}")
-
-    state_probe = torch.load(ckpt_path, map_location="cpu", weights_only=True)
-    if model_type == ModelTypeChoice.auto:
-        resolved_kind = _detect_model_kind(meta, state_probe)
-    else:
-        resolved_kind = model_type.value  # type: ignore[assignment]
-
-    typer.echo(f"Model type   : {resolved_kind}")
-
-    try:
-        active_cov, zeroed_cov = _resolve_covariate_zeroing(
-            resolved_kind,
-            zero_cov=zero_cov,
-            include_cov=include_cov,
-            exclude_cov=exclude_cov,
-        )
-    except ValueError as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(1) from exc
-
-    if zeroed_cov:
-        if zero_cov:
-            typer.echo(f"  --zero-cov: covariates set to 0.0: {', '.join(zeroed_cov)}")
-        elif include_cov:
-            typer.echo(
-                f"  --include-cov {include_cov}: active={', '.join(active_cov)}; "
-                f"zeroed={', '.join(zeroed_cov)}"
-            )
-        else:
-            typer.echo(
-                f"  --exclude-cov {exclude_cov}: active={', '.join(active_cov)}; "
-                f"zeroed={', '.join(zeroed_cov)}"
-            )
-
-    scalers, scaler_source = _resolve_feature_scalers(
-        resolved_run_dir,
-        meta,
-        resolved_kind,
-        test_path,
-        train_csv,
+    payload = evaluate_checkpoint(
+        test_csv=test_csv,
+        run_dir=run_dir,
+        registry_dir=registry_dir,
+        checkpoint=checkpoint,
+        train_csv=train_csv,
         refit_scalers=refit_scalers,
         allow_fit_on_eval=allow_fit_on_eval,
+        model_type=model_type.value,
+        test_split=test_split,
+        batch_size=batch_size,
+        device=device,
+        log_interval=log_interval,
+        zero_cov=zero_cov,
+        include_cov=include_cov,
+        exclude_cov=exclude_cov,
+        echo=True,
     )
-    typer.echo(f"Scaler source: {scaler_source}")
-
-    impute = impute_and_sort_glumind if resolved_kind == "glumind" else impute_and_sort_ic
-    typer.echo(f"Loading evaluation data from: {test_path}")
-    eval_df = _load_csv_flexible(
-        test_path,
-        model_kind=resolved_kind,
-        unique_id_choice=meta.get("unique_id", "sequence_id"),
-        drop_interpolated=meta.get("drop_interpolated", False),
-        eval_split=eval_split,
-        train_only=False,
-    )
-    eval_df = impute(eval_df)
-    if zeroed_cov:
-        eval_df = _zero_covariates(eval_df, zeroed_cov)
-
-    if eval_df.is_empty():
-        typer.echo("Error: Evaluation dataframe is empty after loading/filtering.", err=True)
-        raise typer.Exit(1)
-
-    eval_ds = _build_eval_dataset_from_scalers(eval_df, scalers, resolved_kind, meta)
-    if len(eval_ds) == 0:
-        typer.echo(
-            f"Error: No windows could be built. Each series needs at least "
-            f"{meta['input_steps'] + meta['horizon']} rows.",
-            err=True,
-        )
-        raise typer.Exit(1)
-
-    typer.echo(f"Evaluation windows: {len(eval_ds):,}")
-    resolved_batch_size = batch_size or meta.get("batch_size", 4096)
-    eval_loader = DataLoader(eval_ds, batch_size=resolved_batch_size, shuffle=False)
-
-    model = _build_model(resolved_kind, meta)
-    _load_model_weights(model, ckpt_path, device)
-
-    typer.echo("Running inference...")
-    log_interval_s = max(0.0, log_interval)
-    y_true_scaled, y_pred_scaled = _run_evaluate(
-        model,
-        eval_loader,
-        device,
-        n_windows=len(eval_ds),
-        log_interval_s=log_interval_s,
-    )
-
-    scaler_glucose = scalers["glucose"]
-    y_true = scaler_glucose.inverse_transform(
-        y_true_scaled.ravel().reshape(-1, 1)
-    ).ravel()
-    y_pred = scaler_glucose.inverse_transform(
-        y_pred_scaled.ravel().reshape(-1, 1)
-    ).ravel()
-
-    mae, rmse, mard = mae_rmse_mard(y_true, y_pred)
-
-    split_used = eval_split if eval_split else "all"
-    typer.echo("\n" + "=" * 50)
-    typer.echo("EVALUATION RESULTS")
-    typer.echo(f"  Model type : {resolved_kind}")
-    typer.echo(f"  Test CSV   : {test_path}")
-    typer.echo(f"  Split used : {split_used}")
-    typer.echo(f"  Zero cov   : {zero_cov}")
-    if active_cov:
-        typer.echo(f"  Active cov : {', '.join(active_cov)}")
-    if zeroed_cov:
-        typer.echo(f"  Zeroed cov : {', '.join(zeroed_cov)}")
-    typer.echo(f"  Checkpoint : {ckpt_path}")
-    typer.echo(f"  Windows    : {len(eval_ds):,}")
-    typer.echo("-" * 50)
-    typer.echo(f"  MAE : {mae:.4f}")
-    typer.echo(f"  RMSE: {rmse:.4f}")
-    typer.echo(f"  MARD: {mard:.4f}%")
-    typer.echo("=" * 50)
 
     if output_json is not None:
-        payload = {
-            "model_type": resolved_kind,
-            "test_csv": str(test_path),
-            "run_dir": str(resolved_run_dir),
-            "checkpoint": str(ckpt_path),
-            "split_used": split_used,
-            "zero_cov": zero_cov,
-            "include_cov": _split_cov_arg(include_cov) or None,
-            "exclude_cov": _split_cov_arg(exclude_cov) or None,
-            "active_covariates": active_cov,
-            "zeroed_covariates": zeroed_cov,
-            "windows": len(eval_ds),
-            "scaler_source": scaler_source,
-            "mae": mae,
-            "rmse": rmse,
-            "mard": mard,
-        }
         output_json.parent.mkdir(parents=True, exist_ok=True)
         with open(output_json, "w") as f:
             json.dump(payload, f, indent=2)

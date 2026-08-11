@@ -2,6 +2,20 @@
 
 This file provides guidance to coding agents (Cursor, Claude Code, Copilot, etc.) when working with code in this repository. Prefer this file over tool-specific names (`CLAUDE.md`, etc.).
 
+## Before training or inference (mandatory)
+
+**Never start a new training, evaluation, or inference job until you have checked that none is already running.** Stacking GPU/CPU jobs has repeatedly hung or stalled this machine.
+
+1. Inspect Cursor terminals metadata under the project `terminals/` folder (or equivalent) for active commands matching train / evaluate / inference / `glucose evaluate` / `torch`.
+2. On Windows, also scan processes, e.g.:
+   ```powershell
+   Get-CimInstance Win32_Process |
+     Where-Object { $_.Name -match 'python|uv' -and $_.CommandLine -match 'glucose|train_|evaluate|inference|torch|glumind|sugar_one' } |
+     Select-Object ProcessId, Name, CommandLine
+   ```
+3. If a matching job is still running: **do not launch another**. Monitor or resume that job; only start a replacement after it has exited (or after the user explicitly asks to kill it).
+4. Prefer one long-running ML job at a time. Do not “retry” by spawning a second `uv run glucose evaluate` / `train-*` while the first is still alive.
+
 ## Temporary vs permanent artifacts
 
 Put all intermediate reports, scratch notes, evaluation dumps, and other temporary information in `temp_docs/`. Put all temporary or one-off scripts in `temp_scripts/`.
@@ -23,6 +37,7 @@ Examples:
 - Product code lives under `src/` as direct packages (`common`, `glumind`, `sugar_one`, `neuralforecast`, …). There is **no** `scripts/` tree and **no** nested `src/glucose_forecasting/` wrapper.
 - Datasets live under `data/input/` (`actual/`, `loop_and_ai_ready/`, `personalization/`).
 - Default run root is `data/output/runs/` (`common.paths.DEFAULT_RUNS_ROOT`); curated runs under `data/output/marked_runs/`.
+- Top-level Typer app: `uv run glucose` (`src/cli.py`) — `info` + `evaluate` (logic under `src/common/evaluation/`). No `glucose train`; use experiment CLIs.
 - Implement adoption work **one phase at a time**; verify with `uv run pytest -q` and the demo `evaluate-model` smoke before the next phase.
 - Details: `temp_docs/ANTON_PR_COMPARISON_AND_REQUIREMENTS.md`.
 
@@ -54,6 +69,7 @@ uv run pytest tests/test_train_checkpoint_resume.py::test_checkpoint_stores_wait
 No lint/format command is configured in `pyproject.toml`.
 
 Installed console commands (defined in `pyproject.toml` `[project.scripts]`, all runnable as `uv run <name> --help`):
+- `glucose` → `src/cli.py:app` (thin platform CLI: `info`, `evaluate`)
 - `train-glumind` → `src/glumind/train_glumind.py:main` (argparse CLI)
 - `evaluate-glumind` → `src/glumind/evaluate_glumind.py:app` (Typer; GluMind-only)
 - `evaluate-model` → `src/sugar_one/evaluate_model.py:app` (Typer; **unified** GluMind + SugarOne eval — preferred for new work)
@@ -90,7 +106,7 @@ As of the last refactor, model-agnostic logic that used to be duplicated across 
 - `checkpoint.py` — `save_full_checkpoint`/`load_full_checkpoint` (generalized across the three slightly different checkpoint shapes used by GluMind/SugarOne/GluMind-Uni via a `config_key` param — `"args"`, `"config"`, or `"cfg"`), `read_checkpoint_meta`, `update_latest_symlink`, `strip_compile_prefix` (strips the `_orig_mod.` prefix `torch.compile` adds to state_dict keys).
 - `registry.py` — `find_best_run_dir` (reads `_analysis_registry.csv`, picks lowest `val_mae`), `load_run_meta` (reads `tuning_meta.json` or `config.json`), `resolve_checkpoint` (finds `best_model.pt`/`last_model.pt`), `resolve_csv_path` (basename remap toward `data/input/` plus legacy→new path rewrites).
 - `paths.py` — `DEFAULT_RUNS_ROOT` (`data/output/runs`), `DEFAULT_MARKED_RUNS_ROOT`, input dataset roots, legacy path rewrite helpers.
-- `evaluation.py` — covariate alias/ablation machinery (maps derived from each family's `ModelFamilySpec.csv_column_aliases` / `covariate_aliases`; still exports `GLUMIND_COVARIATES`, `SUGAR_ONE_COVARIATES`, `COVARIATE_NAME_ALIASES`) and the shared inference loop (`_run_evaluate`), extracted from `evaluate_model.py`.
+- `evaluation/` — covariate alias/ablation + shared inference loop (`core.py`); Phase-3 APIs (`runner`, `detect`, `comparison`, `pytorch`) used by `glucose evaluate`. Still exports `GLUMIND_COVARIATES`, `SUGAR_ONE_COVARIATES`, `COVARIATE_NAME_ALIASES`, `_run_evaluate`.
 - `model_spec.py` — `ModelFamilySpec` Protocol + registry (`get_family_spec`, `detect_family_kind`). Concrete specs live beside each model (`src/glumind/glumind_spec.py`, `src/sugar_one/sugar_one_spec.py`, …). Architecture modules (`*_model.py`) stay torch-only for checkpoint reuse.
 - `scalers.py` — schema-free `scalers.json` serialize/load (no kind→features whitelist; feature set comes from Spec or the file).
 
