@@ -8,7 +8,7 @@ The project currently includes:
 - NeuralForecast baselines (`NHITS`, `TFT`, `NBEATSx`, …) via `glucose neuralforecast` (sugarone-compatible holdout) plus legacy tuner.
 - `GluFormer` evaluation script.
 - Unified `evaluate-model` CLI for GluMind and SugarOne checkpoints on arbitrary CSVs.
-- Platform CLI `glucose` (`info`, `evaluate`, `neuralforecast`) wrapping shared evaluation under `src/common/evaluation/` and NF under `src/nf_baselines/`.
+- Platform CLI `glucose` (`info`, `evaluate`, `neuralforecast`, `release`) wrapping shared evaluation under `src/common/evaluation/`, NF under `src/nf_baselines/`, and inference bundles under `src/common/release/`.
 - Run analysis artifacts and cross-model comparison reports.
 
 ## Project Scope
@@ -21,8 +21,9 @@ The project currently includes:
 
 ## Repository Structure
 
-- `src/cli.py`: top-level `glucose` Typer app (`info`, `evaluate`, `neuralforecast`).
+- `src/cli.py`: top-level `glucose` Typer app (`info`, `evaluate`, `neuralforecast`, `release`).
 - `src/glucose_evaluate.yaml`: default models/dataset/out/plot settings for `glucose evaluate`.
+- `src/common/release/`: inference release format 1.0 + Hub publish/pull (`glucose release`).
 - `src/glumind/train_glumind.py`: GluMind training/tuning entrypoint (also exposed as `train-glumind`).
 - `src/glumind/glumind_model.py`: model architecture module (checkpoint-friendly).
 - `src/glumind/evaluate_glumind.py`, `inference_glumind.py`, `download_from_huggingface.py`, `upload_to_huggingface.py`: evaluation, reproduction, Hub download/upload.
@@ -448,6 +449,18 @@ uv run python src/nf_baselines/tune_nf_baselines_by_group.py \
 ```
 
 Supported NF models via suites (`auto` / `baseline` / `recurrent`) or `--models NHITS,TFT,…` — see `src/nf_baselines/model_suites.yaml`.
+
+## Inference releases (format 1.0)
+
+Checksummed inference-only bundles live under `src/common/release/` (`model.safetensors` + contract JSON + `checksums.sha256`):
+
+```bash
+uv run glucose release check <bundle_dir>
+uv run glucose release publish <bundle_dir> --repo ORG/NAME
+uv run glucose release pull --repo ORG/NAME --out <dir> --revision <sha_or_tag>
+```
+
+Training run dirs (`best_model.pt`, `scalers.json`) stay separate until a pack adapter is added; use `write_inference_bundle(...)` from Python to export.
 
 ## GluFormer Evaluation
 

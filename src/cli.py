@@ -23,6 +23,7 @@ from common.evaluation.config import (
 from common.evaluation.resolve_models import expand_model_specs
 from common.evaluation.runner import evaluate_and_compare, evaluate_run_dir
 from common.paths import DEFAULT_RUNS_ROOT
+from common.release.cli import app as release_app
 from nf_baselines.cli import app as neuralforecast_app
 
 DEFAULT_CONFIG_HINT = "src/glucose_evaluate.yaml"
@@ -33,13 +34,15 @@ app = typer.Typer(
         "Glucose forecasting platform CLI. "
         "Train via experiment CLIs (train-glumind, train_sugar_one, ...); "
         "NeuralForecast via `glucose neuralforecast`; "
-        "evaluate/compare via `glucose evaluate` (defaults: glucose_evaluate.yaml)."
+        "evaluate/compare via `glucose evaluate`; "
+        "release bundles via `glucose release`."
     ),
     add_completion=False,
     pretty_exceptions_enable=False,
     no_args_is_help=True,
 )
 app.add_typer(neuralforecast_app, name="neuralforecast")
+app.add_typer(release_app, name="release")
 
 
 def _package_version() -> str:
@@ -59,6 +62,7 @@ def info() -> None:
     typer.echo("train: use experiment CLIs (train-glumind, train_sugar_one, ...)")
     typer.echo("neuralforecast: glucose neuralforecast --help")
     typer.echo("evaluate: glucose evaluate --help")
+    typer.echo("release: glucose release --help")
 
 
 @app.command("evaluate")
