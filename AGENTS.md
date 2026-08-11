@@ -107,7 +107,7 @@ As of the last refactor, model-agnostic logic that used to be duplicated across 
 - `registry.py` — `find_best_run_dir` (reads `_analysis_registry.csv`, picks lowest `val_mae`), `load_run_meta` (reads `tuning_meta.json` or `config.json`), `resolve_checkpoint` (finds `best_model.pt`/`last_model.pt`), `resolve_csv_path` (basename remap toward `data/input/` plus legacy→new path rewrites).
 - `paths.py` — `DEFAULT_RUNS_ROOT` (`data/output/runs`), `DEFAULT_MARKED_RUNS_ROOT`, input dataset roots, legacy path rewrite helpers.
 - `evaluation/` — covariate alias/ablation + shared inference loop (`core.py`); Phase-3 APIs (`runner`, `detect`, `comparison`, `pytorch`, `resolve_models`) used by `glucose evaluate`. Still exports `GLUMIND_COVARIATES`, `SUGAR_ONE_COVARIATES`, `COVARIATE_NAME_ALIASES`, `_run_evaluate`.
-- `release/` — inference bundle format 1.0 (`manifest`/`config`/`preprocessor`/`metrics`/`provenance` + `model.safetensors` + SHA256); Hub publish/pull via `glucose release`.
+- `release/` — inference bundle format 1.0 (`manifest`/`config`/`preprocessor`/`metrics`/`provenance` + `model.safetensors` + SHA256); `glucose release pack|check|publish|pull`. Pack exports training run dirs into validated bundles.
 - `model_spec.py` — `ModelFamilySpec` Protocol + registry (`get_family_spec`, `detect_family_kind`). Concrete specs live beside each model (`src/glumind/glumind_spec.py`, `src/sugar_one/sugar_one_spec.py`, …). Architecture modules (`*_model.py`) stay torch-only for checkpoint reuse.
 - `scalers.py` — schema-free `scalers.json` serialize/load (no kind→features whitelist; feature set comes from Spec or the file).
 

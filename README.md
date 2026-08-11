@@ -455,12 +455,13 @@ Supported NF models via suites (`auto` / `baseline` / `recurrent`) or `--models 
 Checksummed inference-only bundles live under `src/common/release/` (`model.safetensors` + contract JSON + `checksums.sha256`):
 
 ```bash
+# Pack a training run (best_model.pt + meta + scalers.json) into a release bundle
+uv run glucose release pack test_model_glumind --out temp_docs/my_bundle --release-id glumind-demo
+
 uv run glucose release check <bundle_dir>
 uv run glucose release publish <bundle_dir> --repo ORG/NAME
 uv run glucose release pull --repo ORG/NAME --out <dir> --revision <sha_or_tag>
 ```
-
-Training run dirs (`best_model.pt`, `scalers.json`) stay separate until a pack adapter is added; use `write_inference_bundle(...)` from Python to export.
 
 ## GluFormer Evaluation
 

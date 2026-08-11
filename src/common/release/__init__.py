@@ -47,6 +47,7 @@ from common.release.preprocessor import (
     WindowSpec,
 )
 from common.release.provenance import ProvenanceSpec
+from common.release.pack import build_manifest_from_run, pack_run_dir
 
 __all__ = [
     "CHECKSUMS_FILENAME",
@@ -67,12 +68,14 @@ __all__ = [
     "ScalerSpec",
     "SelectionMetric",
     "WindowSpec",
+    "build_manifest_from_run",
     "canonical_json_bytes",
     "download_inference_bundle",
     "ensure_model_repo",
     "generate_model_card",
     "load_inference_bundle",
     "package_bundle_for_hub",
+    "pack_run_dir",
     "publish_inference_bundle",
     "read_json",
     "read_manifest",
