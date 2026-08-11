@@ -20,8 +20,10 @@ from common.evaluation.config import (
     default_config_path,
     load_evaluate_config,
 )
+from common.evaluation.resolve_models import expand_model_specs
 from common.evaluation.runner import evaluate_and_compare, evaluate_run_dir
 from common.paths import DEFAULT_RUNS_ROOT
+from nf_baselines.cli import app as neuralforecast_app
 
 DEFAULT_CONFIG_HINT = "src/glucose_evaluate.yaml"
 
@@ -30,12 +32,14 @@ app = typer.Typer(
     help=(
         "Glucose forecasting platform CLI. "
         "Train via experiment CLIs (train-glumind, train_sugar_one, ...); "
+        "NeuralForecast via `glucose neuralforecast`; "
         "evaluate/compare via `glucose evaluate` (defaults: glucose_evaluate.yaml)."
     ),
     add_completion=False,
     pretty_exceptions_enable=False,
     no_args_is_help=True,
 )
+app.add_typer(neuralforecast_app, name="neuralforecast")
 
 
 def _package_version() -> str:
@@ -53,6 +57,7 @@ def info() -> None:
     typer.echo(f"default runs root: {DEFAULT_RUNS_ROOT}")
     typer.echo(f"evaluate config: {cfg_path}")
     typer.echo("train: use experiment CLIs (train-glumind, train_sugar_one, ...)")
+    typer.echo("neuralforecast: glucose neuralforecast --help")
     typer.echo("evaluate: glucose evaluate --help")
 
 
@@ -206,6 +211,12 @@ def evaluate(
                 )
                 for m in models
             ]
+
+    try:
+        models = expand_model_specs(models)
+    except (OSError, ValueError, FileNotFoundError) as exc:
+        typer.echo(f"Error expanding run paths: {exc}", err=True)
+        raise typer.Exit(1) from exc
 
     typer.echo(f"Config: {config or default_config_path()}")
     typer.echo(f"Models: {', '.join(m.label or m.run_dir.name for m in models)}")

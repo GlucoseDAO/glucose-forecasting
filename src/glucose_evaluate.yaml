@@ -1,5 +1,9 @@
 # Default settings for `uv run glucose evaluate` (override with CLI flags).
 # Paths are relative to the repo root unless absolute.
+#
+# Each models[] entry may be:
+#   - a leaf run dir (checkpoint / NF bundle), or
+#   - a container of runs (e.g. nf_holdout): expands to best-by-val-MAE per model family.
 
 data: data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv
 train_data: data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv
@@ -27,3 +31,5 @@ models:
     model_type: sugar_one
     # SugarOne (input_steps=128, 3-way cross-attn) OOMs at 8192 on 6GB GPUs.
     batch_size: 2048
+  - run_dir: data/output/runs/nf_holdout
+    label: NF

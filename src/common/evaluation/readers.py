@@ -26,6 +26,15 @@ def _read_overall_csv(path: Path) -> RegressionMetrics | None:
         return None
 
 
+def read_selection_mae(run_dir: Path) -> float | None:
+    """MAE used to pick the best run among siblings (val preferred, else test)."""
+    for name in ("val_metrics_overall.csv", "test_metrics_overall.csv"):
+        metrics = _read_overall_csv(run_dir / name)
+        if metrics is not None:
+            return metrics.mae
+    return None
+
+
 def read_precomputed_split_metrics(run_dir: Path) -> dict[str, SplitMetrics]:
     """Load ``{test,val,...}_metrics_overall.csv`` when present."""
     mapping = {

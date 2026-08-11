@@ -44,6 +44,17 @@ def test_detect_run_dir_precomputed(tmp_path: Path) -> None:
     assert detect_run_dir(run, tmp_path) == RunDirKind.PRECOMPUTED
 
 
+def test_detect_run_dir_neuralforecast(tmp_path: Path) -> None:
+    run = tmp_path / "NHITS_20260101T000000Z"
+    run.mkdir()
+    (run / "neuralforecast").mkdir()
+    (run / "run_config.json").write_text("{}", encoding="utf-8")
+    (run / "val_metrics_overall.csv").write_text(
+        "mae,rmse,mard\n1,2,3\n", encoding="utf-8"
+    )
+    assert detect_run_dir(run, tmp_path) == RunDirKind.NEURALFORECAST
+
+
 def test_read_precomputed_split_metrics(tmp_path: Path) -> None:
     run = tmp_path / "run"
     run.mkdir()
@@ -95,7 +106,8 @@ def test_load_default_evaluate_config() -> None:
     assert "loop_ai_ready_joined2.csv" in str(cfg.data).replace("\\", "/")
     assert cfg.out == Path("data/output/compare")
     assert cfg.plot is True
-    assert len(cfg.models) >= 2
+    assert len(cfg.models) >= 3
     names = {m.run_dir.name for m in cfg.models}
     assert "test_model_glumind" in names
     assert "test_model_sugar_one" in names
+    assert "nf_holdout" in names

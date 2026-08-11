@@ -5,10 +5,10 @@ This repository contains training, tuning, and comparison workflows for blood gl
 The project currently includes:
 - `GluMind` (our architecture) training pipeline — glucose, heart rate, steps.
 - `SugarOne` — insulin/carb covariate variant for loop-style CGM + pump data.
-- NeuralForecast baselines (`NHITS`, `TFT`, `NBEATSx`) tuning pipeline.
+- NeuralForecast baselines (`NHITS`, `TFT`, `NBEATSx`, …) via `glucose neuralforecast` (sugarone-compatible holdout) plus legacy tuner.
 - `GluFormer` evaluation script.
 - Unified `evaluate-model` CLI for GluMind and SugarOne checkpoints on arbitrary CSVs.
-- Platform CLI `glucose` (`info`, `evaluate`) wrapping shared evaluation under `src/common/evaluation/`.
+- Platform CLI `glucose` (`info`, `evaluate`, `neuralforecast`) wrapping shared evaluation under `src/common/evaluation/` and NF under `src/nf_baselines/`.
 - Run analysis artifacts and cross-model comparison reports.
 
 ## Project Scope
@@ -21,7 +21,7 @@ The project currently includes:
 
 ## Repository Structure
 
-- `src/cli.py`: top-level `glucose` Typer app (`info`, `evaluate`).
+- `src/cli.py`: top-level `glucose` Typer app (`info`, `evaluate`, `neuralforecast`).
 - `src/glucose_evaluate.yaml`: default models/dataset/out/plot settings for `glucose evaluate`.
 - `src/glumind/train_glumind.py`: GluMind training/tuning entrypoint (also exposed as `train-glumind`).
 - `src/glumind/glumind_model.py`: model architecture module (checkpoint-friendly).
@@ -34,7 +34,7 @@ The project currently includes:
 - `test_model_glumind/`: bundled GluMind checkpoint for reviewers (weights + metrics).
 - `test_model_sugar_one/`: bundled SugarOne checkpoint for reviewers (weights + metrics).
 - `test_data/livia_glumind_ready.csv`: self-contained demo CSV for quick end-to-end evaluation.
-- `src/nf_baselines/tune_nf_baselines_by_group.py`: NeuralForecast baselines (NHITS, TFT, NBEATSx).
+- `src/nf_baselines/`: NeuralForecast experiment (holdout suites + `glucose neuralforecast`); legacy `tune_nf_baselines_by_group.py` kept until parity.
 - `src/glumind/eval_gluformer_val_test_masked.py`: GluFormer (Hugging Face) evaluation on val/test.
 - `data/input/`: preferred location for local training/eval CSVs (see `docs/DATA.md`).
 - `data/output/runs/`: default root for model run outputs (metrics, checkpoints, predictions).
@@ -408,7 +408,28 @@ Use `-c src/sugar_one/tune_sugar_one_dev.toml` for a smaller dev search.
 
 ## NeuralForecast Baselines
 
-NHITS example:
+Preferred path (sugarone-compatible **128 / 12 / stride-1** holdout):
+
+```bash
+uv run glucose neuralforecast --help
+uv run glucose neuralforecast train --list-models
+uv run glucose neuralforecast train \
+  --data data/input/actual/with_complex_steps_processing/ai_ready_processed_dataset.csv \
+  --models NHITS \
+  --global-model \
+  --device auto \
+  --max-steps 300 \
+  --out-dir data/output/runs
+```
+
+Re-evaluate a saved bundle / merge per-model runs:
+
+```bash
+uv run glucose neuralforecast evaluate --run-dir <nf_run> --data <csv>
+uv run glucose neuralforecast summarize-holdout --run-dir <run_a> --run-dir <run_b>
+```
+
+Legacy tuner (kept until parity is verified):
 
 ```bash
 uv run python src/nf_baselines/tune_nf_baselines_by_group.py \
@@ -426,10 +447,7 @@ uv run python src/nf_baselines/tune_nf_baselines_by_group.py \
   --out_dir data/output/runs/nhits
 ```
 
-Supported NF models in this repo:
-- `nhits`
-- `tft`
-- `nbeatsx`
+Supported NF models via suites (`auto` / `baseline` / `recurrent`) or `--models NHITS,TFT,…` — see `src/nf_baselines/model_suites.yaml`.
 
 ## GluFormer Evaluation
 

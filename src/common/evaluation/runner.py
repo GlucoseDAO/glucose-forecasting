@@ -13,6 +13,7 @@ from common.evaluation.detect import detect_run_dir
 from common.evaluation.device import resolve_torch_device
 from common.evaluation.pytorch import evaluate_pytorch_run
 from common.evaluation.readers import read_precomputed_split_metrics
+from common.evaluation.resolve_models import expand_model_specs
 from common.evaluation.types import RunDirKind, SingleModelResult
 from common.paths import resolve_project_path
 
@@ -48,8 +49,32 @@ def evaluate_run_dir(
     kind = detect_run_dir(resolved, root)
     name = label or resolved.name
 
+    # NF / precomputed-only runs: use saved metrics (live NF reload is separate CLI).
+    if kind in (RunDirKind.NEURALFORECAST, RunDirKind.PRECOMPUTED):
+        splits = read_precomputed_split_metrics(resolved)
+        if splits:
+            if data is not None and kind == RunDirKind.NEURALFORECAST:
+                typer.echo(
+                    f"Note: using precomputed metrics for NeuralForecast run {resolved} "
+                    "(pass `glucose neuralforecast evaluate` for live re-eval)."
+                )
+            return SingleModelResult(
+                model_name=name,
+                run_dir=resolved,
+                kind=kind,
+                split_results=splits,
+                model_type=None,
+            )
+        if kind == RunDirKind.NEURALFORECAST:
+            typer.echo(
+                f"Error: NeuralForecast run has no metrics CSVs: {resolved}. "
+                "Re-run holdout eval or use `glucose neuralforecast evaluate`.",
+                err=True,
+            )
+            raise typer.Exit(1)
+
     if data is None and not force_rerun:
-        if kind in (RunDirKind.PRECOMPUTED, RunDirKind.CUSTOM_PYTORCH):
+        if kind == RunDirKind.CUSTOM_PYTORCH:
             splits = read_precomputed_split_metrics(resolved)
             if splits:
                 typer.echo(
@@ -58,7 +83,7 @@ def evaluate_run_dir(
                 return SingleModelResult(
                     model_name=name,
                     run_dir=resolved,
-                    kind=RunDirKind.PRECOMPUTED if kind == RunDirKind.PRECOMPUTED else kind,
+                    kind=kind,
                     split_results=splits,
                     model_type=None,
                 )
@@ -149,6 +174,16 @@ def evaluate_and_compare(
     if not specs:
         typer.echo("Error: Provide at least one --run-dir or config models[].", err=True)
         raise typer.Exit(1)
+
+    try:
+        specs = expand_model_specs(specs, project_root=project_root)
+    except (OSError, ValueError, FileNotFoundError) as exc:
+        typer.echo(f"Error expanding run paths: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    typer.echo(f"Comparing {len(specs)} run(s) after best-per-model expansion.")
+    for spec in specs:
+        typer.echo(f"  - {spec.label or spec.run_dir.name}: {spec.run_dir}")
 
     results: list[SingleModelResult] = []
     for spec in specs:

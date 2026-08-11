@@ -12,6 +12,7 @@ import polars as pl
 
 class RunDirKind(str, Enum):
     CUSTOM_PYTORCH = "custom_pytorch"
+    NEURALFORECAST = "neuralforecast"
     PRECOMPUTED = "precomputed"
     UNKNOWN = "unknown"
 

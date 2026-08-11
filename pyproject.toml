@@ -8,12 +8,13 @@ dependencies = [
     "asitop>=0.0.24",
     "huggingface-hub>=0.30.0",
     "matplotlib>=3.10.0",
-    "neuralforecast>=3",
+    "neuralforecast>=3.2.0",
     "numpy>=2.4.0",
     "nvitop>=1.5.3",
     "pandas>=2.0",
     "polars>=1.38.1",
     "pyarrow>=22.0.0",
+    "pydantic>=2",
     "pyyaml>=6.0.3",
     "scikit-learn>=1.8.0",
     "scipy>=1.16.3",
@@ -59,6 +60,7 @@ packages = [
 [tool.hatch.build.targets.wheel.force-include]
 "src/cli.py" = "cli.py"
 "src/glucose_evaluate.yaml" = "glucose_evaluate.yaml"
+"src/nf_baselines/model_suites.yaml" = "nf_baselines/model_suites.yaml"
 
 # Use the OS TLS stack so PyPI/build deps resolve behind proxies or non-standard roots (Windows UnknownIssuer).
 [tool.uv]

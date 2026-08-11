@@ -37,7 +37,7 @@ Examples:
 - Product code lives under `src/` as direct packages (`common`, `glumind`, `sugar_one`, `neuralforecast`, …). There is **no** `scripts/` tree and **no** nested `src/glucose_forecasting/` wrapper.
 - Datasets live under `data/input/` (`actual/`, `loop_and_ai_ready/`, `personalization/`).
 - Default run root is `data/output/runs/` (`common.paths.DEFAULT_RUNS_ROOT`); curated runs under `data/output/marked_runs/`.
-- Top-level Typer app: `uv run glucose` (`src/cli.py`) — `info` + `evaluate` (logic under `src/common/evaluation/`). No `glucose train`; use experiment CLIs.
+- Top-level Typer app: `uv run glucose` (`src/cli.py`) — `info` + `evaluate` + `neuralforecast` (logic under `src/common/evaluation/` and `src/nf_baselines/`). No `glucose train` for custom PyTorch; use experiment CLIs. NF holdout: `glucose neuralforecast train`.
 - Implement adoption work **one phase at a time**; verify with `uv run pytest -q` and the demo `evaluate-model` smoke before the next phase.
 - Details: `temp_docs/ANTON_PR_COMPARISON_AND_REQUIREMENTS.md`.
 
@@ -48,7 +48,7 @@ Training, tuning, and evaluation pipelines for blood-glucose forecasting from CG
 - **GluMind** (`src/glumind/`) — glucose + heart rate + step count. Primary architecture (Farahmand et al., 2025b, arXiv:2509.18457): parallel cross-attention multimodal fusion + multi-scale self-attention, with optional LwF (learning-without-forgetting) for continual cross-cohort training.
 - **GluMind-Uni** (`src/glumind_uni/`) — glucose-only variant of the same architecture.
 - **SugarOne** (`src/sugar_one/`) — glucose + basal rate + bolus insulin + carbohydrates (Loop pump data), 3-way cross-attention with learnable softmax mixing weights (vs. GluMind's fixed 2-way averaging).
-- **NeuralForecast baselines** (`src/nf_baselines/tune_nf_baselines_by_group.py`) — NHITS / TFT / NBEATSx, glucose-only.
+- **NeuralForecast baselines** (`src/nf_baselines/`) — preferred: sugarone-compatible holdout via `glucose neuralforecast` (128/12/stride-1); legacy tuner `tune_nf_baselines_by_group.py` kept until parity is verified.
 - **GluFormer** (`src/glumind/eval_gluformer_val_test_masked.py`) — evaluation only, against a pretrained Hugging Face model (`njeffrie/Gluformer`).
 
 Forecast horizon defaults to 12 steps = 60 minutes at 5-minute sampling frequency.
