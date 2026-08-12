@@ -1,7 +1,7 @@
 # T1DM Covariate Ablation Report — SugarOne on Loop Test Data
 
 **Date:** 2026-06-13  
-**Evaluation tool:** `uv run evaluate-model` (`src/sugar_one/evaluate_model.py`)  
+**Evaluation tool:** `uv run glucose evaluate` (`common.evaluation.checkpoint_eval`)  
 **Model checkpoint:** `data/output/runs/sugar_one_tune/production/trial_0000_bcd3813f` (`best_model.pt`)  
 **Test dataset:** `data/input/loop_and_ai_ready/ablation_test.csv`  
 **Scaler fitting:** `data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv` (train split)

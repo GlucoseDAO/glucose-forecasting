@@ -1,7 +1,7 @@
 # GluMind vs SugarOne — Joined Benchmark Comparison Report
 
 **Date:** 2026-06-06 (updated with `test_data` demo evaluation)  
-**Evaluation script:** `src/sugar_one/evaluate_model.py` (`uv run evaluate-model`)  
+**Evaluation:** `uv run glucose evaluate` (`common.evaluation.checkpoint_eval`)  
 **Primary benchmark:** `data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv` (test split)  
 **Demo / sanity check:** `test_data/livia_sugar_one_ready.csv` (all models; bundled reviewer checkpoints)
 
@@ -323,7 +323,7 @@ Both models degrade on out-of-distribution personal data, as expected. With insu
 | `data/output/runs/comparison_test_data/sugar_one_test_model_full_cov.json` | SugarOne on `test_data/livia_sugar_one_ready.csv` (no `--zero-cov`) |
 | `data/output/runs/comparison_test_data/sugar_one_test_model.json` | SugarOne on `test_data/livia_sugar_one_ready.csv` (`--zero-cov`) |
 | `docs/reports/milestone7_smoke_livia.json` | Earlier SugarOne smoke run (`--zero-cov` on old glucose-only file; superseded) |
-| `src/sugar_one/evaluate_model.py` | Unified evaluation CLI with `--zero-cov` and progress logging |
+| `uv run glucose evaluate` | Unified evaluation CLI with `--zero-cov` and progress logging |
 
 ## Tooling note
 

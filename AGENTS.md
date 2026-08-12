@@ -68,7 +68,7 @@ uv run pytest tests/test_train_checkpoint_resume.py::test_checkpoint_stores_wait
 ```
 
 
-Platform / migration docs: `docs/CLI_REFERENCE.md`, `docs/MIGRATION.md`, `docs/DATA.md`.
+Platform docs: `docs/CLI_REFERENCE.md`, `docs/DATA.md`, `docs/How_to_run_checkpoint.md`, `docs/presentation/PRESENTATION_NOTES.md`.
 
 Installed console commands (defined in `pyproject.toml` `[project.scripts]`, all runnable as `uv run <name> --help`):
 - `glucose` → `src/cli.py:app` (platform CLI: `info`, `evaluate`, `neuralforecast`, `release`)
@@ -85,7 +85,7 @@ uv run python src/glumind/eval_gluformer_val_test_masked.py -h          # argpar
 uv run python src/glumind/upload_to_huggingface.py --help
 ```
 
-Full flag reference and worked examples for every script live in the root `README.md` — read that before guessing at a flag name; it documents which flags exist per-CLI (argparse vs. Typer scripts have different flags even for equivalent features, e.g. `--csv` vs `--csv`, snake_case vs kebab-case).
+Full flag reference: **[docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)**. Worked examples and architecture overview: root `README.md`. Argparse vs Typer flag style differs (`--snake_case` vs `--kebab-case`).
 
 Fast smoke test after code changes (no GPU, no full dataset needed):
 ```bash
