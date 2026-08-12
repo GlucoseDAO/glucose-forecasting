@@ -9,10 +9,14 @@ from typing import Any
 import torch
 import torch.nn as nn
 
-from common.model_spec import arch_hparams_from_meta, register_family_spec
+from common.data.columns import COL_BASAL, COL_BOLUS, COL_CARB, COL_GLU
+from common.model_spec import (
+    arch_hparams_from_meta,
+    infer_batch_jepa,
+    register_family_spec,
+)
 from common.scalers import ScalerLike, extract_scalers_from_dataset
 from sugar_jepa.sugar_jepa_model import SugarJepaModel
-from sugar_one.sugar_one_spec import COL_BASAL, COL_BOLUS, COL_CARB, COL_GLU
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,8 @@ class SugarJepaFamilySpec:
         }
     )
     fingerprint_keys: Sequence[str] = ("jepa_encoder.proj.weight",)
+    ffill_bfill_columns: Sequence[str] = ("glucose", "basal")
+    zero_fill_columns: Sequence[str] = ("bolus", "carbs")
 
     def build_model(self, meta: Mapping[str, Any], device: torch.device) -> nn.Module:
         arch = arch_hparams_from_meta(meta)
@@ -84,6 +90,46 @@ class SugarJepaFamilySpec:
 
     def extract_scalers(self, dataset: Any) -> dict[str, ScalerLike]:
         return extract_scalers_from_dataset(dataset, feature_names=self.feature_names)
+
+    def build_window_dataset(
+        self,
+        df: Any,
+        *,
+        input_steps: int,
+        horizon: int,
+        scalers: Mapping[str, ScalerLike] | None = None,
+        fit_scalers: bool = False,
+        window_stride: int = 1,
+        meta: Mapping[str, Any] | None = None,
+    ) -> Any:
+        from common.data import SugarJepaWindowDataset
+
+        _ = window_stride
+        jepa_window = int((meta or {}).get("jepa_window", 288))
+        if fit_scalers or scalers is None:
+            return SugarJepaWindowDataset(
+                df, input_steps, horizon, jepa_window, fit_scalers=True
+            )
+        return SugarJepaWindowDataset(
+            df,
+            input_steps,
+            horizon,
+            jepa_window,
+            scaler_glucose=scalers["glucose"],  # type: ignore[arg-type]
+            scaler_basal=scalers["basal"],  # type: ignore[arg-type]
+            scaler_bolus=scalers["bolus"],  # type: ignore[arg-type]
+            scaler_carbs=scalers["carbs"],  # type: ignore[arg-type]
+            scaler_glucose_jepa=scalers["glucose_jepa"],  # type: ignore[arg-type]
+            fit_scalers=False,
+        )
+
+    def infer_batch(
+        self,
+        model: nn.Module,
+        batch: Any,
+        device: torch.device,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return infer_batch_jepa(model, batch, device)
 
 
 SUGAR_JEPA_SPEC = SugarJepaFamilySpec()

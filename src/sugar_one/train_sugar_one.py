@@ -35,17 +35,30 @@ from torch.utils.data import DataLoader, Dataset
 from sugar_one.console_log import echo_plain
 from sugar_one.sugar_one_model import SugarOneModel
 
-from common.data_loading import (
+from common.data.columns import (
+    COL_BASAL,
+    COL_BOLUS,
+    COL_CARB,
+    COL_EVENT,
+    COL_GLU,
+    COL_GROUP,
+    COL_SEQ,
+    COL_SPLIT,
+    COL_TS_SHORT as COL_TS,
+    COL_USER,
+    TS_FORMAT,
+)
+from common.data.loading import (
     STUDY_GROUP_ALIASES as STUDY_GROUP_ALIASES,
     STUDY_GROUP_ORDER as STUDY_GROUP_ORDER,
+    apply_split_scheme as _common_apply_split_scheme,
+    impute_and_sort as _common_impute_and_sort,
     limit_series as limit_series,
+    load_splits_streaming as _common_load_splits_streaming,
     normalize_study_group_label as normalize_study_group_label,
     normalize_study_groups_column as normalize_study_groups_column,
     resolve_num_workers as resolve_num_workers,
 )
-from common.data_loading import apply_split_scheme as _common_apply_split_scheme
-from common.data_loading import impute_and_sort as _common_impute_and_sort
-from common.data_loading import load_splits_streaming as _common_load_splits_streaming
 from common.metrics import mae_rmse_mard as mae_rmse_mard
 from common.checkpoint import (
     read_checkpoint_meta as read_checkpoint_meta,
@@ -62,23 +75,6 @@ app = typer.Typer(
     add_completion=False,
     help="SugarOne: Parallel-Attention Transformer with Insulin & Carb covariates.",
 )
-
-# ---------------------------------------------------------------------------
-# CSV column names — loop_ai_ready_joined_loop_columns.csv
-# ---------------------------------------------------------------------------
-COL_SEQ = "sequence_id"
-COL_USER = "User ID"
-COL_TS = "Timestamp"
-COL_SPLIT = "Recommended Split"
-COL_GROUP = "Study Group"
-COL_EVENT = "Event Type"
-
-COL_GLU = "Glucose (mg/dL)"
-COL_BASAL = "Basal Rate (U/h)"
-COL_BOLUS = "Bolus Insulin (U)"
-COL_CARB = "Carbohydrates (g)"
-
-TS_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 N_FEATURES = 4  # glucose, basal, bolus, carbs
 
@@ -145,115 +141,7 @@ def impute_and_sort(df: pl.DataFrame) -> pl.DataFrame:
 #  SLIDING-WINDOW DATASET
 # ============================================================================
 
-class SugarOneWindowDataset(Dataset):
-    """Lazy sliding-window dataset for SugarOne.
-
-    Each window is (input_steps, 4) — [glucose, basal, bolus, carbs].
-    Target is (horizon,) of future glucose values.
-    """
-
-    def __init__(
-        self,
-        df: pl.DataFrame,
-        input_steps: int,
-        horizon: int,
-        scaler_glucose: MinMaxScaler | None = None,
-        scaler_basal: MinMaxScaler | None = None,
-        scaler_bolus: MinMaxScaler | None = None,
-        scaler_carbs: MinMaxScaler | None = None,
-        fit_scalers: bool = False,
-        window_stride: int = 1,
-    ):
-        self.input_steps = input_steps
-        self.horizon = horizon
-        if window_stride < 1:
-            raise ValueError(f"window_stride must be >= 1, got {window_stride}")
-        self.window_stride = window_stride
-        window_len = input_steps + horizon
-
-        raw_glucose: list[np.ndarray] = []
-        raw_basal: list[np.ndarray] = []
-        raw_bolus: list[np.ndarray] = []
-        raw_carbs: list[np.ndarray] = []
-        uids: list = []
-        sgroups: list[str] = []
-
-        for (uid_val,), grp in (
-            df.sort(["unique_id", "ds"])
-            .group_by(["unique_id"], maintain_order=True)
-        ):
-            uids.append(uid_val)
-            sgroups.append(grp["study_group"][0])
-            raw_glucose.append(grp["glucose"].to_numpy())
-            raw_basal.append(grp["basal"].to_numpy())
-            raw_bolus.append(grp["bolus"].to_numpy())
-            raw_carbs.append(grp["carbs"].to_numpy())
-
-        if fit_scalers or scaler_glucose is None:
-            all_g = np.concatenate(raw_glucose).reshape(-1, 1)
-            all_b = np.concatenate(raw_basal).reshape(-1, 1)
-            all_bo = np.concatenate(raw_bolus).reshape(-1, 1)
-            all_c = np.concatenate(raw_carbs).reshape(-1, 1)
-            self.scaler_glucose = MinMaxScaler().fit(all_g)
-            # For sparse event signals (bolus, carbs) that are mostly 0,
-            # MinMaxScaler maps [0, max_event_value] → [0, 1].  This preserves
-            # the zero/non-zero distinction which is the key signal.
-            self.scaler_basal = MinMaxScaler().fit(all_b)
-            self.scaler_bolus = MinMaxScaler().fit(all_bo)
-            self.scaler_carbs = MinMaxScaler().fit(all_c)
-        else:
-            self.scaler_glucose = scaler_glucose
-            self.scaler_basal = scaler_basal
-            self.scaler_bolus = scaler_bolus
-            self.scaler_carbs = scaler_carbs
-
-        self._series_g: list[np.ndarray] = []
-        self._series_b: list[np.ndarray] = []
-        self._series_bo: list[np.ndarray] = []
-        self._series_c: list[np.ndarray] = []
-        self._index: list[tuple[int, int]] = []
-        self.series_ids: list = []
-        self.study_groups: list[str] = []
-
-        n_skipped = 0
-        for i, (uid, sg, rg, rb, rbo, rc) in enumerate(
-            zip(uids, sgroups, raw_glucose, raw_basal, raw_bolus, raw_carbs)
-        ):
-            g = self.scaler_glucose.transform(rg.reshape(-1, 1)).ravel().astype(np.float32)
-            b = self.scaler_basal.transform(rb.reshape(-1, 1)).ravel().astype(np.float32)
-            bo = self.scaler_bolus.transform(rbo.reshape(-1, 1)).ravel().astype(np.float32)
-            c = self.scaler_carbs.transform(rc.reshape(-1, 1)).ravel().astype(np.float32)
-            self._series_g.append(g)
-            self._series_b.append(b)
-            self._series_bo.append(bo)
-            self._series_c.append(c)
-            n_windows = len(g) - window_len + 1
-            if n_windows <= 0:
-                n_skipped += 1
-                continue
-            for start in range(0, n_windows, window_stride):
-                self._index.append((i, start))
-                self.series_ids.append(uid)
-                self.study_groups.append(sg)
-
-        if n_skipped > 0:
-            typer.echo(f"  Note: Skipped {n_skipped} series shorter than {window_len} steps.")
-
-    def __len__(self) -> int:
-        return len(self._index)
-
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
-        si, start = self._index[idx]
-        g = self._series_g[si]
-        b = self._series_b[si]
-        bo = self._series_bo[si]
-        c = self._series_c[si]
-        end = start + self.input_steps
-        x = np.stack(
-            [g[start:end], b[start:end], bo[start:end], c[start:end]], axis=-1
-        )  # (input_steps, 4)
-        y = g[end : end + self.horizon]  # (horizon,)
-        return torch.from_numpy(x), torch.from_numpy(y)
+from common.data import SugarOneWindowDataset  # noqa: E402  — re-export for train/eval callers
 
 
 

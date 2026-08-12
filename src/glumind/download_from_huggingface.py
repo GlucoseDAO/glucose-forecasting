@@ -3,17 +3,19 @@
 download_from_huggingface.py — Download a GluMind model from Hugging Face Hub.
 
 Downloads all model artifacts from a Hugging Face repository into a local
-directory that is compatible with evaluate_glumind.py (--run-dir).
+directory that is compatible with ``glucose evaluate --run-dir``.
 
 Example:
-  uv run src/glumind/download_from_huggingface.py \\
+  uv run download-glumind-hf \\
       --repo-id GlucoseDao/glumind-global-h12 \\
       --output-dir test_model
 
 Then evaluate with:
-  uv run src/glumind/evaluate_glumind.py \\
+  uv run glucose evaluate \\
       --run-dir test_model \\
-      --test-csv test_data/livia_glumind_ready.csv
+      --model-type glumind \\
+      --data test_data/livia_glumind_ready.csv \\
+      --test-split "" --no-plot
 """
 from __future__ import annotations
 
@@ -105,9 +107,11 @@ def main(
     typer.echo("")
     typer.echo("Evaluate with:")
     typer.echo(
-        f"  uv run src/glumind/evaluate_glumind.py \\\n"
+        f"  uv run glucose evaluate \\\n"
         f"      --run-dir {output_dir} \\\n"
-        f"      --test-csv test_data/livia_glumind_ready.csv"
+        f"      --model-type glumind \\\n"
+        f"      --data test_data/livia_glumind_ready.csv \\\n"
+        f"      --test-split \"\" --no-plot"
     )
 
 

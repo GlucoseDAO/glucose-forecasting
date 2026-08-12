@@ -24,7 +24,7 @@ from torch.utils.data import DataLoader
 
 from common.model_spec import get_family_spec
 
-ModelKind = Literal["glumind", "sugar_one"]
+ModelKind = Literal["glumind", "sugar_one", "glumind_uni", "sugar_jepa"]
 
 COL_EVENT = "Event Type"
 
@@ -40,8 +40,10 @@ SUGAR_ONE_COVARIATES: dict[str, list[str]] = _csv_aliases_for_kind("sugar_one")
 
 
 def _merged_covariate_name_aliases() -> dict[str, list[str]]:
+    from common.model_spec import list_family_kinds
+
     merged: dict[str, list[str]] = {}
-    for kind in ("glumind", "sugar_one"):
+    for kind in list_family_kinds():
         for canonical, aliases in get_family_spec(kind).covariate_aliases.items():
             merged[canonical] = list(aliases)
     return merged
@@ -51,15 +53,19 @@ def _merged_covariate_name_aliases() -> dict[str, list[str]]:
 COVARIATE_NAME_ALIASES: dict[str, list[str]] = _merged_covariate_name_aliases()
 
 
-def _covariate_map(model_kind: ModelKind) -> dict[str, list[str]]:
+def _covariate_map(model_kind: ModelKind | str) -> dict[str, list[str]]:
     return _csv_aliases_for_kind(model_kind)
 
 
-def _canonical_feature_cols(model_kind: ModelKind) -> list[str]:
+def _canonical_feature_cols(model_kind: ModelKind | str) -> list[str]:
     return list(get_family_spec(model_kind).feature_names)
 
 
-def _non_glucose_covariate_cols(model_kind: ModelKind) -> list[str]:
+def _non_glucose_covariate_cols(model_kind: ModelKind | str) -> list[str]:
+    """CSV covariates that can be zeroed (excludes derived channels like glucose_jepa)."""
+    aliases = get_family_spec(model_kind).covariate_aliases
+    if aliases:
+        return list(aliases.keys())
     return [c for c in _canonical_feature_cols(model_kind) if c != "glucose"]
 
 

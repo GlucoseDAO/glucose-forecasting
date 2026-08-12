@@ -38,12 +38,60 @@ class ModelFamilySpec(Protocol):
     csv_column_aliases: Mapping[str, Sequence[str]]
     covariate_aliases: Mapping[str, Sequence[str]]
     fingerprint_keys: Sequence[str]
+    ffill_bfill_columns: Sequence[str]
+    zero_fill_columns: Sequence[str]
 
     def build_model(self, meta: Mapping[str, Any], device: torch.device) -> nn.Module:
         """Construct an untrained model from run metadata."""
 
     def extract_scalers(self, dataset: Any) -> dict[str, ScalerLike]:
         """Pull fitted scalers off a window dataset for this family."""
+
+    def build_window_dataset(
+        self,
+        df: Any,
+        *,
+        input_steps: int,
+        horizon: int,
+        scalers: Mapping[str, ScalerLike] | None = None,
+        fit_scalers: bool = False,
+        window_stride: int = 1,
+        meta: Mapping[str, Any] | None = None,
+    ) -> Any:
+        """Build a sliding-window dataset for this family."""
+
+    def infer_batch(
+        self,
+        model: nn.Module,
+        batch: Any,
+        device: torch.device,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Run one eval batch; return ``(y_true, y_pred)`` on ``device``."""
+
+
+def infer_batch_xy(
+    model: nn.Module,
+    batch: Any,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Default ``(x, y)`` batch unpack + ``model(x)`` forward."""
+    x, y = batch
+    x = x.to(device)
+    y = y.to(device)
+    return y, model(x)
+
+
+def infer_batch_jepa(
+    model: nn.Module,
+    batch: Any,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """SugarJepa ``(x, glucose_jepa, y)`` batch unpack + ``model(x, jepa)``."""
+    x, jepa, y = batch
+    x = x.to(device)
+    jepa = jepa.to(device)
+    y = y.to(device)
+    return y, model(x, jepa)
 
 
 def register_family_spec(spec: ModelFamilySpec) -> None:

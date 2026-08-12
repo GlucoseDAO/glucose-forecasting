@@ -17,7 +17,7 @@ from common.evaluation.resolve_models import expand_model_specs
 from common.evaluation.types import RunDirKind, SingleModelResult
 from common.paths import resolve_project_path
 
-ModelTypeName = Literal["auto", "glumind", "sugar_one"]
+ModelTypeName = Literal["auto", "glumind", "sugar_one", "glumind_uni", "sugar_jepa"]
 
 
 def evaluate_run_dir(
@@ -36,6 +36,7 @@ def evaluate_run_dir(
     refit_scalers: bool = False,
     allow_fit_on_eval: bool = False,
     log_interval: float = 10.0,
+    checkpoint: Path | None = None,
     project_root: Path | None = None,
     force_rerun: bool = False,
 ) -> SingleModelResult:
@@ -113,6 +114,7 @@ def evaluate_run_dir(
         resolved,
         test_csv=data_path,
         train_csv=train_path,
+        checkpoint=checkpoint,
         model_type=model_type,
         test_split=test_split,
         batch_size=batch_size,

@@ -12,7 +12,14 @@ DEFAULT_CONFIG_FILENAME = "glucose_evaluate.yaml"
 # src/common/evaluation/config.py → parents[2] == src/ (or site-packages when installed)
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / DEFAULT_CONFIG_FILENAME
 
-ModelTypeName = Literal["auto", "glumind", "sugar_one"]
+ModelTypeName = Literal["auto", "glumind", "sugar_one", "glumind_uni", "sugar_jepa"]
+SUPPORTED_MODEL_TYPES: tuple[str, ...] = (
+    "auto",
+    "glumind",
+    "sugar_one",
+    "glumind_uni",
+    "sugar_jepa",
+)
 
 
 @dataclass
@@ -63,9 +70,10 @@ def _as_optional_str(value: Any) -> str | None:
 
 
 def _parse_model_type(value: Any) -> ModelTypeName:
-    text = str(value or "auto").strip().lower()
-    if text not in ("auto", "glumind", "sugar_one"):
-        raise ValueError(f"Invalid model_type {value!r}; expected auto|glumind|sugar_one")
+    text = str(value or "auto").strip().lower().replace("-", "_")
+    if text not in SUPPORTED_MODEL_TYPES:
+        allowed = "|".join(SUPPORTED_MODEL_TYPES)
+        raise ValueError(f"Invalid model_type {value!r}; expected {allowed}")
     return text  # type: ignore[return-value]
 
 

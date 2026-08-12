@@ -73,7 +73,7 @@ def tiny_glumind_uni_model() -> GluMindUniModel:
 # ---------------------------------------------------------------------------
 # Tiny in-memory Polars DataFrames matching the "canonical" post-load schema
 # (unique_id, ds, glucose, ..., study_group, split, event_type) used by
-# src/common/data_loading.py and src/common/evaluation.py.
+# common.data.loading and common.evaluation.
 # ---------------------------------------------------------------------------
 
 

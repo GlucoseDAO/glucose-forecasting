@@ -1,10 +1,10 @@
-"""Tests for evaluate-model covariate selection helpers."""
+"""Tests for evaluate covariate selection helpers."""
 
 from __future__ import annotations
 
 import pytest
 
-from sugar_one.evaluate_model import (
+from common.evaluation.checkpoint_eval import (
     _alias_to_canonical,
     _parse_covariate_names,
     _resolve_covariate_zeroing,

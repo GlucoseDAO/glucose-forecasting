@@ -7,7 +7,7 @@ The project currently includes:
 - `SugarOne` — insulin/carb covariate variant for loop-style CGM + pump data.
 - NeuralForecast baselines (`NHITS`, `TFT`, `NBEATSx`, …) via `glucose neuralforecast` (sugarone-compatible holdout) plus legacy tuner.
 - `GluFormer` evaluation script.
-- Unified `evaluate-model` CLI for GluMind and SugarOne checkpoints on arbitrary CSVs.
+- Unified evaluation via `glucose evaluate` for GluMind / GluMind-Uni / SugarOne / SugarJepa checkpoints.
 - Platform CLI `glucose` (`info`, `evaluate`, `neuralforecast`, `release`) wrapping shared evaluation under `src/common/evaluation/`, NF under `src/nf_baselines/`, and inference bundles under `src/common/release/`.
 - Run analysis artifacts and cross-model comparison reports.
 
@@ -21,8 +21,8 @@ uv run glucose --help
 uv run glucose info
 
 # Demo eval (bundled GluMind checkpoint + CSV)
-uv run evaluate-model --run-dir test_model_glumind --model-type glumind \
-  --test-csv test_data/livia_glumind_ready.csv --test-split "" --batch-size 4096
+uv run glucose evaluate --run-dir test_model_glumind --model-type glumind \
+  --data test_data/livia_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
 
 # Default multi-model compare (YAML: demos + best NF runs under nf_holdout)
 uv run glucose evaluate
@@ -45,12 +45,13 @@ uv run pytest -q
 - `src/common/release/`: inference release format 1.0 + Hub publish/pull (`glucose release`).
 - `src/glumind/train_glumind.py`: GluMind training/tuning entrypoint (also exposed as `train-glumind`).
 - `src/glumind/glumind_model.py`: model architecture module (checkpoint-friendly).
-- `src/glumind/evaluate_glumind.py`, `inference_glumind.py`, `download_from_huggingface.py`, `upload_to_huggingface.py`: evaluation, reproduction, Hub download/upload.
+- `src/glumind/download_from_huggingface.py`, `upload_to_huggingface.py`: Hub download/upload.
 - `src/glumind_uni/train_uniglumind.py`: univariate GluMind variant (glucose-only).
 - `src/sugar_one/train_sugar_one.py`: SugarOne training entrypoint (insulin/carb covariates).
 - `src/sugar_one/tune_sugar_one.py`: random-search hyperparameter tuner (`tune-sugar-one`).
 - `src/sugar_one/sugar_one_model.py`: SugarOne architecture module.
-- `src/sugar_one/evaluate_model.py`: unified evaluation for GluMind and SugarOne (`evaluate-model`).
+- `src/common/data/`: columns, CSV loading (`loading.py`), sliding-window datasets (one file per class).
+- `src/common/evaluation/checkpoint_eval.py`: unified PyTorch eval engine for all experiment families.
 - `test_model_glumind/`: bundled GluMind checkpoint for reviewers (weights + metrics).
 - `test_model_sugar_one/`: bundled SugarOne checkpoint for reviewers (weights + metrics).
 - `test_data/livia_glumind_ready.csv`: self-contained demo CSV for quick end-to-end evaluation.
@@ -123,71 +124,13 @@ uv run glucose release pack --help
 | `--out_dir` | Base output directory for runs. |
 | `--save_predictions` | Defined in CLI; not wired in the current training script (no effect). |
 
-### `evaluate-glumind` — `src/glumind/evaluate_glumind.py`
+### `glucose evaluate` — unified PyTorch evaluation
 
-`uv run evaluate-glumind --help`
+`uv run glucose evaluate --help`
 
-| Option | Meaning |
-|--------|---------|
-| `--registry-dir` | Folder with `_analysis_registry.csv`; picks lowest `val_mae` run. |
-| `--run-dir` | Explicit run directory with `tuning_meta.json` / `config.json` and weights. Overrides registry. |
-| `--checkpoint` | Specific `.pt` weights; still need `--run-dir` for architecture metadata. |
-| `--test-csv` | CSV to score (required). |
-| `--train-csv` | Legacy: CSV to re-fit MinMax scalers when `scalers.json` is absent. |
-| `--refit-scalers` | Ignore `scalers.json` and re-fit from `--train-csv` / metadata. |
-| `--test-split` | If the CSV has `Recommended Split`, keep only this value (e.g. `test`). |
-| `--glucose-only` | Ablation: replace HR/steps with zeros or a fixed scaled value. |
-| `--default-value` | With `--glucose-only`: `zero`, `mean`, or `median` for HR/steps replacement. |
-| `--batch-size` | Override DataLoader batch size (default from metadata). |
-| `--device` | Torch device (string, e.g. `cuda` or `cpu`). |
+Central path for **GluMind**, **GluMind-Uni**, **SugarOne**, and **SugarJepa**. Loads architecture metadata and **`scalers.json`** from the run folder (falls back to re-fitting when the sidecar is missing), and reports **MAE, RMSE, MARD**. Multi-run comparison and plots are supported.
 
-You must pass either `--registry-dir` or `--run-dir`.
-
-For cross-model evaluation (GluMind or SugarOne on any compatible CSV), prefer **`evaluate-model`** below.
-
-### `evaluate-model` — `src/sugar_one/evaluate_model.py`
-
-`uv run evaluate-model --help`
-
-Unified evaluation for **GluMind** (HR + steps) and **SugarOne** (basal + bolus + carbs). Loads architecture metadata and **`scalers.json`** from the run folder (falls back to re-fitting from the training CSV when the sidecar is missing), and reports **MAE, RMSE, MARD**.
-
-| Option | Meaning |
-|--------|---------|
-| `--test-csv` | CSV to score (required). |
-| `--run-dir` | Run directory with `tuning_meta.json` / `config.json` and `best_model.pt`. |
-| `--registry-dir` | Folder with `_analysis_registry.csv`; picks lowest `val_mae` run. |
-| `--checkpoint` | Explicit `.pt` weights; still need `--run-dir` for architecture metadata. |
-| `--train-csv` | Legacy scaler re-fit CSV when `scalers.json` is absent (default: `csv` from metadata). |
-| `--refit-scalers` | Ignore `scalers.json` and re-fit from `--train-csv` / metadata. |
-| `--allow-fit-on-eval` | Allow fitting scalers on eval/all rows when train split is missing (not for small personal sets). |
-| `--model-type` | `auto` (detect from checkpoint), `glumind`, or `sugar_one`. |
-| `--test-split` | Keep rows where `Recommended Split` equals this value (default `test`). Use `--test-split=''` to score all rows. |
-| `--batch-size` | DataLoader batch size (default from metadata). |
-| `--device` | Torch device (default `cuda` when available). |
-| `--output-json` | Write metrics JSON for batch comparisons. |
-| `--log-interval` | Seconds between inference progress logs (default `10`; `0` = first and last only). |
-| `--zero-cov` | Zero all non-glucose covariates after imputation (glucose-only inference). Mutually exclusive with `--include-cov` / `--exclude-cov`. |
-| `--include-cov` | Comma-separated covariates to keep; zero all other non-glucose channels (e.g. `basal,bolus`). |
-| `--exclude-cov` | Comma-separated covariates to zero; keep the rest (e.g. `carbs`). |
-| `--covariates` | Print covariate columns and fill stats for `--test-csv`; no checkpoint required. |
-
-Full usage, ablation examples, and alias list: `src/sugar_one/README.md`.
-
-You must pass either `--registry-dir` or `--run-dir` (unless using `--covariates` only).
-
-### `inference-glumind` — `src/glumind/inference_glumind.py`
-
-`uv run inference-glumind --help`
-
-| Option | Meaning |
-|--------|---------|
-| `--run-dir` | Run directory with metadata and `best_model.pt` / `last_model.pt` (required). |
-| `--mode` | `auto` (from `split_scheme` in metadata), `test`, or `val_as_test`. |
-| `--glucose-only` | Ablation: zero or constant HR/steps in scaled space. |
-| `--default-value` | `zero`, `mean`, or `median` (non-glucose channels). |
-| `--device` | Torch device. |
-
-Re-runs inference on the **training CSV** from metadata and compares to saved `val_metrics_overall.csv` / `test_metrics_overall.csv` when present.
+See [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md) for the full flag table. Engine: `src/sugar_one/evaluate_model.py` (library).
 
 ### `download-glumind-hf` — `src/glumind/download_from_huggingface.py`
 
@@ -286,7 +229,7 @@ Root command `main` (no subcommand name):
 
 Same shape as GluMindUni: insulin/carb covariates, default `--out-dir` `data/output/runs/sugar_one`, `--csv` should be the loop + AI-READI joined CSV (see script docstring). Device: `--device`.
 
-Expected loop-style columns (aliases are resolved automatically by `evaluate-model`):
+Expected loop-style columns (aliases are resolved automatically by `glucose evaluate`):
 
 - `Glucose Value (mg/dL)` or `Glucose (mg/dL)`
 - `Basal Rate (U/h)`
@@ -542,12 +485,12 @@ The repo ships reviewer checkpoint bundles and a demo CSV so you can run inferen
 | `test_model_sugar_one/` | SugarOne weights (same layout) |
 | `test_data/livia_glumind_ready.csv` | Self-contained CGM sample (~140k rows) in GluMind CSV shape |
 
-Use **`evaluate-model`** (`src/sugar_one/evaluate_model.py`) for both architectures. It reads run metadata, restores the checkpoint, loads **`scalers.json`** (train-fit MinMax params), and prints **MAE, RMSE, MARD**.
+Use **`glucose evaluate`** for all custom PyTorch architectures. It reads run metadata, restores the checkpoint, loads **`scalers.json`** (train-fit MinMax params), and prints **MAE, RMSE, MARD**.
 
 **Important for this demo file:**
 
 - `livia_glumind_ready.csv` has **no** `Recommended Split` column — pass **`--test-split ''`** to evaluate all rows.
-- Bundled `test_model_*` folders include **`scalers.json`** fitted on the original training CSVs — you do **not** need `--train-csv` for correct scaling. To deliberately re-fit on the demo file (wrong for comparing to training-domain metrics), pass `--refit-scalers --train-csv test_data/livia_glumind_ready.csv --allow-fit-on-eval`.
+- Bundled `test_model_*` folders include **`scalers.json`** fitted on the original training CSVs — you do **not** need `--train-data` for correct scaling. To deliberately re-fit on the demo file (wrong for comparing to training-domain metrics), pass `--refit-scalers --train-data test_data/livia_glumind_ready.csv --allow-fit-on-eval`.
 - The demo file has glucose (+ sparse HR/steps) but **no insulin/carb columns** — for SugarOne, pass **`--zero-cov`** so basal/bolus/carbs are zeroed after imputation.
 
 Livia is type-1 personal data; numbers here are a **sanity check**, not a headline benchmark.
@@ -555,12 +498,13 @@ Livia is type-1 personal data; numbers here are a **sanity check**, not a headli
 ### GluMind (`test_model_glumind`)
 
 ```powershell
-uv run evaluate-model `
+uv run glucose evaluate `
   --run-dir test_model_glumind `
   --model-type glumind `
-  --test-csv test_data/livia_glumind_ready.csv `
+  --data test_data/livia_glumind_ready.csv `
   --test-split "" `
-  --batch-size 4096
+  --batch-size 4096 `
+  --no-plot
 ```
 
 Model type can be omitted when `--run-dir` contains a GluMind checkpoint (`--model-type auto` detects embed_hr / embed_steps weights).
@@ -568,30 +512,20 @@ Model type can be omitted when `--run-dir` contains a GluMind checkpoint (`--mod
 ### SugarOne (`test_model_sugar_one`)
 
 ```powershell
-uv run evaluate-model `
+uv run glucose evaluate `
   --run-dir test_model_sugar_one `
   --model-type sugar_one `
-  --test-csv test_data/livia_glumind_ready.csv `
+  --data test_data/livia_glumind_ready.csv `
   --zero-cov `
   --test-split "" `
   --batch-size 256 `
+  --no-plot `
   --output-json docs/reports/milestone7_smoke_livia.json
 ```
 
-With access to the full loop benchmark CSV, drop `--zero-cov` and point both `--test-csv` and `--train-csv` at `data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv` to reproduce in-domain test metrics (~12.4 MAE on the bundled SugarOne checkpoint). See `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`.
+With access to the full loop benchmark CSV, drop `--zero-cov` and point both `--data` and `--train-data` at `data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv` to reproduce in-domain test metrics (~12.4 MAE on the bundled SugarOne checkpoint). See `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`.
 
-### GluMind-only alternative (`evaluate-glumind`)
-
-The older GluMind-only script still works for the same demo:
-
-```powershell
-uv run evaluate-glumind `
-  --run-dir test_model_glumind `
-  --test-csv test_data/livia_glumind_ready.csv `
-  --test-split ""
-```
-
-For every flag, see [CLI reference](#cli-reference) → **evaluate-model** / **evaluate-glumind**. To fetch GluMind weights from Hugging Face into a local folder, use `download-glumind-hf` (see `src/glumind/README.md`).
+For every flag, see [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md). To fetch GluMind weights from Hugging Face into a local folder, use `download-glumind-hf`.
 
 ## Outputs
 

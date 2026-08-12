@@ -38,7 +38,7 @@ Examples:
 - Datasets live under `data/input/` (`actual/`, `loop_and_ai_ready/`, `personalization/`).
 - Default run root is `data/output/runs/` (`common.paths.DEFAULT_RUNS_ROOT`); curated runs under `data/output/marked_runs/`.
 - Top-level Typer app: `uv run glucose` (`src/cli.py`) — `info` + `evaluate` + `neuralforecast` + `release` (logic under `src/common/evaluation/`, `src/nf_baselines/`, `src/common/release/`). No `glucose train` for custom PyTorch; use experiment CLIs. NF holdout: `glucose neuralforecast train`. Release bundles: `glucose release check|publish|pull`.
-- Implement adoption work **one phase at a time**; verify with `uv run pytest -q` and the demo `evaluate-model` smoke before the next phase.
+- Implement adoption work **one phase at a time**; verify with `uv run pytest -q` and the demo `glucose evaluate` smoke before the next phase.
 - Details: `temp_docs/ANTON_PR_COMPARISON_AND_REQUIREMENTS.md`.
 
 ## Project overview
@@ -71,11 +71,8 @@ uv run pytest tests/test_train_checkpoint_resume.py::test_checkpoint_stores_wait
 Platform / migration docs: `docs/CLI_REFERENCE.md`, `docs/MIGRATION.md`, `docs/DATA.md`.
 
 Installed console commands (defined in `pyproject.toml` `[project.scripts]`, all runnable as `uv run <name> --help`):
-- `glucose` → `src/cli.py:app` (thin platform CLI: `info`, `evaluate`, `neuralforecast`, `release`)
+- `glucose` → `src/cli.py:app` (platform CLI: `info`, `evaluate`, `neuralforecast`, `release`)
 - `train-glumind` → `src/glumind/train_glumind.py:main` (argparse CLI)
-- `evaluate-glumind` → `src/glumind/evaluate_glumind.py:app` (Typer; GluMind-only)
-- `evaluate-model` → `src/sugar_one/evaluate_model.py:app` (Typer; **unified** GluMind + SugarOne eval — preferred for new work)
-- `inference-glumind` → `src/glumind/inference_glumind.py:app`
 - `tune-sugar-one` → `src/sugar_one/tune_sugar_one.py:app` (TOML-driven random hyperparameter search)
 - `download-glumind-hf` → `src/glumind/download_from_huggingface.py:app`
 
@@ -92,10 +89,10 @@ Full flag reference and worked examples for every script live in the root `READM
 
 Fast smoke test after code changes (no GPU, no full dataset needed):
 ```bash
-uv run evaluate-model --run-dir test_model_glumind --model-type glumind \
-  --test-csv test_data/livia_glumind_ready.csv --test-split "" --batch-size 4096
+uv run glucose evaluate --run-dir test_model_glumind --model-type glumind \
+  --data test_data/livia_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
 ```
-This uses the bundled reviewer checkpoint (`test_model_glumind/`), its **`scalers.json`**, and demo CSV (`test_data/livia_glumind_ready.csv`, ~140k rows, no `Recommended Split` column — always pass `--test-split ""` for it). For SugarOne against the same demo file, add `--zero-cov` since it has no insulin/carb columns. See README.md "Evaluate on `test_data/livia_glumind_ready.csv`" section for exact commands including the SugarOne case.
+This uses the bundled reviewer checkpoint (`test_model_glumind/`), its **`scalers.json`**, and demo CSV (`test_data/livia_glumind_ready.csv`, ~140k rows, no `Recommended Split` column — always pass `--test-split ""` for it). For SugarOne against the same demo file, add `--zero-cov` since it has no insulin/carb columns. See README.md and `docs/CLI_REFERENCE.md`.
 
 ## Architecture
 
@@ -103,7 +100,7 @@ This uses the bundled reviewer checkpoint (`test_model_glumind/`), its **`scaler
 
 As of the last refactor, model-agnostic logic that used to be duplicated across the training scripts (and re-imported cross-model, e.g. `evaluate_model.py` importing from `train_glumind.py`) now lives here. **New model variants or eval tools should use these instead of reimplementing.**
 
-- `data_loading.py` — `load_splits_streaming`, `apply_split_scheme` (`classic` vs `trainval_test_as_val`), `impute_and_sort` (per-series forward/backward-fill for continuous signals like glucose/HR/basal, zero-fill for discrete signals like bolus/carbs), `limit_series`, `normalize_study_group_label`/`normalize_study_groups_column`, `resolve_num_workers`. Column names are passed in by the caller (`value_columns: dict[str, str]` mapping canonical → source CSV column) since each model variant reads a different CSV column set.
+- `data/loading.py` — `load_splits_streaming`, `apply_split_scheme` (`classic` vs `trainval_test_as_val`), `impute_and_sort` (per-series forward/backward-fill for continuous signals like glucose/HR/basal, zero-fill for discrete signals like bolus/carbs), `limit_series`, `normalize_study_group_label`/`normalize_study_groups_column`, `resolve_num_workers`. Column names are passed in by the caller (`value_columns: dict[str, str]` mapping canonical → source CSV column) since each model variant reads a different CSV column set.
 - `metrics.py` — `mae_rmse_mard` (MAE/RMSE/MARD — the metric triple used everywhere in this repo), `per_study_group_breakdown`, `overall_metrics_to_csv`.
 - `checkpoint.py` — `save_full_checkpoint`/`load_full_checkpoint` (generalized across the three slightly different checkpoint shapes used by GluMind/SugarOne/GluMind-Uni via a `config_key` param — `"args"`, `"config"`, or `"cfg"`), `read_checkpoint_meta`, `update_latest_symlink`, `strip_compile_prefix` (strips the `_orig_mod.` prefix `torch.compile` adds to state_dict keys).
 - `registry.py` — `find_best_run_dir` (reads `_analysis_registry.csv`, picks lowest `val_mae`), `load_run_meta` (reads `tuning_meta.json` or `config.json`), `resolve_checkpoint` (finds `best_model.pt`/`last_model.pt`), `resolve_csv_path` (basename remap toward `data/input/` plus legacy→new path rewrites).
@@ -113,7 +110,7 @@ As of the last refactor, model-agnostic logic that used to be duplicated across 
 - `model_spec.py` — `ModelFamilySpec` Protocol + registry (`get_family_spec`, `detect_family_kind`). Concrete specs live beside each model (`src/glumind/glumind_spec.py`, `src/sugar_one/sugar_one_spec.py`, …). Architecture modules (`*_model.py`) stay torch-only for checkpoint reuse.
 - `scalers.py` — schema-free `scalers.json` serialize/load (no kind→features whitelist; feature set comes from Spec or the file).
 
-`train_glumind.py`, `train_sugar_one.py`, `train_uniglumind.py`, `evaluate_glumind.py`, and `evaluate_model.py` all import from `common.*` internally but **re-export the same names under their original locations** — e.g. `from glumind.train_glumind import load_splits_streaming` still works. Do not break this: `evaluate_model.py` still cross-imports several names from `train_glumind.py`/`train_sugar_one.py` by their original names, and `tests/test_evaluate_model_covariates.py` imports covariate helpers from `sugar_one.evaluate_model` directly.
+`train_glumind.py`, `train_sugar_one.py`, `train_uniglumind.py`, and `common.evaluation.checkpoint_eval` (behind `glucose evaluate`) all import from `common.*`. Sliding-window datasets live in `common.data` (re-exported from train scripts). CSV loading: `common.data.loading`. Column constants: `common.data.columns`.
 
 ### Model files — checkpoint-friendly, kept separate from training logic
 
@@ -137,7 +134,7 @@ All training scripts (GluMind, SugarOne, GluMind-Uni) support the same four mode
 
 ### CLI framework split
 
-`train_glumind.py`, `tune_nf_baselines_by_group.py`, and `eval_gluformer_val_test_masked.py` use argparse; `train_sugar_one.py`, `train_uniglumind.py`, `evaluate_glumind.py`, `evaluate_model.py`, `tune_sugar_one.py` use Typer. This is a known inconsistency (not enforced) — check which framework a script uses before assuming flag syntax (argparse: `--snake_case`; Typer: `--kebab-case`).
+`train_glumind.py`, `tune_nf_baselines_by_group.py`, and `eval_gluformer_val_test_masked.py` use argparse; `train_sugar_one.py`, `train_uniglumind.py`, `tune_sugar_one.py`, and `glucose` use Typer. This is a known inconsistency (not enforced) — check which framework a script uses before assuming flag syntax (argparse: `--snake_case`; Typer: `--kebab-case`).
 
 ### Data expectations
 
@@ -145,7 +142,7 @@ Core AI-READI CSV columns: `sequence_id`, `User ID`, `Timestamp (YYYY-MM-DDThh:m
 
 Loop/SugarOne CSVs additionally/instead have: `Glucose (mg/dL)` (or `Glucose Value (mg/dL)`), `Basal Rate (U/h)`, `Bolus Insulin (U)`, `Carbohydrates (g)`.
 
-`evaluate-model` resolves column aliases automatically and can zero out or ablate individual covariates at inference time (`--zero-cov`, `--include-cov`, `--exclude-cov`) for cross-model/cross-covariate comparison — this is the main tool for comparing GluMind vs. SugarOne on the same data.
+`glucose evaluate` resolves column aliases automatically and can zero out or ablate individual covariates at inference time (`--zero-cov`, `--include-cov`, `--exclude-cov`) for cross-model/cross-covariate comparison — this is the main tool for comparing GluMind vs. SugarOne on the same data.
 
 One-off Loop+AI-READI join / sample scripts live under `temp_scripts/loop_ai_ready/` (not part of the training/eval pipeline). Run them as `uv run python temp_scripts/loop_ai_ready/<script>.py` from the repo root.
 

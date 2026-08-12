@@ -10,7 +10,7 @@ import polars as pl
 import torch
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
-from common.data_loading import limit_series
+from common.data.loading import limit_series
 from nf_baselines.adapter import (
     PreparedSplits,
     filter_minimum_length,

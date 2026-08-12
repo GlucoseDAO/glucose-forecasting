@@ -7,7 +7,7 @@ from typing import Literal
 
 import polars as pl
 
-from common.data_loading import (
+from common.data.loading import (
     apply_split_scheme,
     impute_and_sort,
     limit_series,

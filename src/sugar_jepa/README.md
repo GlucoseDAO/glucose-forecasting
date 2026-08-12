@@ -53,20 +53,22 @@ the production 120/10), this should finish in well under an hour on a single con
 ## Evaluate a finished run
 
 ```bash
-uv run python src/sugar_jepa/evaluate_sugar_jepa.py \
+uv run glucose evaluate \
   --run-dir data/output/runs/sugar_jepa/<run_name> \
-  --test-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv \
-  --device cuda
+  --model-type sugar_jepa \
+  --data data/input/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv \
+  --device cuda \
+  --no-plot
 ```
 
-Reports MAE / RMSE / MARD overall and per Study Group. For a same-CSV SugarOne baseline number to compare
-against (the ~12.4 MAE figure in `docs/GLUMIND_VS_SUGARONE_COMPARISON.md` was measured on the full CSV,
-not the dev subset, so it's not directly comparable — regenerate a baseline on the dev CSV with
-`evaluate-model` for a fair before/after):
+Reports MAE / RMSE / MARD. For a same-CSV SugarOne baseline:
 
 ```bash
-uv run evaluate-model --test-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv \
-  --run-dir <a SugarOne run trained on the same dev CSV> --model-type sugar_one
+uv run glucose evaluate \
+  --data data/input/loop_and_ai_ready/loop_ai_ready_joined2_dev.csv \
+  --run-dir <a SugarOne run trained on the same dev CSV> \
+  --model-type sugar_one \
+  --no-plot
 ```
 
 ## Fast smoke test (no GPU wait, ~1 minute)
@@ -110,8 +112,7 @@ Unit/shape tests: `uv run pytest tests/test_sugar_jepa_smoke.py -q`.
   off-the-shelf glucose embedding help at all here?"), not a verdict on the architecture.
 - No hyperparameter tuner (`tune_sugar_jepa.py`) — `tune_sugar_jepa_full.toml` is a reference config, not
   a script input; there's no random-search loop like `tune_sugar_one.py`'s yet.
-- `evaluate_sugar_jepa.py` is a minimal standalone script, not integrated into the unified `evaluate-model`
-  CLI's model-type auto-detection or covariate-ablation flags.
+- Evaluate via `uv run glucose evaluate --model-type sugar_jepa` (same unified path as other families).
 
 ## Why local pretrained weights instead of `Encoder.from_pretrained("CRUISEResearchGroup/CGM-JEPA", ...)`
 

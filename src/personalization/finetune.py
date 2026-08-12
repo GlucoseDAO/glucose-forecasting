@@ -24,7 +24,8 @@ import typer
 from torch.utils.data import DataLoader
 
 from common.console import init_cli_console, safe_echo
-from common.data_loading import resolve_num_workers
+from common.data.loading import resolve_num_workers
+from common.data import SugarOneWindowDataset
 from common.metrics import mae_rmse_mard, overall_metrics_to_csv
 from common.registry import try_resolve_csv_path
 from common.paths import DEFAULT_RUNS_ROOT
@@ -48,7 +49,6 @@ from personalization.constants import (
 from personalization.registry import build_model_from_meta, load_base_checkpoint
 from sugar_one.sugar_one_spec import SUGAR_ONE_SPEC
 from sugar_one.train_sugar_one import (
-    SugarOneWindowDataset,
     evaluate,
     impute_and_sort,
     load_full_checkpoint,

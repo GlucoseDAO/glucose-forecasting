@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
-"""Shared, model-agnostic CSV loading / splitting / imputation utilities.
+"""Shared, model-agnostic CSV loading / splitting / imputation utilities."""
 
-Extracted from ``src/glumind/train_glumind.py`` and
-``src/sugar_one/train_sugar_one.py``, which reimplemented (near-)identical
-logic with different hardcoded column sets. The functions here are
-genericized to accept the source/value column names as parameters so both
-call sites (and any future ones) can share a single implementation.
-"""
 from __future__ import annotations
 
 import os

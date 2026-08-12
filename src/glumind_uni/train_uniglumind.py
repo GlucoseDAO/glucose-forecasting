@@ -27,17 +27,27 @@ from torch.utils.data import DataLoader, Dataset
 
 from glumind_uni.glumind_uni_model import GluMindUniModel
 
-from common.data_loading import (
+from common.data.columns import (
+    COL_EVENT,
+    COL_GLU_VALUE as COL_GLU,
+    COL_GROUP,
+    COL_SEQ,
+    COL_SPLIT,
+    COL_TS,
+    COL_USER,
+    TS_FORMAT,
+)
+from common.data.loading import (
     STUDY_GROUP_ALIASES as STUDY_GROUP_ALIASES,
     STUDY_GROUP_ORDER as STUDY_GROUP_ORDER,
+    apply_split_scheme as _common_apply_split_scheme,
+    impute_and_sort as _common_impute_and_sort,
     limit_series as limit_series,
+    load_splits_streaming as _common_load_splits_streaming,
     normalize_study_group_label as normalize_study_group_label,
     normalize_study_groups_column as normalize_study_groups_column,
     resolve_num_workers as resolve_num_workers,
 )
-from common.data_loading import apply_split_scheme as _common_apply_split_scheme
-from common.data_loading import impute_and_sort as _common_impute_and_sort
-from common.data_loading import load_splits_streaming as _common_load_splits_streaming
 from common.metrics import mae_rmse_mard as mae_rmse_mard
 from common.checkpoint import (
     load_full_checkpoint as _common_load_full_checkpoint,
@@ -49,19 +59,6 @@ from common.scalers import SCALERS_FILENAME, save_scalers_for_run
 from glumind_uni.glumind_uni_spec import GLUMIND_UNI_SPEC
 
 app = typer.Typer(help="GluMindUni: Univariate glucose transformer trainer.")
-
-# ---------------------------------------------------------------------------
-# Source CSV columns
-# ---------------------------------------------------------------------------
-COL_SEQ = "sequence_id"
-COL_USER = "User ID"
-COL_TS = "Timestamp (YYYY-MM-DDThh:mm:ss)"
-COL_SPLIT = "Recommended Split"
-COL_GROUP = "Study Group"
-COL_EVENT = "Event Type"
-COL_GLU = "Glucose Value (mg/dL)"
-
-TS_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 # ============================================================================
 #  DATA LOADING
@@ -113,73 +110,7 @@ def impute_and_sort(df: pl.DataFrame) -> pl.DataFrame:
 #  SLIDING-WINDOW DATASET
 # ============================================================================
 
-class GlucoseUniWindowDataset(Dataset):
-    """Lazy sliding-window dataset for univariate glucose forecasting.
-
-    Stores only the scaled per-series arrays; windows are sliced on-the-fly in
-    __getitem__ so peak RAM is O(n_rows) instead of O(n_windows × input_steps).
-    """
-
-    def __init__(
-        self,
-        df: pl.DataFrame,
-        input_steps: int,
-        horizon: int,
-        scaler_glucose: MinMaxScaler | None = None,
-        fit_scalers: bool = False,
-    ):
-        self.input_steps = input_steps
-        self.horizon = horizon
-        window_len = input_steps + horizon
-
-        # Gather raw glucose arrays per series using fast Polars group iteration
-        raw_glucose: list[np.ndarray] = []
-        uids: list = []
-        sgroups: list[str] = []
-        for (uid_val,), grp in df.sort(["unique_id", "ds"]).group_by(["unique_id"], maintain_order=True):
-            uids.append(uid_val)
-            sgroups.append(grp["study_group"][0])
-            raw_glucose.append(grp["glucose"].to_numpy())
-
-        # Fit or reuse scaler on concatenated data
-        if fit_scalers or scaler_glucose is None:
-            all_g = np.concatenate(raw_glucose).reshape(-1, 1)
-            self.scaler_glucose = MinMaxScaler().fit(all_g)
-        else:
-            self.scaler_glucose = scaler_glucose
-
-        # Scale each series and build a flat index: (series_idx, window_start)
-        self._series: list[np.ndarray] = []
-        self._index: list[tuple[int, int]] = []
-        self.series_ids: list = []
-        self.study_groups: list[str] = []
-
-        n_skipped = 0
-        for i, (uid, sg, raw) in enumerate(zip(uids, sgroups, raw_glucose)):
-            g = self.scaler_glucose.transform(raw.reshape(-1, 1)).ravel().astype(np.float32)
-            self._series.append(g)
-            n_windows = len(g) - window_len + 1
-            if n_windows <= 0:
-                n_skipped += 1
-                continue
-            for start in range(n_windows):
-                self._index.append((i, start))
-                self.series_ids.append(uid)
-                self.study_groups.append(sg)
-
-        if n_skipped > 0:
-            print(f"  Note: Skipped {n_skipped} series/segments shorter than "
-                  f"{window_len} steps.")
-
-    def __len__(self) -> int:
-        return len(self._index)
-
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
-        series_idx, start = self._index[idx]
-        g = self._series[series_idx]
-        x = g[start : start + self.input_steps].reshape(-1, 1)
-        y = g[start + self.input_steps : start + self.input_steps + self.horizon]
-        return torch.from_numpy(x), torch.from_numpy(y)
+from common.data import GlucoseUniWindowDataset  # noqa: E402  — re-export for train/eval callers
 
 
 # ============================================================================

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PyTorch run-dir evaluation adapter (GluMind / SugarOne)."""
+"""PyTorch run-dir evaluation adapter (all custom experiment families)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -20,7 +20,7 @@ def evaluate_pytorch_run(
     test_csv: Path,
     train_csv: Path | None = None,
     checkpoint: Path | None = None,
-    model_type: Literal["auto", "glumind", "sugar_one"] = "auto",
+    model_type: Literal["auto", "glumind", "sugar_one", "glumind_uni", "sugar_jepa"] = "auto",
     test_split: str | None = "test",
     batch_size: int | None = None,
     device: str = "auto",
@@ -33,10 +33,10 @@ def evaluate_pytorch_run(
     label: str | None = None,
     project_root: Path | None = None,
 ) -> SingleModelResult:
-    """Run inference via the shared evaluate-model path and wrap metrics."""
+    """Run inference via ``common.evaluation.checkpoint_eval`` and wrap metrics."""
     # Lazy import keeps ``common.evaluation`` importable without pulling torch CLIs
     # at package import time for simple helpers / unit tests.
-    from sugar_one.evaluate_model import evaluate_checkpoint
+    from common.evaluation.checkpoint_eval import evaluate_checkpoint
 
     resolved_device = resolve_torch_device(device)
     payload = evaluate_checkpoint(

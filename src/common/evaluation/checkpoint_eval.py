@@ -1,46 +1,22 @@
 #!/usr/bin/env python3
 """
-evaluate_model.py — Evaluate GluMind or SugarOne checkpoints on arbitrary CSV data.
+Shared PyTorch checkpoint evaluation used by ``glucose evaluate``.
 
-Supports cross-model / cross-dataset comparison:
-  - Models: src/glumind/glumind_model.py (HR + steps) or
-            src/sugar_one/sugar_one_model.py (basal + bolus + carbs)
-  - Datasets: ai_ready (Glucose Value, HR, Step Count) or
-              loop_ai_ready (Glucose, Basal Rate, Bolus, Carbs)
+Supports registered model families (via ``common.model_spec``):
+  glumind / glumind_uni / sugar_one / sugar_jepa
 
-Missing covariates are filled with 0.0 before imputation.
-Use --zero-cov to force all non-glucose covariates to 0.0 after imputation
-(for fair comparison with models trained without covariates on the same dataset).
-Use --include-cov / --exclude-cov for finer-grained covariate ablation at inference.
-Use --covariates to inspect which covariate columns exist in a CSV (no model run).
-If the CSV has a 'Recommended Split' column, rows with split == --test-split
-(default: test) are evaluated; otherwise all rows are used.
+Prefer::
 
-Model resolution (same as evaluate_glumind.py):
-  --run-dir       directory with tuning_meta.json and best_model.pt
-  --registry-dir  auto-picks lowest val_mae from _analysis_registry.csv
-  --checkpoint    explicit .pt file (requires --run-dir for architecture meta)
-
-Examples:
-  uv run evaluate-model \\
-      --run-dir test_model \\
-      --test-csv data/input/actual/with_complex_steps_processing/ai_ready_plus_type1_v1_val_in_val_and_test.csv
-
-  uv run evaluate-model \\
-      --run-dir data/output/runs/sugar_one_tune/production/trial_0 \\
-      --model-type sugar_one \\
-      --test-csv data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv
+  uv run glucose evaluate --run-dir <run> --data <csv> ...
 """
 from __future__ import annotations
 
 import csv
-import json
 import sys
-from enum import Enum
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-project_root = Path(__file__).parents[2]
+project_root = Path(__file__).resolve().parents[3]
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
@@ -51,27 +27,19 @@ import torch.nn as nn
 import typer
 from torch.utils.data import DataLoader
 
-from glumind.train_glumind import (
+from common.checkpoint import strip_compile_prefix
+from common.data.columns import (
+    COL_EVENT,
     COL_GROUP,
     COL_SEQ,
     COL_SPLIT,
-    COL_TS as GLUMIND_COL_TS,
+    COL_TS,
+    COL_TS_SHORT,
     COL_USER,
     TS_FORMAT,
-    GlucoseWindowDataset,
-    apply_split_scheme as apply_split_scheme_glumind,
-    impute_and_sort as impute_and_sort_glumind,
-    load_splits_streaming as load_splits_glumind,
-    mae_rmse_mard,
 )
-from sugar_one.train_sugar_one import (
-    COL_TS as IC_COL_TS,
-    SugarOneWindowDataset,
-    apply_split_scheme as apply_split_scheme_ic,
-    impute_and_sort as impute_and_sort_ic,
-    load_splits_streaming as load_splits_ic,
-)
-from common.checkpoint import strip_compile_prefix
+from common.data.loading import impute_and_sort as common_impute_and_sort
+from common.evaluation.config import SUPPORTED_MODEL_TYPES
 from common.model_spec import detect_family_kind, get_family_spec
 from common.paths import resolve_project_path
 from common.registry import (
@@ -87,37 +55,37 @@ from common.scalers import (
     resolve_scalers_path,
     save_scalers_for_run,
 )
-from common.evaluation import (
+from common.evaluation.core import (
     COVARIATE_NAME_ALIASES,
     _alias_to_canonical,
     _load_csv_flexible as _common_load_csv_flexible,
     _parse_covariate_names,
     _pick_header_column,
     _resolve_covariate_zeroing,
-    _run_evaluate as _common_run_evaluate,
     _split_cov_arg,
     _zero_covariates,
     DEFAULT_INFERENCE_LOG_INTERVAL_S,
 )
+from glumind.train_glumind import (
+    apply_split_scheme as apply_split_scheme_glumind,
+    load_splits_streaming as load_splits_glumind,
+    mae_rmse_mard,
+)
+from sugar_one.train_sugar_one import (
+    apply_split_scheme as apply_split_scheme_ic,
+    load_splits_streaming as load_splits_ic,
+)
 
-app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
+ModelKind = Literal["glumind", "sugar_one", "glumind_uni", "sugar_jepa"]
+SUPPORTED_KINDS: tuple[str, ...] = tuple(
+    t for t in SUPPORTED_MODEL_TYPES if t != "auto"
+)
 
-ModelKind = Literal["glumind", "sugar_one"]
-
-COL_EVENT = "Event Type"
-
-TS_ALIASES = [GLUMIND_COL_TS, IC_COL_TS]
-
-
-class ModelTypeChoice(str, Enum):
-    auto = "auto"
-    glumind = "glumind"
-    sugar_one = "sugar_one"
+TS_ALIASES = [COL_TS, COL_TS_SHORT]
 
 
 # ---------------------------------------------------------------------------
-# Registry / checkpoint helpers (shared with evaluate_glumind.py via
-# common.registry; thin wrappers below bind project_root).
+# Registry / checkpoint helpers (via common.registry; thin wrappers bind project_root).
 # ---------------------------------------------------------------------------
 
 def _find_best_run_dir(registry_dir: Path) -> tuple[Path, dict]:
@@ -138,13 +106,14 @@ def _detect_model_kind(meta: dict, state: dict[str, torch.Tensor]) -> ModelKind:
     except ValueError as exc:
         typer.echo(
             f"Error: Could not auto-detect model type from checkpoint. "
-            f"Pass --model-type glumind or sugar_one. ({exc})",
+            f"Pass --model-type explicitly ({'|'.join(SUPPORTED_KINDS)}). ({exc})",
             err=True,
         )
         raise typer.Exit(1) from exc
-    if detected not in ("glumind", "sugar_one"):
+    if detected not in SUPPORTED_KINDS:
         typer.echo(
-            f"Error: evaluate-model supports glumind/sugar_one; got {detected!r}.",
+            f"Error: unsupported model family {detected!r}; "
+            f"expected one of {', '.join(SUPPORTED_KINDS)}.",
             err=True,
         )
         raise typer.Exit(1)
@@ -161,7 +130,23 @@ def _canonical_feature_cols(model_kind: ModelKind) -> list[str]:
 
 
 def _non_glucose_covariate_cols(model_kind: ModelKind) -> list[str]:
+    aliases = get_family_spec(model_kind).covariate_aliases
+    if aliases:
+        return list(aliases.keys())
     return [c for c in _canonical_feature_cols(model_kind) if c != "glucose"]
+
+
+def _impute_for_kind(df: pl.DataFrame, model_kind: ModelKind) -> pl.DataFrame:
+    spec = get_family_spec(model_kind)
+    return common_impute_and_sort(
+        df,
+        ffill_bfill_columns=list(spec.ffill_bfill_columns),
+        zero_fill_columns=list(spec.zero_fill_columns),
+    )
+
+
+def _uses_glumind_splits(model_kind: ModelKind) -> bool:
+    return model_kind in ("glumind", "glumind_uni")
 
 
 def _zero_non_glucose_covariates(df: pl.DataFrame, model_kind: ModelKind) -> pl.DataFrame:
@@ -210,7 +195,7 @@ def _print_dataset_covariates(
     """Print covariate column mapping and fill stats for the target CSV."""
     header = _read_csv_header(csv_path)
     kinds: list[ModelKind] = (
-        [model_kind] if model_kind is not None else ["glumind", "sugar_one"]
+        [model_kind] if model_kind is not None else list(SUPPORTED_KINDS)  # type: ignore[arg-type]
     )
     split_label = eval_split if eval_split else "all rows"
     typer.echo(f"Dataset : {csv_path}")
@@ -302,7 +287,7 @@ def _load_train_for_scalers(
     split_scheme = meta.get("split_scheme", "classic")
     unique_id = meta.get("unique_id", "sequence_id")
     drop_interpolated = meta.get("drop_interpolated", False)
-    impute = impute_and_sort_glumind if model_kind == "glumind" else impute_and_sort_ic
+    impute = lambda frame: _impute_for_kind(frame, model_kind)
 
     if scaler_csv == test_csv_path:
         train_df = _load_csv_flexible(
@@ -338,8 +323,12 @@ def _load_train_for_scalers(
             )
         return impute(train_df)
 
-    load_splits = load_splits_glumind if model_kind == "glumind" else load_splits_ic
-    apply_split = apply_split_scheme_glumind if model_kind == "glumind" else apply_split_scheme_ic
+    if _uses_glumind_splits(model_kind):
+        load_splits = load_splits_glumind
+        apply_split = apply_split_scheme_glumind
+    else:
+        load_splits = load_splits_ic
+        apply_split = apply_split_scheme_ic
 
     train_df_raw, val_df_raw, test_df_raw = load_splits(
         scaler_csv,
@@ -378,19 +367,13 @@ def _build_train_dataset(
     train_df: pl.DataFrame,
     model_kind: ModelKind,
     meta: dict,
-) -> GlucoseWindowDataset | SugarOneWindowDataset:
-    if model_kind == "glumind":
-        return GlucoseWindowDataset(
-            train_df,
-            input_steps=meta["input_steps"],
-            horizon=meta["horizon"],
-            fit_scalers=True,
-        )
-    return SugarOneWindowDataset(
+) -> Any:
+    return get_family_spec(model_kind).build_window_dataset(
         train_df,
-        input_steps=meta["input_steps"],
-        horizon=meta["horizon"],
+        input_steps=int(meta["input_steps"]),
+        horizon=int(meta["horizon"]),
         fit_scalers=True,
+        meta=meta,
     )
 
 
@@ -399,57 +382,25 @@ def _build_eval_dataset_from_scalers(
     scalers: dict,
     model_kind: ModelKind,
     meta: dict,
-) -> GlucoseWindowDataset | SugarOneWindowDataset:
-    if model_kind == "glumind":
-        return GlucoseWindowDataset(
-            eval_df,
-            input_steps=meta["input_steps"],
-            horizon=meta["horizon"],
-            scaler_glucose=scalers["glucose"],
-            scaler_hr=scalers["hr"],
-            scaler_steps=scalers["steps"],
-            fit_scalers=False,
-        )
-    return SugarOneWindowDataset(
+) -> Any:
+    return get_family_spec(model_kind).build_window_dataset(
         eval_df,
-        input_steps=meta["input_steps"],
-        horizon=meta["horizon"],
-        scaler_glucose=scalers["glucose"],
-        scaler_basal=scalers["basal"],
-        scaler_bolus=scalers["bolus"],
-        scaler_carbs=scalers["carbs"],
+        input_steps=int(meta["input_steps"]),
+        horizon=int(meta["horizon"]),
+        scalers=scalers,
         fit_scalers=False,
+        meta=meta,
     )
 
 
 def _build_eval_dataset(
     eval_df: pl.DataFrame,
-    train_ds: GlucoseWindowDataset | SugarOneWindowDataset,
+    train_ds: Any,
     model_kind: ModelKind,
     meta: dict,
-) -> GlucoseWindowDataset | SugarOneWindowDataset:
-    if model_kind == "glumind":
-        assert isinstance(train_ds, GlucoseWindowDataset)
-        return GlucoseWindowDataset(
-            eval_df,
-            input_steps=meta["input_steps"],
-            horizon=meta["horizon"],
-            scaler_glucose=train_ds.scaler_glucose,
-            scaler_hr=train_ds.scaler_hr,
-            scaler_steps=train_ds.scaler_steps,
-            fit_scalers=False,
-        )
-    assert isinstance(train_ds, SugarOneWindowDataset)
-    return SugarOneWindowDataset(
-        eval_df,
-        input_steps=meta["input_steps"],
-        horizon=meta["horizon"],
-        scaler_glucose=train_ds.scaler_glucose,
-        scaler_basal=train_ds.scaler_basal,
-        scaler_bolus=train_ds.scaler_bolus,
-        scaler_carbs=train_ds.scaler_carbs,
-        fit_scalers=False,
-    )
+) -> Any:
+    scalers = get_family_spec(model_kind).extract_scalers(train_ds)
+    return _build_eval_dataset_from_scalers(eval_df, scalers, model_kind, meta)
 
 
 def _resolve_feature_scalers(
@@ -538,9 +489,53 @@ def _run_evaluate(
     device: str,
     n_windows: int,
     log_interval_s: float = DEFAULT_INFERENCE_LOG_INTERVAL_S,
+    *,
+    model_kind: ModelKind = "glumind",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Run inference with periodic progress logs and ETA."""
-    return _common_run_evaluate(model, loader, device, n_windows, log_interval_s)
+    """Run inference with periodic progress logs and ETA (family-aware via Spec)."""
+    import time
+    from datetime import timedelta
+
+    spec = get_family_spec(model_kind)
+    model.eval()
+    device_t = torch.device(device)
+    n_batches_total = len(loader)
+    batch_size = loader.batch_size or 1
+    all_true: list[np.ndarray] = []
+    all_pred: list[np.ndarray] = []
+    t_start = time.perf_counter()
+    t_last_log = 0.0
+
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(loader, start=1):
+            y, pred = spec.infer_batch(model, batch, device_t)
+            all_true.append(y.float().cpu().numpy())
+            all_pred.append(pred.float().cpu().numpy())
+
+            now = time.perf_counter()
+            elapsed = now - t_start
+            should_log = (
+                batch_idx == 1
+                or batch_idx == n_batches_total
+                or (elapsed - t_last_log) >= log_interval_s
+            )
+            if should_log:
+                pct = 100.0 * batch_idx / n_batches_total
+                batches_per_s = batch_idx / elapsed if elapsed > 0 else 0.0
+                remaining_batches = n_batches_total - batch_idx
+                eta_s = remaining_batches / batches_per_s if batches_per_s > 0 else 0.0
+                windows_done = min(batch_idx * batch_size, n_windows)
+                typer.echo(
+                    f"  inference {batch_idx:,}/{n_batches_total:,} batches "
+                    f"({pct:.1f}%) | ~{windows_done:,}/{n_windows:,} windows | "
+                    f"elapsed {timedelta(seconds=int(elapsed))} | "
+                    f"ETA {timedelta(seconds=int(eta_s))}"
+                )
+                t_last_log = elapsed
+
+    true_arr = np.concatenate(all_true, axis=0) if all_true else np.array([])
+    pred_arr = np.concatenate(all_pred, axis=0) if all_pred else np.array([])
+    return true_arr, pred_arr
 
 
 def evaluate_checkpoint(
@@ -563,9 +558,9 @@ def evaluate_checkpoint(
     project_root: Path | None = None,
     echo: bool = True,
 ) -> dict:
-    """Evaluate a GluMind/SugarOne checkpoint; return metrics payload dict.
+    """Evaluate a custom PyTorch checkpoint; return metrics payload dict.
 
-    Shared by ``evaluate-model`` and ``glucose evaluate``. Raises ``typer.Exit``
+    Shared by ``glucose evaluate``. Raises ``typer.Exit``
     on user-facing errors (same behavior as the CLI).
     """
     from common.evaluation.device import resolve_torch_device
@@ -598,16 +593,18 @@ def evaluate_checkpoint(
         typer.echo(f"Test CSV     : {test_path}")
 
     state_probe = torch.load(ckpt_path, map_location="cpu", weights_only=True)
-    if model_type in ("", "auto"):
+    normalized_type = str(model_type or "auto").strip().lower().replace("-", "_")
+    if normalized_type in ("", "auto"):
         resolved_kind = _detect_model_kind(meta, state_probe)
     else:
-        resolved_kind = model_type  # type: ignore[assignment]
-        if resolved_kind not in ("glumind", "sugar_one"):
+        if normalized_type not in SUPPORTED_KINDS:
             typer.echo(
-                f"Error: model_type must be auto/glumind/sugar_one, got {model_type!r}.",
+                f"Error: model_type must be auto|{'|'.join(SUPPORTED_KINDS)}, "
+                f"got {model_type!r}.",
                 err=True,
             )
             raise typer.Exit(1)
+        resolved_kind = normalized_type  # type: ignore[assignment]
 
     if echo:
         typer.echo(f"Model type   : {resolved_kind}")
@@ -655,7 +652,6 @@ def evaluate_checkpoint(
         if echo:
             typer.echo(f"Scaler source: {scaler_source}")
 
-        impute = impute_and_sort_glumind if resolved_kind == "glumind" else impute_and_sort_ic
         if echo:
             typer.echo(f"Loading evaluation data from: {test_path}")
         eval_df = _load_csv_flexible(
@@ -666,7 +662,7 @@ def evaluate_checkpoint(
             eval_split=eval_split,
             train_only=False,
         )
-        eval_df = impute(eval_df)
+        eval_df = _impute_for_kind(eval_df, resolved_kind)
         if zeroed_cov:
             eval_df = _zero_covariates(eval_df, zeroed_cov)
     finally:
@@ -702,6 +698,7 @@ def evaluate_checkpoint(
         device,
         n_windows=len(eval_ds),
         log_interval_s=log_interval_s,
+        model_kind=resolved_kind,
     )
 
     scaler_glucose = scalers["glucose"]
@@ -753,159 +750,3 @@ def evaluate_checkpoint(
         typer.echo("=" * 50)
 
     return payload
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
-@app.command()
-def main(
-    test_csv: Path = typer.Option(
-        ...,
-        "--test-csv",
-        help="CSV file to evaluate on.",
-    ),
-    run_dir: Path | None = typer.Option(
-        None,
-        "--run-dir",
-        help="Run directory with tuning_meta.json and best_model.pt.",
-    ),
-    registry_dir: Path | None = typer.Option(
-        None,
-        "--registry-dir",
-        help="Directory with _analysis_registry.csv; picks lowest val_mae run.",
-    ),
-    checkpoint: Path | None = typer.Option(
-        None,
-        "--checkpoint",
-        help="Explicit .pt weights file (requires --run-dir for architecture meta).",
-    ),
-    train_csv: Path | None = typer.Option(
-        None,
-        "--train-csv",
-        help=(
-            "CSV for legacy scaler fitting when scalers.json is absent "
-            "(default: csv from tuning_meta.json)."
-        ),
-    ),
-    refit_scalers: bool = typer.Option(
-        False,
-        "--refit-scalers",
-        help="Ignore scalers.json and re-fit from --train-csv / metadata csv.",
-    ),
-    allow_fit_on_eval: bool = typer.Option(
-        False,
-        "--allow-fit-on-eval",
-        help=(
-            "Allow fitting scalers on evaluation/all rows when the train split "
-            "is missing (not recommended for small personal datasets)."
-        ),
-    ),
-    model_type: ModelTypeChoice = typer.Option(
-        ModelTypeChoice.auto,
-        "--model-type",
-        help="Model architecture: glumind (HR+steps) or sugar_one (insulin+carbs).",
-    ),
-    test_split: str | None = typer.Option(
-        "test",
-        "--test-split",
-        help=(
-            "Evaluate rows where 'Recommended Split' equals this value. "
-            "Use --test-split='' to disable split filtering."
-        ),
-    ),
-    batch_size: int | None = typer.Option(
-        None,
-        "--batch-size",
-        help="DataLoader batch size (default: from tuning_meta.json).",
-    ),
-    device: str = typer.Option(
-        "auto",
-        help="Torch device for inference (auto|cuda|mps|cpu).",
-    ),
-    output_json: Path | None = typer.Option(
-        None,
-        "--output-json",
-        help="Optional path to write metrics as JSON for batch comparisons.",
-    ),
-    log_interval: float = typer.Option(
-        DEFAULT_INFERENCE_LOG_INTERVAL_S,
-        "--log-interval",
-        help="Seconds between inference progress log lines (0 = log first and last only).",
-    ),
-    zero_cov: bool = typer.Option(
-        False,
-        "--zero-cov",
-        help=(
-            "Zero all non-glucose covariates at evaluation time (after imputation). "
-            "Equivalent to excluding every non-glucose covariate. "
-            "Mutually exclusive with --include-cov / --exclude-cov."
-        ),
-    ),
-    include_cov: str | None = typer.Option(
-        None,
-        "--include-cov",
-        help=(
-            "Comma-separated covariates to keep at inference; all other "
-            "non-glucose covariates are zeroed after imputation. "
-            "Example: --include-cov basal,bolus"
-        ),
-    ),
-    exclude_cov: str | None = typer.Option(
-        None,
-        "--exclude-cov",
-        help=(
-            "Comma-separated covariates to zero at inference; remaining "
-            "non-glucose covariates are kept. Example: --exclude-cov carbs"
-        ),
-    ),
-    covariates: bool = typer.Option(
-        False,
-        "--covariates",
-        help=(
-            "Print covariate columns available in --test-csv and exit "
-            "(no checkpoint or inference required)."
-        ),
-    ),
-) -> None:
-    test_path = _resolve_csv_path(test_csv)
-    eval_split = test_split if test_split else None
-
-    if covariates:
-        resolved_kind: ModelKind | None
-        if model_type == ModelTypeChoice.auto:
-            resolved_kind = None
-        else:
-            resolved_kind = model_type.value  # type: ignore[assignment]
-        _print_dataset_covariates(test_path, resolved_kind, eval_split)
-        raise typer.Exit(0)
-
-    payload = evaluate_checkpoint(
-        test_csv=test_csv,
-        run_dir=run_dir,
-        registry_dir=registry_dir,
-        checkpoint=checkpoint,
-        train_csv=train_csv,
-        refit_scalers=refit_scalers,
-        allow_fit_on_eval=allow_fit_on_eval,
-        model_type=model_type.value,
-        test_split=test_split,
-        batch_size=batch_size,
-        device=device,
-        log_interval=log_interval,
-        zero_cov=zero_cov,
-        include_cov=include_cov,
-        exclude_cov=exclude_cov,
-        echo=True,
-    )
-
-    if output_json is not None:
-        output_json.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_json, "w") as f:
-            json.dump(payload, f, indent=2)
-        typer.echo(f"Metrics written to {output_json}")
-
-
-if __name__ == "__main__":
-    app()

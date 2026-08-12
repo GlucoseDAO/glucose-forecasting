@@ -9,7 +9,7 @@ Prefer built-in help for exact flags:
 
 Argparse CLIs use `--snake_case`. Typer apps use `--kebab-case`.
 
-Full worked examples also live in the root [README.md](../README.md). This page is the durable reference for **what shipped** after platform adoption (Phases 1–5).
+Full worked examples also live in the root [README.md](../README.md).
 
 ---
 
@@ -23,7 +23,7 @@ uv run glucose info
 | Command | Role |
 |---------|------|
 | `info` | Package version, default runs root, evaluate config path |
-| `evaluate` | Compare one or more run dirs (defaults: `src/glucose_evaluate.yaml`) |
+| `evaluate` | **Unified** eval/compare for custom PyTorch runs (all model families) |
 | `neuralforecast` | NF holdout train / evaluate / summarize |
 | `release` | Pack / check / publish / pull inference bundles (format 1.0) |
 
@@ -31,24 +31,35 @@ There is **no** `glucose train` for custom PyTorch. Train with experiment CLIs (
 
 ### `glucose evaluate`
 
+Central path for GluMind / GluMind-Uni / SugarOne / SugarJepa checkpoints (auto-detect or `--model-type`). Logic lives under `common/evaluation/checkpoint_eval.py`. Window datasets and CSV helpers live under `common/data/`.
+
 ```bash
 uv run glucose evaluate --help
 # Defaults from YAML (no --run-dir):
 uv run glucose evaluate
+# Single run re-inference:
+uv run glucose evaluate --run-dir test_model_glumind --model-type glumind \
+  --data test_data/livia_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
 ```
 
 | Option | Meaning |
 |--------|---------|
 | `--run-dir` | Leaf run dir **or** container of runs (repeatable). Containers expand to best-by-val-MAE per model family. Default: `models[]` in YAML. |
+| `--registry-dir` | Pick lowest `val_mae` from `_analysis_registry.csv` (single model). |
+| `--checkpoint` | Explicit `.pt` weights (with `--run-dir` for meta). |
 | `--data` | Eval CSV (default from YAML). Omit to use precomputed metrics when present. |
 | `--train-data` | Legacy scaler fit CSV when `scalers.json` is missing. |
 | `--label` | Label per `--run-dir` (repeatable). |
 | `--out` | Comparison report directory (default `data/output/compare`). |
 | `--config` | YAML defaults (`src/glucose_evaluate.yaml`). |
-| `--model-type` | `auto` \| `glumind` \| `sugar_one`. |
+| `--model-type` | `auto` \| `glumind` \| `sugar_one` \| `glumind_uni` \| `sugar_jepa`. |
 | `--test-split` | `Recommended Split` filter (default `test`; empty disables). |
 | `--batch-size`, `--device` | Inference controls (`device`: `auto` \| `cuda` \| `mps` \| `cpu`). |
 | `--zero-cov` / `--include-cov` / `--exclude-cov` | Covariate ablation. |
+| `--refit-scalers` / `--allow-fit-on-eval` | Scaler fallback controls. |
+| `--covariates` | Inspect CSV covariate columns and exit. |
+| `--output-json` | Write metrics JSON for a single-run eval. |
+| `--log-interval` | Progress log cadence (seconds). |
 | `--plot` / `--no-plot` | Comparison charts under `--out`. |
 
 YAML `models[]` entries may point at pinned demos (`test_model_glumind`) or containers such as `data/output/runs/nf_holdout`.
@@ -75,8 +86,6 @@ uv run glucose release publish <bundle_dir> --repo ORG/NAME [--private]
 uv run glucose release pull --repo ORG/NAME --out <dir> [--revision main]
 ```
 
-Pack reads `best_model.pt` / meta / `scalers.json` / metrics CSVs and writes a checksummed format-1.0 bundle (`model.safetensors` + contract JSON). Inference load is Python: `common.release.load_inference_bundle(...)`.
-
 ---
 
 ## Experiment / console entry points
@@ -84,9 +93,6 @@ Pack reads `best_model.pt` / meta / `scalers.json` / metrics CSVs and writes a c
 | Command | Module | Notes |
 |---------|--------|------|
 | `train-glumind` | `src/glumind/train_glumind.py` | argparse |
-| `evaluate-glumind` | `src/glumind/evaluate_glumind.py` | Typer; GluMind-only |
-| `evaluate-model` | `src/sugar_one/evaluate_model.py` | Typer; unified GluMind + SugarOne (**preferred** for eval) |
-| `inference-glumind` | `src/glumind/inference_glumind.py` | Typer |
 | `download-glumind-hf` | `src/glumind/download_from_huggingface.py` | Typer |
 | `tune-sugar-one` | `src/sugar_one/tune_sugar_one.py` | Typer + TOML |
 | Personalization suite | `src/personalization/*` | see console scripts in `pyproject.toml` |
@@ -97,10 +103,8 @@ Direct (no console script):
 uv run python src/sugar_one/train_sugar_one.py --help
 uv run python src/glumind_uni/train_uniglumind.py train --help
 uv run python src/nf_baselines/tune_nf_baselines_by_group.py -h
-uv run python src/glumind/eval_gluformer_val_test_masked.py -h
+uv run python src/glumind/eval_gluformer_val_test_masked.py -h   # external HF GluFormer baseline
 ```
-
-Flag tables for these experiment CLIs are maintained in the root README “CLI reference” section (same content as before the platform CLI).
 
 ---
 
@@ -109,7 +113,7 @@ Flag tables for these experiment CLIs are maintained in the root README “CLI r
 ```bash
 uv run glucose --help
 uv run glucose info
-uv run evaluate-model --run-dir test_model_glumind --model-type glumind \
-  --test-csv test_data/livia_glumind_ready.csv --test-split "" --batch-size 4096
+uv run glucose evaluate --run-dir test_model_glumind --model-type glumind \
+  --data test_data/livia_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
 uv run pytest -q
 ```

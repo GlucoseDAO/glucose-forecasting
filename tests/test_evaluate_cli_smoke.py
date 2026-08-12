@@ -1,7 +1,4 @@
-"""End-to-end smoke tests chaining a tiny CPU-trained checkpoint into the
-evaluate-model and evaluate-glumind Typer CLIs, asserting exit 0 and that
-MAE/RMSE/MARD are printed.
-"""
+"""End-to-end smoke: train a tiny SugarOne checkpoint, then evaluate via glucose CLI."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -50,19 +47,21 @@ def _train_sugar_one(tmp_path: Path) -> tuple[Path, Path]:
     return csv_path, run_dirs[0]
 
 
-def test_evaluate_model_cli_smoke(tmp_path: Path) -> None:
-    from sugar_one.evaluate_model import app as evaluate_model_app
+def test_glucose_evaluate_sugar_one_smoke(tmp_path: Path) -> None:
+    from cli import app as glucose_app
 
     csv_path, run_dir = _train_sugar_one(tmp_path)
 
     result = runner.invoke(
-        evaluate_model_app,
+        glucose_app,
         [
-            "--test-csv", str(csv_path),
+            "evaluate",
             "--run-dir", str(run_dir),
+            "--data", str(csv_path),
             "--model-type", "sugar_one",
             "--test-split", "test",
             "--device", "cpu",
+            "--no-plot",
         ],
     )
     assert result.exit_code == 0, result.output
@@ -71,8 +70,8 @@ def test_evaluate_model_cli_smoke(tmp_path: Path) -> None:
     assert "MARD" in result.output
 
 
-def test_evaluate_glumind_cli_smoke(tmp_path: Path) -> None:
-    from glumind.evaluate_glumind import app as evaluate_glumind_app
+def test_glucose_evaluate_glumind_smoke(tmp_path: Path) -> None:
+    from cli import app as glucose_app
     from glumind.train_glumind import main as train_glumind_main
     import sys
 
@@ -115,12 +114,15 @@ def test_evaluate_glumind_cli_smoke(tmp_path: Path) -> None:
     run_dir = run_dirs[0]
 
     result = runner.invoke(
-        evaluate_glumind_app,
+        glucose_app,
         [
+            "evaluate",
             "--run-dir", str(run_dir),
-            "--test-csv", str(csv_path),
+            "--data", str(csv_path),
+            "--model-type", "glumind",
             "--test-split", "test",
             "--device", "cpu",
+            "--no-plot",
         ],
     )
     assert result.exit_code == 0, result.output

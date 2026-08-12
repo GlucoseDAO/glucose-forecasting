@@ -1,4 +1,5 @@
-"""Unit tests for src/common/data_loading.py."""
+"""Unit tests for common.data.loading."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,7 +8,7 @@ import polars as pl
 import pytest
 import torch
 
-from common.data_loading import (
+from common.data.loading import (
     apply_split_scheme,
     impute_and_sort,
     limit_series,

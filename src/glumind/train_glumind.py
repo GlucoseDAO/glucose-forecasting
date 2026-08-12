@@ -26,17 +26,29 @@ import torch.nn as nn
 from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader, Dataset
 from glumind.glumind_model import GluMindModel
-from common.data_loading import (
+from common.data.columns import (
+    COL_EVENT,
+    COL_GLU_VALUE as COL_GLU,
+    COL_GROUP,
+    COL_HR,
+    COL_SEQ,
+    COL_SPLIT,
+    COL_STEPS,
+    COL_TS,
+    COL_USER,
+    TS_FORMAT,
+)
+from common.data.loading import (
     STUDY_GROUP_ALIASES as STUDY_GROUP_ALIASES,
     STUDY_GROUP_ORDER as STUDY_GROUP_ORDER,
+    apply_split_scheme as apply_split_scheme,
+    impute_and_sort as _common_impute_and_sort,
     limit_series as limit_series,
+    load_splits_streaming as _common_load_splits_streaming,
     normalize_study_group_label as normalize_study_group_label,
     normalize_study_groups_column as normalize_study_groups_column,
     resolve_num_workers as resolve_num_workers,
 )
-from common.data_loading import apply_split_scheme as apply_split_scheme
-from common.data_loading import impute_and_sort as _common_impute_and_sort
-from common.data_loading import load_splits_streaming as _common_load_splits_streaming
 from common.metrics import mae_rmse_mard as mae_rmse_mard
 from common.checkpoint import (
     load_full_checkpoint as _common_load_full_checkpoint,
@@ -49,20 +61,8 @@ from common.scalers import SCALERS_FILENAME, save_scalers_for_run
 from glumind.glumind_spec import GLUMIND_SPEC
 
 # ---------------------------------------------------------------------------
-# Source CSV columns (same conventions as tune_nf_baselines_by_group.py)
+# Source CSV columns (shared via common.data.columns)
 # ---------------------------------------------------------------------------
-COL_SEQ = "sequence_id"
-COL_USER = "User ID"
-COL_TS = "Timestamp (YYYY-MM-DDThh:mm:ss)"
-COL_SPLIT = "Recommended Split"
-COL_GROUP = "Study Group"
-COL_EVENT = "Event Type"
-
-COL_GLU = "Glucose Value (mg/dL)"
-COL_HR = "Heart Rate"
-COL_STEPS = "Step Count"
-
-TS_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 # ============================================================================
 #  DATA LOADING
@@ -100,99 +100,7 @@ def impute_and_sort(df: pl.DataFrame) -> pl.DataFrame:
 #  SLIDING-WINDOW DATASET
 # ============================================================================
 
-class GlucoseWindowDataset(Dataset):
-    """Lazy sliding-window dataset for multimodal glucose forecasting.
-
-    Stores only the scaled per-series arrays; windows are sliced on-the-fly in
-    __getitem__ so peak RAM is O(n_rows) instead of O(n_windows × input_steps).
-    """
-
-    def __init__(
-        self,
-        df: pl.DataFrame,
-        input_steps: int,
-        horizon: int,
-        scaler_glucose: MinMaxScaler | None = None,
-        scaler_hr: MinMaxScaler | None = None,
-        scaler_steps: MinMaxScaler | None = None,
-        fit_scalers: bool = False,
-    ):
-        self.input_steps = input_steps
-        self.horizon = horizon
-        window_len = input_steps + horizon
-
-        # Gather raw arrays per series
-        raw_glucose: list[np.ndarray] = []
-        raw_hr: list[np.ndarray] = []
-        raw_steps: list[np.ndarray] = []
-        uids: list = []
-        sgroups: list[str] = []
-        for (uid_val,), grp in df.sort(["unique_id", "ds"]).group_by(["unique_id"], maintain_order=True):
-            uids.append(uid_val)
-            sgroups.append(grp["study_group"][0])
-            raw_glucose.append(grp["glucose"].to_numpy())
-            raw_hr.append(grp["hr"].to_numpy())
-            raw_steps.append(grp["steps"].to_numpy())
-
-        # Fit or reuse scalers
-        if fit_scalers or scaler_glucose is None:
-            all_g = np.concatenate(raw_glucose).reshape(-1, 1)
-            all_h = np.concatenate(raw_hr).reshape(-1, 1)
-            all_s = np.concatenate(raw_steps).reshape(-1, 1)
-            self.scaler_glucose = MinMaxScaler().fit(all_g)
-            self.scaler_hr = MinMaxScaler().fit(all_h)
-            self.scaler_steps = MinMaxScaler().fit(all_s)
-        else:
-            self.scaler_glucose = scaler_glucose
-            self.scaler_hr = scaler_hr
-            self.scaler_steps = scaler_steps
-
-        # Scale each series and build an index: (series_idx, window_start_offset)
-        self._series_g: list[np.ndarray] = []
-        self._series_h: list[np.ndarray] = []
-        self._series_s: list[np.ndarray] = []
-        self._index: list[tuple[int, int]] = []   # (series_idx, start)
-        self.series_ids: list = []
-        self.study_groups: list[str] = []
-
-        n_skipped = 0
-        for i, (uid, sg, rg, rh, rs) in enumerate(
-            zip(uids, sgroups, raw_glucose, raw_hr, raw_steps)
-        ):
-            g = self.scaler_glucose.transform(rg.reshape(-1, 1)).ravel().astype(np.float32)
-            h = self.scaler_hr.transform(rh.reshape(-1, 1)).ravel().astype(np.float32)
-            s = self.scaler_steps.transform(rs.reshape(-1, 1)).ravel().astype(np.float32)
-            self._series_g.append(g)
-            self._series_h.append(h)
-            self._series_s.append(s)
-            n_windows = len(g) - window_len + 1
-            if n_windows <= 0:
-                n_skipped += 1
-                continue
-            for start in range(n_windows):
-                self._index.append((i, start))
-                self.series_ids.append(uid)
-                self.study_groups.append(sg)
-
-        if n_skipped > 0:
-            print(f"  Note: Skipped {n_skipped} series/segments shorter than "
-                  f"{window_len} steps.")
-
-    def __len__(self):
-        return len(self._index)
-
-    def __getitem__(self, idx):
-        series_idx, start = self._index[idx]
-        g = self._series_g[series_idx]
-        h = self._series_h[series_idx]
-        s = self._series_s[series_idx]
-        x = np.stack([
-            g[start : start + self.input_steps],
-            h[start : start + self.input_steps],
-            s[start : start + self.input_steps],
-        ], axis=-1)  # (input_steps, 3)
-        y = g[start + self.input_steps : start + self.input_steps + self.horizon]
-        return torch.from_numpy(x), torch.from_numpy(y)
+from common.data import GlucoseWindowDataset  # noqa: E402  — re-export for train/eval callers
 
 
 # ============================================================================

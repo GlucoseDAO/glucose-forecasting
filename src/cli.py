@@ -9,6 +9,7 @@ Defaults live in ``src/glucose_evaluate.yaml`` (override with ``--config`` / fla
 """
 from __future__ import annotations
 
+import json
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Optional
@@ -16,6 +17,7 @@ from typing import Optional
 import typer
 
 from common.evaluation.config import (
+    SUPPORTED_MODEL_TYPES,
     ModelEvalSpec,
     default_config_path,
     load_evaluate_config,
@@ -27,6 +29,7 @@ from common.release.cli import app as release_app
 from nf_baselines.cli import app as neuralforecast_app
 
 DEFAULT_CONFIG_HINT = "src/glucose_evaluate.yaml"
+MODEL_TYPE_HELP = "|".join(SUPPORTED_MODEL_TYPES)
 
 app = typer.Typer(
     name="glucose",
@@ -72,6 +75,16 @@ def evaluate(
         "--run-dir",
         help="Run directory (repeat for multi-run comparison). Default: models[] from YAML.",
     ),
+    registry_dir: Optional[Path] = typer.Option(
+        None,
+        "--registry-dir",
+        help="Directory with _analysis_registry.csv; picks lowest val_mae run (single-model).",
+    ),
+    checkpoint: Optional[Path] = typer.Option(
+        None,
+        "--checkpoint",
+        help="Explicit .pt weights (requires --run-dir / registry for architecture meta).",
+    ),
     data: Optional[Path] = typer.Option(
         None,
         "--data",
@@ -100,7 +113,7 @@ def evaluate(
     model_type: Optional[str] = typer.Option(
         None,
         "--model-type",
-        help="Global model type auto|glumind|sugar_one (YAML / per-model overrides).",
+        help=f"Global model type {MODEL_TYPE_HELP} (YAML / per-model overrides).",
     ),
     test_split: Optional[str] = typer.Option(
         None,
@@ -116,6 +129,31 @@ def evaluate(
     ),
     include_cov: Optional[str] = typer.Option(None, "--include-cov"),
     exclude_cov: Optional[str] = typer.Option(None, "--exclude-cov"),
+    refit_scalers: bool = typer.Option(
+        False,
+        "--refit-scalers",
+        help="Ignore scalers.json and re-fit from --train-data / metadata csv.",
+    ),
+    allow_fit_on_eval: bool = typer.Option(
+        False,
+        "--allow-fit-on-eval",
+        help="Allow fitting scalers on evaluation/all rows when train split is missing.",
+    ),
+    log_interval: float = typer.Option(
+        10.0,
+        "--log-interval",
+        help="Seconds between inference progress log lines (0 = first/last only).",
+    ),
+    output_json: Optional[Path] = typer.Option(
+        None,
+        "--output-json",
+        help="Write primary metrics JSON (single-run / no comparison report path).",
+    ),
+    covariates: bool = typer.Option(
+        False,
+        "--covariates",
+        help="Print covariate columns available in --data and exit (no inference).",
+    ),
     plot: Optional[bool] = typer.Option(
         None,
         "--plot/--no-plot",
@@ -136,12 +174,31 @@ def evaluate(
     resolved_batch = batch_size if batch_size is not None else cfg.batch_size
     resolved_plot = cfg.plot if plot is None else plot
     resolved_model_type = cfg.model_type if model_type is None else model_type
-    if resolved_model_type not in ("auto", "glumind", "sugar_one"):
+    normalized_model_type = str(resolved_model_type).strip().lower().replace("-", "_")
+    if normalized_model_type not in SUPPORTED_MODEL_TYPES:
         typer.echo(
-            f"Error: --model-type must be auto|glumind|sugar_one, got {resolved_model_type!r}.",
+            f"Error: --model-type must be {MODEL_TYPE_HELP}, got {resolved_model_type!r}.",
             err=True,
         )
         raise typer.Exit(1)
+    resolved_model_type = normalized_model_type
+
+    if covariates:
+        if resolved_data is None:
+            typer.echo("Error: --covariates requires --data (or data in YAML).", err=True)
+            raise typer.Exit(1)
+        from common.evaluation.checkpoint_eval import (
+            _print_dataset_covariates,
+            _resolve_csv_path,
+        )
+
+        kind = None if resolved_model_type == "auto" else resolved_model_type
+        if test_split is None:
+            cov_split = cfg.test_split
+        else:
+            cov_split = test_split if test_split else None
+        _print_dataset_covariates(_resolve_csv_path(resolved_data), kind, cov_split)  # type: ignore[arg-type]
+        raise typer.Exit(0)
 
     if test_split is None:
         resolved_split = cfg.test_split
@@ -152,8 +209,29 @@ def evaluate(
     global_include = include_cov if include_cov is not None else cfg.include_cov
     global_exclude = exclude_cov if exclude_cov is not None else cfg.exclude_cov
 
+    if registry_dir is not None and run_dir:
+        typer.echo("Error: use either --run-dir or --registry-dir, not both.", err=True)
+        raise typer.Exit(1)
+
     models: list[ModelEvalSpec]
-    if run_dir:
+    if registry_dir is not None:
+        from common.registry import find_best_run_dir
+        from common.paths import resolve_project_path
+
+        root = Path.cwd()
+        best_dir, _ = find_best_run_dir(resolve_project_path(registry_dir, root), root)
+        models = [
+            ModelEvalSpec(
+                run_dir=best_dir,
+                label=label[0] if label else None,
+                model_type=resolved_model_type,  # type: ignore[arg-type]
+                zero_cov=global_zero,
+                include_cov=global_include,
+                exclude_cov=global_exclude,
+                batch_size=resolved_batch,
+            )
+        ]
+    elif run_dir:
         models = []
         for idx, path in enumerate(run_dir):
             lbl = label[idx] if idx < len(label) else None
@@ -171,7 +249,7 @@ def evaluate(
     else:
         if not cfg.models:
             typer.echo(
-                "Error: provide --run-dir or define models[] in the YAML config.",
+                "Error: provide --run-dir / --registry-dir or define models[] in the YAML config.",
                 err=True,
             )
             raise typer.Exit(1)
@@ -243,6 +321,10 @@ def evaluate(
             zero_cov=models[0].zero_cov,
             include_cov=models[0].include_cov,
             exclude_cov=models[0].exclude_cov,
+            refit_scalers=refit_scalers,
+            allow_fit_on_eval=allow_fit_on_eval,
+            log_interval=log_interval,
+            checkpoint=checkpoint,
         )
         primary = result.primary_overall()
         if primary is None:
@@ -252,7 +334,27 @@ def evaluate(
             f"{result.model_name}: MAE={primary.mae:.4f} "
             f"RMSE={primary.rmse:.4f} MARD={primary.mard:.4f}%"
         )
+        if output_json is not None:
+            payload = {
+                "model_name": result.model_name,
+                "run_dir": str(result.run_dir),
+                "model_type": result.model_type,
+                "mae": primary.mae,
+                "rmse": primary.rmse,
+                "mard": primary.mard,
+                "extra": result.extra,
+            }
+            output_json.parent.mkdir(parents=True, exist_ok=True)
+            output_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            typer.echo(f"Metrics written to {output_json}")
         return
+
+    if checkpoint is not None and len(models) > 1:
+        typer.echo(
+            "Warning: --checkpoint is ignored for multi-run comparison "
+            "(each run uses its own best_model.pt).",
+            err=True,
+        )
 
     results, report_dir = evaluate_and_compare(
         models=models,
@@ -275,6 +377,21 @@ def evaluate(
         )
     if report_dir is not None:
         typer.echo(f"Comparison report: {report_dir}")
+    if output_json is not None and len(results) == 1:
+        primary = results[0].primary_overall()
+        if primary is not None:
+            payload = {
+                "model_name": results[0].model_name,
+                "run_dir": str(results[0].run_dir),
+                "model_type": results[0].model_type,
+                "mae": primary.mae,
+                "rmse": primary.rmse,
+                "mard": primary.mard,
+                "extra": results[0].extra,
+            }
+            output_json.parent.mkdir(parents=True, exist_ok=True)
+            output_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            typer.echo(f"Metrics written to {output_json}")
 
 
 if __name__ == "__main__":
