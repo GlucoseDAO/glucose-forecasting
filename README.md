@@ -11,6 +11,25 @@ The project currently includes:
 - Platform CLI `glucose` (`info`, `evaluate`, `neuralforecast`, `release`) wrapping shared evaluation under `src/common/evaluation/`, NF under `src/nf_baselines/`, and inference bundles under `src/common/release/`.
 - Run analysis artifacts and cross-model comparison reports.
 
+**Docs:** [CLI reference](docs/CLI_REFERENCE.md) · [Migration notes](docs/MIGRATION.md) · [Data layout](docs/DATA.md)
+
+## Quick start
+
+```bash
+uv sync
+uv run glucose --help
+uv run glucose info
+
+# Demo eval (bundled GluMind checkpoint + CSV)
+uv run evaluate-model --run-dir test_model_glumind --model-type glumind \
+  --test-csv test_data/livia_glumind_ready.csv --test-split "" --batch-size 4096
+
+# Default multi-model compare (YAML: demos + best NF runs under nf_holdout)
+uv run glucose evaluate
+
+uv run pytest -q
+```
+
 ## Project Scope
 
 - Forecast horizon: default `12` steps (`60` minutes at `5min` frequency).
@@ -44,14 +63,26 @@ The project currently includes:
 
 ## CLI reference
 
-Every script supports **built-in help** when run with `uv`:
+Durable platform + experiment CLI docs: **[docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)**.  
+Layout / path migration: **[docs/MIGRATION.md](docs/MIGRATION.md)**.
+
+Every script also supports built-in help:
 
 | How to run | Help flag |
 |------------|-----------|
 | Installed console commands (see `pyproject.toml` `[project.scripts]`) | `uv run <command> --help` or `-h` where supported |
-| Python entry files | `uv run python scripts/.../script.py --help` or `-h` (argparse) |
+| Python entry files under `src/` | `uv run python src/.../script.py --help` or `-h` (argparse) |
 
 Argparse-based CLIs (`train_glumind.py`, `tune_nf_baselines_by_group.py`, `eval_gluformer_val_test_masked.py`) print defaults in `--help` via `ArgumentDefaultsHelpFormatter` where configured. Typer apps list each option with `--help`.
+
+### Platform — `glucose`
+
+```bash
+uv run glucose info
+uv run glucose evaluate                    # defaults: src/glucose_evaluate.yaml
+uv run glucose neuralforecast train --help
+uv run glucose release pack --help
+```
 
 ### `train-glumind` — `src/glumind/train_glumind.py`
 

@@ -62,14 +62,16 @@ uv sync
 
 Run tests:
 ```bash
-uv run pytest -q            # full suite (tests/ — 21 tests as of this writing)
+uv run pytest -q            # full suite (tests/)
 uv run pytest tests/test_evaluate_model_covariates.py -q   # single file
 uv run pytest tests/test_train_checkpoint_resume.py::test_checkpoint_stores_wait_and_resumes_next_epoch -q  # single test
 ```
-No lint/format command is configured in `pyproject.toml`.
+
+
+Platform / migration docs: `docs/CLI_REFERENCE.md`, `docs/MIGRATION.md`, `docs/DATA.md`.
 
 Installed console commands (defined in `pyproject.toml` `[project.scripts]`, all runnable as `uv run <name> --help`):
-- `glucose` → `src/cli.py:app` (thin platform CLI: `info`, `evaluate`)
+- `glucose` → `src/cli.py:app` (thin platform CLI: `info`, `evaluate`, `neuralforecast`, `release`)
 - `train-glumind` → `src/glumind/train_glumind.py:main` (argparse CLI)
 - `evaluate-glumind` → `src/glumind/evaluate_glumind.py:app` (Typer; GluMind-only)
 - `evaluate-model` → `src/sugar_one/evaluate_model.py:app` (Typer; **unified** GluMind + SugarOne eval — preferred for new work)
