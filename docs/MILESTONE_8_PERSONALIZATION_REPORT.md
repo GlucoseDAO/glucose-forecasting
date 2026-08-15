@@ -1,7 +1,7 @@
 # Milestone 8 — Personalization and Fine-Tuning Analysis
 
 **Status:** Tooling updated; experiment results pending GPU runs.  
-**Base model:** [`test_model_sugar_one/`](../test_model_sugar_one/)  
+**Base model:** [`fixtures/checkpoints/sugar_one_1.0/`](../fixtures/checkpoints/sugar_one_1.0/)  
 **Package:** [`src/personalization/`](../src/personalization/)  
 **Plan:** [`src/personalization/plan.md`](../src/personalization/plan.md)
 
@@ -49,7 +49,7 @@ Secondary reference (ai_ready only): `lwf_lambda = 0.2` in [`AI_READY_TUNED_MODE
 | Parameter | Base | Grid |
 |-----------|------|------|
 | **LwF lambda** | **0.3** (GluMind type-1) | `0.2, 0.25, 0.3, 0.35` |
-| **Learning rate** | `4e-4` (`test_model_sugar_one`) | `2e-4, 4e-4, 8e-4` (0.5×, 1×, 2×) |
+| **Learning rate** | `4e-4` (`sugar_one_1.0`) | `2e-4, 4e-4, 8e-4` (0.5×, 1×, 2×) |
 | **weight_decay** | **`3e-5`** (`0.00003`) | `1.5e-5, 3e-5, 6e-5` (0.5×, 1×, 2×) |
 | **Patience** | From base model meta | `10` (fixed) |
 
@@ -83,14 +83,14 @@ uv run prepare-personal-csv livia \
 
 # 2) LwF + LR sweep (full train)
 uv run sweep-personal-hyperparams \
-  --base-run-dir test_model_sugar_one \
+  --base-run-dir fixtures/checkpoints/sugar_one_1.0 \
   --personal-csv data/input/personalization/prepared/livia_chronological.csv \
   --out-dir data/output/runs/personalization/livia/sweeps/hyperparams \
   --device cuda
 
 # 3) Days sweep
 uv run sweep-personal-data-size \
-  --base-run-dir test_model_sugar_one \
+  --base-run-dir fixtures/checkpoints/sugar_one_1.0 \
   --personal-csv data/input/personalization/prepared/livia_chronological.csv \
   --recipe-json data/output/runs/personalization/livia/sweeps/hyperparams/best_recipe.json \
   --out-dir data/output/runs/personalization/livia/sweeps/data_size \
@@ -98,7 +98,7 @@ uv run sweep-personal-data-size \
 
 # 4) Holdouts
 uv run validate-personal-holdouts \
-  --base-run-dir test_model_sugar_one \
+  --base-run-dir fixtures/checkpoints/sugar_one_1.0 \
   --recipe-json data/output/runs/personalization/livia/sweeps/hyperparams/best_recipe.json \
   --livia-data-size-summary data/output/runs/personalization/livia/sweeps/data_size/summary.csv \
   --loop-csv data/input/loop_and_ai_ready/loop.csv \
@@ -148,7 +148,7 @@ Document in `holdout_validation/validation_meta.json`.
 
 ## Reproducibility
 
-- [x] LwF teacher = frozen `test_model_sugar_one` weights  
+- [x] LwF teacher = frozen `fixtures/checkpoints/sugar_one_1.0` weights  
 - [x] LR grid anchored to base model `tuning_meta.json`  
 - [x] Fixed personal test window across day sweeps  
 - [x] Holdouts use frozen Livia recipe (no per-user hyperparam retuning)  

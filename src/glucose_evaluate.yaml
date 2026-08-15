@@ -22,11 +22,11 @@ model_type: auto
 
 # Models to compare when --run-dir is omitted.
 models:
-  - run_dir: test_model_glumind
+  - run_dir: fixtures/checkpoints/glumind_1.0
     label: GluMind
     model_type: glumind
     batch_size: 8192
-  - run_dir: test_model_sugar_one
+  - run_dir: fixtures/checkpoints/sugar_one_1.0
     label: SugarOne
     model_type: sugar_one
     # SugarOne (input_steps=128, 3-way cross-attn) OOMs at 8192 on 6GB GPUs.

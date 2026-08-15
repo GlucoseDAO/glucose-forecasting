@@ -17,13 +17,31 @@ DEFAULT_ACTUAL_DATA_ROOT: Path = DEFAULT_INPUT_ROOT / "actual"
 DEFAULT_LOOP_AI_READY_ROOT: Path = DEFAULT_INPUT_ROOT / "loop_and_ai_ready"
 DEFAULT_PERSONALIZATION_DATA_ROOT: Path = DEFAULT_INPUT_ROOT / "personalization"
 
-# Legacy relative prefixes rewritten to the new layout (metadata, registries, CLIs).
+# Tracked demo CSVs and reviewer checkpoints (not gitignored; unlike ``data/``).
+DEFAULT_FIXTURES_ROOT: Path = Path("fixtures")
+DEFAULT_LIVIA_DATA: Path = DEFAULT_FIXTURES_ROOT / "livia_data"
+DEFAULT_CHECKPOINTS_ROOT: Path = DEFAULT_FIXTURES_ROOT / "checkpoints"
+DEFAULT_GLUMIND_CHECKPOINT: Path = DEFAULT_CHECKPOINTS_ROOT / "glumind_1.0"
+DEFAULT_SUGAR_ONE_CHECKPOINT: Path = DEFAULT_CHECKPOINTS_ROOT / "sugar_one_1.0"
+DEFAULT_SUGAR_JEPA_CHECKPOINT: Path = DEFAULT_CHECKPOINTS_ROOT / "sugar_jepa_dev"
+LIVIA_GLUMIND_CSV: Path = DEFAULT_LIVIA_DATA / "livia_glumind_ready.csv"
+LIVIA_SUGAR_ONE_CSV: Path = DEFAULT_LIVIA_DATA / "livia_sugar_one_ready.csv"
+
+# Legacy relative prefixes rewritten to the current layout (metadata, registries, CLIs).
 _LEGACY_PREFIX_REWRITES: tuple[tuple[str, str], ...] = (
     ("data/actual/", "data/input/actual/"),
     ("data/loop_and_ai_ready/", "data/input/loop_and_ai_ready/"),
     ("data/personalization/", "data/input/personalization/"),
     ("marked_runs/", "data/output/marked_runs/"),
     ("runs/", "data/output/runs/"),
+)
+
+# Exact top-level fixture folders (match the name or name/).
+_LEGACY_DIR_REWRITES: tuple[tuple[str, str], ...] = (
+    ("test_data", "fixtures/livia_data"),
+    ("test_model_glumind", "fixtures/checkpoints/glumind_1.0"),
+    ("test_model_sugar_one", "fixtures/checkpoints/sugar_one_1.0"),
+    ("sugar_jepa_dev", "fixtures/checkpoints/sugar_jepa_dev"),
 )
 
 
@@ -39,11 +57,15 @@ def rewrite_legacy_relpath(path_value: str | Path) -> Path:
     Only rewrites when the legacy prefix is present; does not invent paths.
     """
     text = normalize_relpath_text(path_value)
-    # Already under the new runs root — do not rewrite the inner ``runs/`` segment.
+    # Already under the new roots — do not rewrite inner segments (e.g. ``runs/``).
     if text.startswith("data/output/runs/") or text.startswith("data/output/marked_runs/"):
         return Path(text)
-    if text.startswith("data/input/"):
+    if text.startswith("data/input/") or text.startswith("fixtures/"):
         return Path(text)
+
+    for old, new in _LEGACY_DIR_REWRITES:
+        if text == old or text.startswith(old + "/"):
+            return Path(new + text[len(old) :])
 
     for old, new in _LEGACY_PREFIX_REWRITES:
         if text.startswith(old):

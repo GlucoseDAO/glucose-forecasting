@@ -37,8 +37,8 @@ Central path for GluMind / GluMind-Uni / SugarOne / SugarJepa (and comparison ag
 uv run glucose evaluate --help
 uv run glucose evaluate                    # defaults from src/glucose_evaluate.yaml
 uv run glucose evaluate \
-  --run-dir test_model_glumind --model-type glumind \
-  --data test_data/livia_glumind_ready.csv --test-split "" \
+  --run-dir fixtures/checkpoints/glumind_1.0 --model-type glumind \
+  --data fixtures/livia_data/livia_glumind_ready.csv --test-split "" \
   --batch-size 4096 --no-plot
 ```
 
@@ -213,8 +213,8 @@ model.eval()
 ```bash
 uv run glucose --help
 uv run glucose info
-uv run glucose evaluate --run-dir test_model_glumind --model-type glumind \
-  --data test_data/livia_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
+uv run glucose evaluate --run-dir fixtures/checkpoints/glumind_1.0 --model-type glumind \
+  --data fixtures/livia_data/livia_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
 uv run pytest -q
 ```
 

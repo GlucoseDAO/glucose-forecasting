@@ -369,7 +369,7 @@ def test_leaderboard_filters_to_active_grid(tmp_path: Path) -> None:
             "lr": 0.0004,
             "weight_decay": 3e-5,
             "train_window_stride": 6,
-            "base_run_dir": "test_model_sugar_one",
+            "base_run_dir": "fixtures/checkpoints/sugar_one_1.0",
             "personal_csv": "data/p.csv",
             "patience": 3,
             "epochs": 30,
@@ -448,7 +448,7 @@ def test_import_existing_run(tmp_path: Path) -> None:
     metrics = {
         "config": {
             "personalization": True,
-            "base_run_dir": "test_model_sugar_one",
+            "base_run_dir": "fixtures/checkpoints/sugar_one_1.0",
             "personal_csv": "data/p.csv",
             "lwf_lambda": 0.3,
             "lr": 0.0004,
@@ -475,7 +475,7 @@ def test_import_existing_run(tmp_path: Path) -> None:
 
 def test_leaderboard_excludes_failed_trials(tmp_path: Path) -> None:
     params = {
-        "base_run_dir": "test_model_sugar_one",
+        "base_run_dir": "fixtures/checkpoints/sugar_one_1.0",
         "personal_csv": "data/p.csv",
         "lwf_lambda": 0.3,
         "lr": 0.0004,

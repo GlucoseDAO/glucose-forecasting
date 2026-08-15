@@ -266,6 +266,21 @@ def test_rewrite_legacy_relpath_runs_and_datasets() -> None:
     assert rewrite_legacy_relpath("data/output/runs/glumind/x") == Path(
         "data/output/runs/glumind/x"
     )
+    assert rewrite_legacy_relpath("test_data/livia_glumind_ready.csv") == Path(
+        "fixtures/livia_data/livia_glumind_ready.csv"
+    )
+    assert rewrite_legacy_relpath("test_model_glumind") == Path(
+        "fixtures/checkpoints/glumind_1.0"
+    )
+    assert rewrite_legacy_relpath("test_model_sugar_one/best_model.pt") == Path(
+        "fixtures/checkpoints/sugar_one_1.0/best_model.pt"
+    )
+    assert rewrite_legacy_relpath("sugar_jepa_dev") == Path(
+        "fixtures/checkpoints/sugar_jepa_dev"
+    )
+    assert rewrite_legacy_relpath("fixtures/checkpoints/glumind_1.0") == Path(
+        "fixtures/checkpoints/glumind_1.0"
+    )
 
 
 def test_resolve_project_path_rewrites_missing_legacy(tmp_path: Path) -> None:
@@ -273,4 +288,21 @@ def test_resolve_project_path_rewrites_missing_legacy(tmp_path: Path) -> None:
     target = project_root / "data" / "output" / "marked_runs" / "glumind"
     target.mkdir(parents=True)
     resolved = resolve_project_path("marked_runs/glumind", project_root)
+    assert resolved == target
+
+
+def test_resolve_project_path_rewrites_legacy_fixture_dirs(tmp_path: Path) -> None:
+    project_root = tmp_path
+    target = project_root / "fixtures" / "checkpoints" / "glumind_1.0"
+    target.mkdir(parents=True)
+    resolved = resolve_project_path("test_model_glumind", project_root)
+    assert resolved == target
+
+
+def test_resolve_csv_path_basename_under_fixtures_livia(tmp_path: Path) -> None:
+    project_root = tmp_path / "root"
+    target = project_root / "fixtures" / "livia_data" / "livia_glumind_ready.csv"
+    target.parent.mkdir(parents=True)
+    target.write_text("a,b\n1,2\n")
+    resolved = resolve_csv_path("livia_glumind_ready.csv", project_root)
     assert resolved == target

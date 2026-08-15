@@ -36,6 +36,7 @@ Examples:
 
 - Product code lives under `src/` as direct packages (`common`, `glumind`, `sugar_one`, `neuralforecast`, …). There is **no** `scripts/` tree and **no** nested `src/glucose_forecasting/` wrapper.
 - Datasets live under `data/input/` (`actual/`, `loop_and_ai_ready/`, `personalization/`).
+- Tracked demo CSVs and reviewer checkpoints live under `fixtures/` (`livia_data/`, `checkpoints/`). Do not put them under gitignored `data/`.
 - Default run root is `data/output/runs/` (`common.paths.DEFAULT_RUNS_ROOT`); curated runs under `data/output/marked_runs/`.
 - Top-level Typer app: `uv run glucose` (`src/cli.py`) — `info` + `evaluate` + `neuralforecast` + `release` (logic under `src/common/evaluation/`, `src/nf_baselines/`, `src/common/release/`). No `glucose train` for custom PyTorch; use experiment CLIs. NF holdout: `glucose neuralforecast train`. Release bundles: `glucose release check|publish|pull`.
 - Implement adoption work **one phase at a time**; verify with `uv run pytest -q` and the demo `glucose evaluate` smoke before the next phase.
@@ -89,10 +90,10 @@ Full flag reference: **[docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)**. Worked 
 
 Fast smoke test after code changes (no GPU, no full dataset needed):
 ```bash
-uv run glucose evaluate --run-dir test_model_glumind --model-type glumind \
-  --data test_data/livia_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
+uv run glucose evaluate --run-dir fixtures/checkpoints/glumind_1.0 --model-type glumind \
+  --data fixtures/livia_data/livia_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
 ```
-This uses the bundled reviewer checkpoint (`test_model_glumind/`), its **`scalers.json`**, and demo CSV (`test_data/livia_glumind_ready.csv`, ~140k rows, no `Recommended Split` column — always pass `--test-split ""` for it). For SugarOne against the same demo file, add `--zero-cov` since it has no insulin/carb columns. See README.md and `docs/CLI_REFERENCE.md`.
+This uses the bundled reviewer checkpoint (`fixtures/checkpoints/glumind_1.0/`), its **`scalers.json`**, and demo CSV (`fixtures/livia_data/livia_glumind_ready.csv`, ~140k rows, no `Recommended Split` column — always pass `--test-split ""` for it). For SugarOne against the same demo file, add `--zero-cov` since it has no insulin/carb columns. See README.md and `docs/CLI_REFERENCE.md`.
 
 ## Architecture
 

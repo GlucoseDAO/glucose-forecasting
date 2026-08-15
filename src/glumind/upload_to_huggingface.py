@@ -119,7 +119,7 @@ def _build_model_card(model_dir: Path, repo_id: str) -> str:
         "uv run glucose evaluate \\",
         "    --run-dir test_model \\",
         "    --model-type glumind \\",
-        "    --data test_data/livia_glumind_ready.csv \\",
+        "    --data fixtures/livia_data/livia_glumind_ready.csv \\",
         "    --test-split \"\" --no-plot",
         "```",
         "",

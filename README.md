@@ -38,9 +38,9 @@ git clone https://github.com/GlucoseDAO/glucose-forecasting.git
 cd glucose-forecasting
 uv sync
 uv run glucose evaluate \
-  --run-dir test_model_sugar_one \
+  --run-dir fixtures/checkpoints/sugar_one_1.0 \
   --model-type sugar_one \
-  --data test_data/livia_sugar_one_ready.csv \
+  --data fixtures/livia_data/livia_sugar_one_ready.csv \
   --test-split "" \
   --batch-size 256 \
   --no-plot
@@ -50,15 +50,15 @@ GluMind demo (wearable-shaped CSV, no pump columns):
 
 ```bash
 uv run glucose evaluate \
-  --run-dir test_model_glumind \
+  --run-dir fixtures/checkpoints/glumind_1.0 \
   --model-type glumind \
-  --data test_data/livia_glumind_ready.csv \
+  --data fixtures/livia_data/livia_glumind_ready.csv \
   --test-split "" \
   --batch-size 4096 \
   --no-plot
 ```
 
-The repository includes checkpoints and demo data. Evaluation runs locally—your data is not uploaded—and reports MAE, RMSE, and MARD. Bundled `test_model_*` folders already ship **`scalers.json`**; you do not need `--train-data` for the demos.
+The repository includes checkpoints and demo data. Evaluation runs locally—your data is not uploaded—and reports MAE, RMSE, and MARD. Bundled `fixtures/checkpoints/*` folders already ship **`scalers.json`**; you do not need `--train-data` for the demos.
 
 ---
 
@@ -211,8 +211,8 @@ Auto-detects the family (`glumind`, `sugar_one`, `glumind_uni`, `sugar_jepa`, Ne
 
 ```bash
 uv run glucose evaluate \
-  --run-dir test_model_sugar_one --label SugarOne \
-  --run-dir test_model_glumind --label GluMind \
+  --run-dir fixtures/checkpoints/sugar_one_1.0 --label SugarOne \
+  --run-dir fixtures/checkpoints/glumind_1.0 --label GluMind \
   --run-dir data/output/runs/nf_holdout/__ALL__/TFT_... \
   --out data/output/compare/full_comparison
 ```
@@ -236,7 +236,7 @@ plots/
 ### Inference release bundles
 
 ```bash
-uv run glucose release pack test_model_glumind --out temp_docs/my_bundle --release-id glumind-demo
+uv run glucose release pack fixtures/checkpoints/glumind_1.0 --out temp_docs/my_bundle --release-id glumind-demo
 uv run glucose release check <bundle_dir>
 uv run glucose release publish <bundle_dir> --repo ORG/NAME
 uv run glucose release pull --repo ORG/NAME --out <dir>
@@ -326,7 +326,7 @@ uv run glucose neuralforecast train \
 | `loop_ai_ready_joined2.csv` | Full Loop + AI-READI benchmark (~12M rows) |
 | `loop_ai_ready_joined2_dev.csv` | Smaller subset for development |
 
-**No dataset yet?** Start with `test_data/` and `test_model_sugar_one/` / `test_model_glumind/`.
+**No dataset yet?** Start with `fixtures/livia_data/` and `fixtures/checkpoints/sugar_one_1.0/` / `fixtures/checkpoints/glumind_1.0/`.
 
 Details: [docs/DATA.md](docs/DATA.md). Preprocessing options live in [glucose_data_processing](https://github.com/GlucoseDAO/glucose_data_processing).
 
@@ -359,9 +359,12 @@ Details: [docs/DATA.md](docs/DATA.md). Preprocessing options live in [glucose_da
 │   ├── sugar_jepa/            # SugarJEPA experiment
 │   ├── nf_baselines/          # NeuralForecast holdout + legacy tuner
 │   └── personalization/       # personal fine-tune suite
-├── test_model_sugar_one/      # pretrained SugarOne weights + scalers.json
-├── test_model_glumind/        # pretrained GluMind weights + scalers.json
-├── test_data/                 # small demo CSVs
+├── fixtures/
+│   ├── livia_data/            # demo CSVs (Livia)
+│   └── checkpoints/           # shipped reviewer weights + scalers.json
+│       ├── glumind_1.0/
+│       ├── sugar_one_1.0/
+│       └── sugar_jepa_dev/
 ├── data/input/                # your ML-ready CSVs (gitignored)
 ├── data/output/runs/          # training and evaluation outputs
 ├── temp_scripts/              # one-off / prep utilities (e.g. loop_ai_ready joins)
@@ -404,7 +407,7 @@ model.eval()
 | `no evaluation data found` | CSV has no `Recommended Split` — pass `--test-split ""` to score all rows |
 | `no precomputed metrics and no --data` | Pass `--data your.csv` to run live inference |
 | Wrong scaling vs training metrics | Prefer run-dir `scalers.json`; avoid `--refit-scalers` unless intentional |
-| SugarOne on GluMind-only CSV | Pass `--zero-cov` or use `test_data/livia_sugar_one_ready.csv` |
+| SugarOne on GluMind-only CSV | Pass `--zero-cov` or use `fixtures/livia_data/livia_sugar_one_ready.csv` |
 | Need flag help | `uv run glucose evaluate --help` or any `--help` |
 
 ---

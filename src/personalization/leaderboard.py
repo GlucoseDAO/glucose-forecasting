@@ -10,6 +10,8 @@ from typing import Any, Mapping
 
 import polars as pl
 
+from common.paths import resolve_project_path
+
 STATE_VERSION = 1
 STATUS_OK = "ok"
 STATUS_FAILED = "failed"
@@ -37,7 +39,9 @@ METRIC_SORT_KEY = "ft_test_mae"
 
 def resolve_path(raw: str) -> Path:
     p = Path(raw).expanduser()
-    return p if p.is_absolute() else (Path.cwd() / p).resolve()
+    if p.is_absolute():
+        return p
+    return resolve_project_path(p).resolve()
 
 
 def atomic_write_json(path: Path, payload: Mapping[str, Any]) -> None:

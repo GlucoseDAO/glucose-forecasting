@@ -13,9 +13,9 @@ CSV loading lives in ``common.data.loading``. Shared column names in
 uv run glucose evaluate --help
 
 uv run glucose evaluate \
-  --run-dir test_model_glumind \
+  --run-dir fixtures/checkpoints/glumind_1.0 \
   --model-type glumind \
-  --data test_data/livia_glumind_ready.csv \
+  --data fixtures/livia_data/livia_glumind_ready.csv \
   --test-split "" \
   --batch-size 4096 \
   --no-plot

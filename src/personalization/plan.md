@@ -4,7 +4,7 @@
 
 **Milestone (from `docs/milestones.pdf`):** Personalization and Fine-Tuning Analysis.
 
-**Base model:** `test_model_sugar_one/` (SugarOne global checkpoint).
+**Base model:** `fixtures/checkpoints/sugar_one_1.0/` (SugarOne global checkpoint).
 
 **Production approach:** **Plain fine-tune** on the global checkpoint тАФ load weights, train on one person's chronological CGM/pump data with `lwf_lambda=0` (no LwF teacher). This matches the use case: the personalized model is deployed **only for that user**. Experiments showed ~**10├Ч faster** training vs LwF=0.3 with sparse windows (stride=6).
 
@@ -125,7 +125,7 @@ uv run sweep-holdout-lr --device cuda
 ```bash
 # Archive any legacy fp32/wrong-scaler runs first, then:
 uv run sweep-personal-data-size \
-  --base-run-dir test_model_sugar_one \
+  --base-run-dir fixtures/checkpoints/sugar_one_1.0 \
   --personal-csv data/input/personalization/prepared/livia_chronological.csv \
   --recipe-json data/output/runs/personalization/livia/best_recipe.json \
   --out-dir data/output/runs/personalization/livia/sweeps/data_size \
@@ -156,7 +156,7 @@ uv run tune-personal
 
 # Or legacy sweep script (same defaults):
 uv run sweep-personal-hyperparams \
-  --base-run-dir test_model_sugar_one \
+  --base-run-dir fixtures/checkpoints/sugar_one_1.0 \
   --personal-csv data/input/personalization/prepared/livia_chronological.csv \
   --out-dir data/output/runs/personalization/livia/sweeps/hyperparams \
   --device cuda
@@ -168,7 +168,7 @@ uv run python temp_src/personalization/finalize_personal_run.py \
 # Rebuild chart without re-training
 uv run sweep-personal-data-size ... --report-only
 uv run sweep-personal-data-size \
-  --base-run-dir test_model_sugar_one \
+  --base-run-dir fixtures/checkpoints/sugar_one_1.0 \
   --personal-csv data/input/personalization/prepared/livia_chronological.csv \
   --recipe-json data/output/runs/personalization/livia/best_recipe.json \
   --out-dir data/output/runs/personalization/livia/sweeps/data_size \
@@ -176,7 +176,7 @@ uv run sweep-personal-data-size \
 
 # Step 4 тАФ Holdouts
 uv run validate-personal-holdouts \
-  --base-run-dir test_model_sugar_one \
+  --base-run-dir fixtures/checkpoints/sugar_one_1.0 \
   --recipe-json data/output/runs/personalization/livia/best_recipe.json \
   --livia-data-size-summary data/output/runs/personalization/livia/sweeps/data_size/summary.csv \
   --loop-csv data/input/loop_and_ai_ready/loop.csv \

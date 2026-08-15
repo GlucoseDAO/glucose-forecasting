@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from typing import Final
 
+from common.paths import DEFAULT_SUGAR_ONE_CHECKPOINT
+
 # Default global SugarOne checkpoint for personalization experiments.
-DEFAULT_BASE_RUN_DIR: Final[str] = "test_model_sugar_one"
+DEFAULT_BASE_RUN_DIR: Final[str] = DEFAULT_SUGAR_ONE_CHECKPOINT.as_posix()
 
 # Quality Loop users present in loop.csv but excluded from loop_ai_ready_joined2.csv
 # (passed basal/bolus/carb completeness; not selected by row-balance builder).
@@ -55,7 +57,7 @@ DEFAULT_LWF_LAMBDAS: Final[tuple[float, ...]] = (0.2, 0.25, 0.3, 0.35)
 DEFAULT_HOLDOUT_LR_GRID: Final[tuple[float, ...]] = (0.0001, 0.0002, 0.0004)
 LIVIA_REFERENCE_LR: Final[float] = 0.0002
 
-# Step 2: LR multipliers relative to base model ``tuning_meta.json`` lr (test_model_sugar_one: 4e-4).
+# Step 2: LR multipliers relative to base model ``tuning_meta.json`` lr (sugar_one_1.0: 4e-4).
 DEFAULT_LR_MULTIPLIERS: Final[tuple[float, ...]] = (0.5, 1.0, 2.0)
 
 # weight_decay fixed at DEFAULT_WEIGHT_DECAY for personalization; multipliers for legacy sweeps only.

@@ -28,7 +28,7 @@ from common.data.loading import resolve_num_workers
 from common.data import SugarOneWindowDataset
 from common.metrics import mae_rmse_mard, overall_metrics_to_csv
 from common.registry import try_resolve_csv_path
-from common.paths import DEFAULT_RUNS_ROOT
+from common.paths import DEFAULT_RUNS_ROOT, resolve_project_path
 from common.scalers import (
     SCALERS_FILENAME,
     load_scalers,
@@ -234,7 +234,7 @@ def run_finetune(
     if resume_path is not None and not resume_path.is_file():
         raise ValueError(f"resume checkpoint not found: {resume_path}")
 
-    base_run_dir = Path(base_run_dir)
+    base_run_dir = resolve_project_path(base_run_dir)
     personal_csv = Path(personal_csv)
     out_dir = Path(out_dir)
     saved_cfg: dict[str, Any] | None = None
@@ -243,7 +243,7 @@ def run_finetune(
         run_dir = resume_path.parent
         saved_cfg = _load_saved_run_config(run_dir)
         prior_wall_time_s = float(saved_cfg.get("wall_time_s", 0) or 0)
-        base_run_dir = Path(saved_cfg.get("base_run_dir", base_run_dir))
+        base_run_dir = resolve_project_path(saved_cfg.get("base_run_dir", base_run_dir))
         personal_csv = Path(saved_cfg.get("personal_csv", personal_csv))
         lwf_lambda = float(saved_cfg.get("lwf_lambda", lwf_lambda))
         epochs = int(saved_cfg.get("epochs", epochs))

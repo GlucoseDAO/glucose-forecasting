@@ -62,7 +62,7 @@ def parse_training_log(path):
 
 
 def fig_training_curve() -> None:
-    log_path = REPO_ROOT / "test_model_glumind" / "tuning.txt"
+    log_path = REPO_ROOT / "fixtures" / "checkpoints" / "glumind_1.0" / "tuning.txt"
     te, tl, ve, vl, best = parse_training_log(str(log_path))
 
     fig, ax = plt.subplots(figsize=(10, 5))

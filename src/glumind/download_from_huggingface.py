@@ -14,7 +14,7 @@ Then evaluate with:
   uv run glucose evaluate \\
       --run-dir test_model \\
       --model-type glumind \\
-      --data test_data/livia_glumind_ready.csv \\
+      --data fixtures/livia_data/livia_glumind_ready.csv \\
       --test-split "" --no-plot
 """
 from __future__ import annotations
@@ -110,7 +110,7 @@ def main(
         f"  uv run glucose evaluate \\\n"
         f"      --run-dir {output_dir} \\\n"
         f"      --model-type glumind \\\n"
-        f"      --data test_data/livia_glumind_ready.csv \\\n"
+        f"      --data fixtures/livia_data/livia_glumind_ready.csv \\\n"
         f"      --test-split \"\" --no-plot"
     )
 

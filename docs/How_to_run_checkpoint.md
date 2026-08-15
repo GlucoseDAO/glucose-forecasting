@@ -7,24 +7,24 @@ Prefer the platform CLI for all custom PyTorch families (GluMind, GluMind-Uni, S
 ```bash
 # SugarOne + pump-shaped demo CSV
 uv run glucose evaluate \
-  --run-dir test_model_sugar_one \
+  --run-dir fixtures/checkpoints/sugar_one_1.0 \
   --model-type sugar_one \
-  --data test_data/livia_sugar_one_ready.csv \
+  --data fixtures/livia_data/livia_sugar_one_ready.csv \
   --test-split "" \
   --batch-size 256 \
   --no-plot
 
 # GluMind + wearable-shaped demo CSV
 uv run glucose evaluate \
-  --run-dir test_model_glumind \
+  --run-dir fixtures/checkpoints/glumind_1.0 \
   --model-type glumind \
-  --data test_data/livia_glumind_ready.csv \
+  --data fixtures/livia_data/livia_glumind_ready.csv \
   --test-split "" \
   --batch-size 4096 \
   --no-plot
 ```
 
-Both `test_model_*` folders include **`scalers.json`**. You do not need `--train-data` for these smokes.
+Both `fixtures/checkpoints/*` folders include **`scalers.json`**. You do not need `--train-data` for these smokes.
 
 **Livia notes**
 
@@ -59,7 +59,7 @@ With `data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv` available:
 
 ```bash
 uv run glucose evaluate \
-  --run-dir test_model_sugar_one \
+  --run-dir fixtures/checkpoints/sugar_one_1.0 \
   --model-type sugar_one \
   --data data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv \
   --batch-size 256 \

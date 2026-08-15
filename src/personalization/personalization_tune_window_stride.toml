@@ -5,7 +5,7 @@
 # Uses explicit [[runs]] so you control exactly which variants to try.
 
 [paths]
-base_run_dir = "test_model_sugar_one"
+base_run_dir = "fixtures/checkpoints/sugar_one_1.0"
 personal_csv = "data/input/personalization/prepared/livia_chronological.csv"
 output_dir = "data/output/runs/personalization/livia/window_stride_compare"
 

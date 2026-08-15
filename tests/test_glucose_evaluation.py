@@ -108,6 +108,6 @@ def test_load_default_evaluate_config() -> None:
     assert cfg.plot is True
     assert len(cfg.models) >= 3
     names = {m.run_dir.name for m in cfg.models}
-    assert "test_model_glumind" in names
-    assert "test_model_sugar_one" in names
+    assert "glumind_1.0" in names
+    assert "sugar_one_1.0" in names
     assert "nf_holdout" in names
