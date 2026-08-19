@@ -1,6 +1,6 @@
-# Window-stride hypothesis: sparse (stride=6) vs dense (stride=1).
+# Window-stride hypothesis: sparse (stride=6, default) vs dense (stride=1).
 # Run:
-#   uv run tune-personal -c src/personalization/personalization_tune_window_stride.toml
+#   uv run personal-tune -c src/personalization/tune_window_stride.toml
 #
 # Uses explicit [[runs]] so you control exactly which variants to try.
 

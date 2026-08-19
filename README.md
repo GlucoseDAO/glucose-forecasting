@@ -25,7 +25,7 @@ This repository is both a **research platform** and a **reproducible model playg
 
 > **Current flagship result:** SugarOne reaches **12.40 mg/dL MAE** and **9.91% MARD** over **1.67 million held-out forecast windows** from the joined Loop + AI-READI benchmark.
 
-**Docs:** [CLI reference](docs/CLI_REFERENCE.md) · [Data layout](docs/DATA.md) · [How to run a checkpoint](docs/How_to_run_checkpoint.md) · [Presentation](docs/presentation/PRESENTATION_NOTES.md)
+**Docs:** [CLI reference](docs/CLI_REFERENCE.md) · [Data layout](docs/DATA.md) · [Personalization](docs/PERSONALIZATION.md) · [How to run a checkpoint](docs/How_to_run_checkpoint.md) · [Presentation](docs/presentation/PRESENTATION_NOTES.md)
 
 ---
 
@@ -358,7 +358,7 @@ Details: [docs/DATA.md](docs/DATA.md). Preprocessing options live in [glucose_da
 │   ├── sugar_one/             # SugarOne model + train / tune
 │   ├── sugar_jepa/            # SugarJEPA experiment
 │   ├── nf_baselines/          # NeuralForecast holdout + legacy tuner
-│   └── personalization/       # personal fine-tune suite
+│   └── personalization/       # SugarOne personal fine-tune (`personal-*`)
 ├── fixtures/
 │   ├── livia_data/            # demo CSVs (Livia)
 │   └── checkpoints/           # shipped reviewer weights + scalers.json
@@ -417,6 +417,8 @@ model.eval()
 | Doc | Contents |
 |-----|----------|
 | **[CLI Reference](docs/CLI_REFERENCE.md)** | Platform + experiment CLI flags |
+| [Personalization](docs/PERSONALIZATION.md) | SugarOne + Livia fine-tune (`personal-*`) |
+| [Milestone 8 report](docs/MILESTONE_8_PERSONALIZATION_REPORT.md) | Personalization study results |
 | [Data guide](docs/DATA.md) | Preprocessing link, `data/input/` layout, joins |
 | [How to run a checkpoint](docs/How_to_run_checkpoint.md) | Reviewer smoke eval |
 | [Presentation](docs/presentation/PRESENTATION_NOTES.md) | RoBioinfo figures + talk notes |

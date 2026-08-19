@@ -2,7 +2,7 @@
 """Prepare personalization CSVs with chronological train/val/test splits.
 
 Subcommands:
-  livia         — assign chronological Recommended Split on a Livia-style CSV
+  livia         — assign chronological splits (default: Livia SugarOne fixture)
   holdouts      — extract Loop quality holdout users and assign chronological splits
   joined2-test  — extract two joined2 test users per study group
 """
@@ -24,6 +24,9 @@ from personalization.constants import (
     COL_SPLIT,
     COL_TS,
     COL_USER,
+    DEFAULT_LIVIA_PREPARED_DIR,
+    DEFAULT_LIVIA_PREPARED_NAME,
+    DEFAULT_LIVIA_SOURCE_CSV,
     DEFAULT_STUDY_GROUP,
     DEFAULT_TEST_FRACTION,
     DEFAULT_VAL_FRACTION_OF_REMAINDER,
@@ -114,20 +117,57 @@ def prepare_person_frame(
     return labeled, meta
 
 
+def ensure_holdout_csv(
+    loop_csv: Path,
+    user_id: str,
+    out_dir: Path,
+    test_fraction: float,
+    val_fraction_of_remainder: float,
+) -> Path:
+    """Write one chronological holdout CSV if it does not already exist."""
+    out_csv = out_dir / f"loop_{user_id}_chronological.csv"
+    if out_csv.exists():
+        return out_csv
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    person = (
+        pl.scan_csv(loop_csv, infer_schema_length=10_000)
+        .with_columns(pl.col(COL_USER).cast(pl.Utf8))
+        .filter(pl.col(COL_USER) == user_id)
+        .collect()
+    )
+    if person.is_empty():
+        raise ValueError(f"User {user_id} not found in {loop_csv}")
+
+    labeled, meta = prepare_person_frame(
+        person,
+        test_fraction=test_fraction,
+        val_fraction_of_remainder=val_fraction_of_remainder,
+        personal_days=None,
+        study_group="T1DM",
+    )
+    meta["source"] = str(loop_csv)
+    meta["subject"] = f"loop_{user_id}"
+    meta["user_ids"] = [user_id]
+    labeled.write_csv(out_csv)
+    write_split_meta(out_dir / f"loop_{user_id}_split_meta.json", meta)
+    return out_csv
+
+
 @app.command("livia")
 def prepare_livia(
     input: Path = typer.Option(
-        Path("data/input/personalization/livia_glumind_ic_ready_full.csv"),
+        DEFAULT_LIVIA_SOURCE_CSV,
         "--input",
-        help="Livia insulin-schema CSV.",
+        help="Livia SugarOne CSV (default: fixtures/livia_data/livia_sugar_one_ready.csv).",
     ),
     out_dir: Path = typer.Option(
-        Path("data/input/personalization/prepared"),
+        DEFAULT_LIVIA_PREPARED_DIR,
         "--out-dir",
         help="Output directory for prepared CSV + split_meta.json.",
     ),
     out_name: str = typer.Option(
-        "livia_chronological.csv",
+        DEFAULT_LIVIA_PREPARED_NAME,
         "--out-name",
         help="Output CSV filename.",
     ),

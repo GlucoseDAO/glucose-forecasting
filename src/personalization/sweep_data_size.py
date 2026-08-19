@@ -7,7 +7,7 @@ plateau day for optimal dataset size.
 
 Protocol (must match Step-2 tune):
 - plain fine-tune, sparse stride, recipe LR/wd/patience
-- ``precision`` from recipe (default ``bf16`` — same as ``personalization_tune.toml``)
+- ``precision`` from recipe (default ``bf16`` — same as ``tune.toml``)
 - scalers fitted on the **full** personal train split; day limit only for train windows
 """
 from __future__ import annotations
@@ -505,7 +505,7 @@ def _finalize_summary(
     write_best_recipe(subject_root / "best_recipe_with_days.json", recipe_out)
 
     if plot and any(r.get("status") == "ok" for r in rows):
-        from personalization.plot_data_size_curve import plot_data_size_curve
+        from personalization.plots import plot_data_size_curve
 
         chart_path = out_dir / "data_size_curve.png"
         subject_name = str(rows[0].get("subject", "subject"))

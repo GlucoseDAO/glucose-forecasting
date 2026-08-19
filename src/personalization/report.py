@@ -20,7 +20,7 @@ from personalization.cohort import (
     joined2_test_subjects,
     original_cohort_subjects,
 )
-from personalization.plot_data_size_curve import (
+from personalization.plots import (
     plot_combined_data_size_curves,
     plot_curriculum_mae_and_lambda,
     plot_data_size_curve,
@@ -694,7 +694,7 @@ def render_report(
 **Base model:** `fixtures/checkpoints/sugar_one_1.0/` (global SugarOne checkpoint)  
 **Horizon:** 12 steps (60 minutes at 5-minute sampling)
 
-This report is regenerated from on-disk runs. Re-run `uv run run-personal-phase4 --report-only` after interruption to refresh charts from whatever has finished.
+This report is regenerated from on-disk runs. Re-run `uv run personal-study --report-only` after interruption to refresh charts from whatever has finished.
 
 ---
 
@@ -820,12 +820,12 @@ Per-user charts are **limited to 60 days**. Full-train (`all`) is in the tables 
 | Livia LwF MAE + λ panels | `data/output/runs/personalization/livia_lwf_indep_mae_lambda.png` |
 | User 154 independent LwF overlay | `data/output/runs/personalization/loop_154_lwf_indep_combined.png` |
 | Independent LwF overnight status | `data/output/runs/personalization/lwf_indep_status.md` |
-| Research plan | `src/personalization/plan.md` |
+| Research plan | `docs/PERSONALIZATION.md` |
 | Chart copies for this report | `temp_docs/reports/figures/m8_interim/` |
 
 ---
 
-*Regenerated {today} by `run-personal-phase4`.*
+*Regenerated {today} by `personal-study`.*
 """
     return body
 

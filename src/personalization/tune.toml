@@ -1,8 +1,9 @@
-# Personalization fine-tune - Livia hyperparameter grid (Step 2).
+# Personalization fine-tune — Livia + SugarOne (production defaults).
 # Run:
-#   uv run tune-personal
-#   uv run tune-personal --dry-run
-#   uv run tune-personal --list
+#   uv run personal-prepare livia
+#   uv run personal-tune
+#   uv run personal-tune --dry-run
+#   uv run personal-tune --list
 #
 # Outputs in output_dir:
 #   state.json       - every tried combo + status

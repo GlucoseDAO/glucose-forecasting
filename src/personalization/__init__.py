@@ -1,4 +1,4 @@
-"""Milestone 8 personalization package (SugarOne-family fine-tuning research)."""
+"""SugarOne personalization: chronological splits, fine-tune, and study sweeps."""
 
 from __future__ import annotations
 

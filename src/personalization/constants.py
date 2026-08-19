@@ -1,12 +1,23 @@
-"""Shared constants for Milestone 8 personalization experiments."""
+"""Shared constants for SugarOne personalization (insulin + carbs)."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Final
 
-from common.paths import DEFAULT_SUGAR_ONE_CHECKPOINT
+from common.paths import (
+    DEFAULT_PERSONALIZATION_DATA_ROOT,
+    DEFAULT_SUGAR_ONE_CHECKPOINT,
+    LIVIA_SUGAR_ONE_CSV,
+)
 
-# Default global SugarOne checkpoint for personalization experiments.
+# Production personalization: global SugarOne checkpoint + Livia demo CSV.
 DEFAULT_BASE_RUN_DIR: Final[str] = DEFAULT_SUGAR_ONE_CHECKPOINT.as_posix()
+DEFAULT_LIVIA_SOURCE_CSV: Final[Path] = LIVIA_SUGAR_ONE_CSV
+DEFAULT_LIVIA_PREPARED_DIR: Final[Path] = DEFAULT_PERSONALIZATION_DATA_ROOT / "prepared"
+DEFAULT_LIVIA_PREPARED_NAME: Final[str] = "livia_chronological.csv"
+DEFAULT_LIVIA_PREPARED_CSV: Final[Path] = (
+    DEFAULT_LIVIA_PREPARED_DIR / DEFAULT_LIVIA_PREPARED_NAME
+)
 
 # Quality Loop users present in loop.csv but excluded from loop_ai_ready_joined2.csv
 # (passed basal/bolus/carb completeness; not selected by row-balance builder).
@@ -39,15 +50,6 @@ DEFAULT_VAL_FRACTION_OF_REMAINDER: Final[float] = 0.15
 # Step 3: data-size sweep grid (personal train days). "all" = full train split.
 DEFAULT_DATA_SIZE_DAYS: Final[tuple[int | str, ...]] = (1, 3, 7, 14, 30, 60, "all")
 
-# Step 2: LwF starting point from GluMind continual tuning (reports/glumind/).
-# AI_READY_PLUS_TYPE_1 best continual: lwf_lambda=0.3 (glumind_continual_h12_20260226_011733).
-# AI_READY best continual: lwf_lambda=0.2 — secondary reference for non-T1DM cohorts.
-GLUMIND_BEST_LWF_TYPE1: Final[float] = 0.3
-GLUMIND_BEST_LWF_AI_READY: Final[float] = 0.2
-
-# LwF grid for research / continual-learning experiments only (not default personalization).
-DEFAULT_LWF_LAMBDAS: Final[tuple[float, ...]] = (0.2, 0.25, 0.3, 0.35)
-
 # Independent-from-global LwF (teacher = sugar_one_1.0). λ=0 from 30 days
 # reuses the existing λ=0 independent data-size runs.
 LWF_CURRICULUM_ZERO_FROM_DAYS: Final[int] = 30
@@ -59,6 +61,23 @@ LWF_DECAY_SCHEDULE: Final[dict[int, float]] = {
     14: 0.2,
 }
 LWF_CONST_LAMBDA: Final[float] = 0.1
+
+
+def decaying_lwf_lambda(
+    day_budget: int | None,
+    *,
+    schedule: dict[int, float] | None = None,
+    zero_from_days: int = LWF_CURRICULUM_ZERO_FROM_DAYS,
+) -> float:
+    """High LwF on short histories; 0 from ``zero_from_days`` onward (incl. all)."""
+    table = LWF_DECAY_SCHEDULE if schedule is None else schedule
+    if day_budget is None or day_budget >= zero_from_days:
+        return 0.0
+    if day_budget in table:
+        return float(table[day_budget])
+    span = float(zero_from_days)
+    return round(max(table.values()) * max(0.0, 1.0 - day_budget / span), 4)
+
 
 # Step 2: LR grid for holdout transfer check (Livia best was 2e-4).
 DEFAULT_HOLDOUT_LR_GRID: Final[tuple[float, ...]] = (0.0001, 0.0002, 0.0004)

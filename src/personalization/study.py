@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resumable Milestone 8 Phase 4 runner (data-size curves + interim report).
+"""Resumable SugarOne personalization study (data-size curves + report).
 
 Runs the frozen Livia recipe with base-run scalers for Livia, Loop quality
 holdouts, and two joined2 test users per study group. Safe to Ctrl+C and
@@ -67,7 +67,7 @@ def _write_status(payload: dict[str, Any]) -> None:
     payload["updated_at"] = datetime.now().isoformat()
     STATUS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     lines = [
-        "# Phase 4 personalization recalc status",
+        "# Personalization study status",
         "",
         f"Updated: {payload['updated_at']}",
         f"Current: `{payload.get('current') or 'idle'}`",
@@ -81,7 +81,7 @@ def _write_status(payload: dict[str, Any]) -> None:
         lines.append(
             f"- **{entry.get('subject')}**: completed {done}; pending {pending}"
         )
-    lines.extend(["", "Re-run:", "", "```bash", "uv run run-personal-phase4 --device cuda", "```", ""])
+    lines.extend(["", "Re-run:", "", "```bash", "uv run personal-study --device cuda", "```", ""])
     STATUS_MD_PATH.write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -119,7 +119,7 @@ def _params_rows_from_series(root: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def run_phase4(
+def run_study(
     *,
     base_run_dir: Path,
     recipe_json: Path,
@@ -175,7 +175,7 @@ def run_phase4(
         return
 
     safe_echo(
-        f"Phase 4 recalc: {len(selected)} subjects, recipe lr={recipe.get('lr')} "
+        f"Study recalc: {len(selected)} subjects, recipe lr={recipe.get('lr')} "
         f"precision={precision} device={device}"
     )
     safe_echo("Re-invoke this command after Ctrl+C; completed day budgets are skipped.")
@@ -234,7 +234,7 @@ def run_phase4(
 
     status["current"] = "done"
     refresh_report()
-    safe_echo("Phase 4 sweep finished (or dry-run complete).")
+    safe_echo("Study sweep finished (or dry-run complete).")
 
 
 @app.command()
@@ -261,7 +261,7 @@ def main(
         [s.strip() for s in subjects.split(",") if s.strip()] if subjects else None
     )
     try:
-        run_phase4(
+        run_study(
             base_run_dir=base_run_dir,
             recipe_json=recipe_json,
             root=root,

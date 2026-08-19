@@ -93,7 +93,14 @@ uv run glucose release pull --repo ORG/NAME --out <dir> [--revision main]
 | `train-glumind` | `src/glumind/train_glumind.py` | argparse |
 | `download-glumind-hf` | `src/glumind/download_from_huggingface.py` | Typer |
 | `tune-sugar-one` | `src/sugar_one/tune_sugar_one.py` | Typer + TOML |
-| Personalization suite | `src/personalization/*` | see `[project.scripts]` in `pyproject.toml` |
+| `personal-prepare` | `src/personalization/prepare.py` | Chronological personal CSVs |
+| `personal-finetune` | `src/personalization/finetune.py` | One SugarOne personal fine-tune |
+| `personal-tune` | `src/personalization/tune.py` | TOML LR grid + leaderboard |
+| `personal-sweep-days` | `src/personalization/sweep_data_size.py` | Train-days vs MAE |
+| `personal-plot` | `src/personalization/plots.py` | Data-size charts |
+| `personal-sweep-lr` | `src/personalization/sweep_holdout_lr.py` | Holdout LR transfer |
+| `personal-sweep-lwf` | `src/personalization/sweep_lwf.py` | Independent LwF |
+| `personal-study` | `src/personalization/study.py` | Cohort curves + report |
 
 Direct (no console script):
 
@@ -105,6 +112,18 @@ uv run python src/nf_baselines/tune_nf_baselines_by_group.py -h
 uv run python src/glumind/eval_gluformer_val_test_masked.py -h
 uv run python src/glumind/upload_to_huggingface.py --help
 ```
+
+### Personalization (`personal-*`)
+
+SugarOne only (glucose + insulin + carbs). Defaults: Livia fixture + `fixtures/checkpoints/sugar_one_1.0`, train window stride **6**. Full writeup: [PERSONALIZATION.md](PERSONALIZATION.md).
+
+```bash
+uv run personal-prepare livia
+uv run personal-tune --dry-run
+uv run personal-finetune --help
+```
+
+The fixture CSV has an empty `Recommended Split`; `personal-prepare livia` assigns chronological train/val/test. Then `personal-tune` / `personal-finetune` read `data/input/personalization/prepared/livia_chronological.csv`.
 
 ### `train-glumind`
 

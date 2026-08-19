@@ -30,6 +30,7 @@ Examples:
 - Training/eval CLIs and shared libraries under `src/` that are imported by CLIs/tests → keep in the codebase
 
 - Do not add intermediate markdown or scratch analysis under `docs/` or the repo root; `docs/` is for intentional, durable documentation. Training run outputs go under `data/output/runs/` (not top-level `runs/`). See `docs/DATA.md`.
+- **Markdown links:** never wrap a file path in a code span *and* a link, e.g. ``[`src/personalization/`](../src/personalization/)``. In Cursor (and some GitHub previews) that renders as a blue chip on a code background and is unreadable. Use a plain code span (`` `src/personalization/` ``) or a normal link with a readable label (`[personalization package](../src/personalization/)`), not both.
 - **Tests must not reference `temp_scripts/` or `temp_docs/`.** Those folders are gitignored and unavailable from a fresh clone. Do not import, invoke, or assert against temporary scripts or their outputs. If a script moves to `temp_scripts/`, delete the tests that covered it rather than skipping or path-hacking around the move.
 
 ## Layout direction (platform adoption)
@@ -69,13 +70,14 @@ uv run pytest tests/test_train_checkpoint_resume.py::test_checkpoint_stores_wait
 ```
 
 
-Platform docs: `docs/CLI_REFERENCE.md`, `docs/DATA.md`, `docs/How_to_run_checkpoint.md`, `docs/presentation/PRESENTATION_NOTES.md`.
+Platform docs: `docs/CLI_REFERENCE.md`, `docs/DATA.md`, `docs/PERSONALIZATION.md`, `docs/How_to_run_checkpoint.md`, `docs/presentation/PRESENTATION_NOTES.md`.
 
 Installed console commands (defined in `pyproject.toml` `[project.scripts]`, all runnable as `uv run <name> --help`):
 - `glucose` → `src/cli.py:app` (platform CLI: `info`, `evaluate`, `neuralforecast`, `release`)
 - `train-glumind` → `src/glumind/train_glumind.py:main` (argparse CLI)
 - `tune-sugar-one` → `src/sugar_one/tune_sugar_one.py:app` (TOML-driven random hyperparameter search)
 - `download-glumind-hf` → `src/glumind/download_from_huggingface.py:app`
+- `personal-prepare` / `personal-finetune` / `personal-tune` → `src/personalization/` (SugarOne + Livia defaults; see `docs/PERSONALIZATION.md`)
 
 Scripts without a console entry point are run directly, e.g.:
 ```bash
@@ -153,4 +155,4 @@ One-off Loop+AI-READI join / sample scripts live under `temp_scripts/loop_ai_rea
 
 ### Reports and run artifacts
 
-`data/output/runs/` holds training outputs (checkpoints, per-split metrics CSVs, `tuning_meta.json`). `data/output/marked_runs/` is a curated/annotated subset with `RUNS_ANALYSIS.md` writeups per model/dataset combo. Data layout and CSV remap rules: `docs/DATA.md`. Durable comparison and milestone writeups live under `docs/` (e.g. `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`, `docs/T1DM_COVARIATE_ABLATION_REPORT.md`). Intermediate / working reports go under `temp_docs/`. Root `CROSS_MODEL_COMPARISON.md` is the cross-model summary.
+`data/output/runs/` holds training outputs (checkpoints, per-split metrics CSVs, `tuning_meta.json`). `data/output/marked_runs/` is a curated/annotated subset with `RUNS_ANALYSIS.md` writeups per model/dataset combo. Data layout and CSV remap rules: `docs/DATA.md`. Durable comparison and milestone writeups live under `docs/` (e.g. `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`, `docs/T1DM_COVARIATE_ABLATION_REPORT.md`, `docs/MILESTONE_8_PERSONALIZATION_REPORT.md`). Intermediate / working reports go under `temp_docs/`. Root `CROSS_MODEL_COMPARISON.md` is the cross-model summary.

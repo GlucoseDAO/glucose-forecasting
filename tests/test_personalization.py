@@ -1,4 +1,4 @@
-"""Tests for Milestone 8 personalization package."""
+"""Tests for the SugarOne personalization package."""
 from __future__ import annotations
 
 import json
@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 
 from personalization.constants import LOOP_HOLDOUT_QUALITY_USERS, SPARSE_WINDOW_STRIDE
 from personalization.finetune import run_finetune
-from personalization.prepare_personal_csv import app as prepare_app
+from personalization.prepare import app as prepare_app
 from personalization.registry import (
     detect_model_type,
     get_model_spec,
@@ -345,21 +345,23 @@ def test_build_run_combos_grid() -> None:
 
 
 def test_personalization_tune_grid_lr_only() -> None:
-    """Current Step-2 TOML sweeps LR only; lwf=0 and wd fixed at default."""
+    """Default TOML sweeps LR only; lwf=0, wd 3e-5, stride 6, SugarOne + Livia."""
     import tomllib
 
-    cfg = tomllib.loads(
-        Path("src/personalization/personalization_tune.toml").read_text(encoding="utf-8")
-    )
+    cfg = tomllib.loads(Path("src/personalization/tune.toml").read_text(encoding="utf-8"))
     combos = build_run_combos(cfg)
     assert len(combos) == 3
     assert "lwf_lambda" not in cfg.get("grid", {})
     assert "weight_decay" not in cfg.get("grid", {})
     assert cfg["defaults"]["lwf_lambda"] == 0.0
+    assert cfg["defaults"]["train_window_stride"] == 6
+    assert cfg["paths"]["base_run_dir"] == "fixtures/checkpoints/sugar_one_1.0"
+    assert cfg["paths"]["personal_csv"].endswith("livia_chronological.csv")
     lrs = {c["lr"] for c in combos}
     assert lrs == {0.0001, 0.0002, 0.0004}
     assert all(c["lwf_lambda"] == 0.0 for c in combos)
     assert all(c["weight_decay"] == 3e-5 for c in combos)
+    assert all(c["train_window_stride"] == 6 for c in combos)
 
 
 def test_leaderboard_filters_to_active_grid(tmp_path: Path) -> None:
@@ -525,10 +527,10 @@ def test_leaderboard_excludes_failed_trials(tmp_path: Path) -> None:
     assert "error" not in text.splitlines()[0]
 
 
-def test_tune_personal_dry_run_cli() -> None:
-    from personalization.tune_personal import app as tune_app
+def test_tune_dry_run_cli() -> None:
+    from personalization.tune import app as tune_app
 
-    cfg = Path("src/personalization/personalization_tune_window_stride.toml")
+    cfg = Path("src/personalization/tune_window_stride.toml")
     result = runner.invoke(tune_app, ["-c", str(cfg), "--dry-run", "--no-import-existing"])
     assert result.exit_code == 0, result.output
     assert "Pending" in result.output
@@ -565,8 +567,109 @@ def test_holdout_constants() -> None:
     assert set(HOLDOUT_LR_PILOT_USERS) & set(HOLDOUT_LR_DEFERRED_USERS) == set()
 
 
+def test_product_defaults_livia_sugar_one() -> None:
+    from common.paths import DEFAULT_SUGAR_ONE_CHECKPOINT, LIVIA_SUGAR_ONE_CSV
+    from personalization.constants import (
+        DEFAULT_BASE_RUN_DIR,
+        DEFAULT_LIVIA_PREPARED_CSV,
+        DEFAULT_LIVIA_SOURCE_CSV,
+        DEFAULT_PERSONAL_LWF_LAMBDA,
+        DEFAULT_TRAIN_WINDOW_STRIDE,
+    )
+
+    assert Path(DEFAULT_BASE_RUN_DIR) == DEFAULT_SUGAR_ONE_CHECKPOINT
+    assert DEFAULT_LIVIA_SOURCE_CSV == LIVIA_SUGAR_ONE_CSV
+    assert DEFAULT_LIVIA_SOURCE_CSV.as_posix().replace("\\", "/").endswith(
+        "fixtures/livia_data/livia_sugar_one_ready.csv"
+    )
+    assert DEFAULT_LIVIA_PREPARED_CSV.as_posix().replace("\\", "/").endswith(
+        "data/input/personalization/prepared/livia_chronological.csv"
+    )
+    assert DEFAULT_TRAIN_WINDOW_STRIDE == 6
+    assert DEFAULT_PERSONAL_LWF_LAMBDA == 0.0
+    assert DEFAULT_LIVIA_SOURCE_CSV.is_file()
+    assert (DEFAULT_SUGAR_ONE_CHECKPOINT / "best_model.pt").is_file()
+    assert (DEFAULT_SUGAR_ONE_CHECKPOINT / "scalers.json").is_file()
+
+
+def test_prepare_and_finetune_cli_defaults() -> None:
+    from typer.main import get_command
+
+    from personalization.constants import (
+        DEFAULT_LIVIA_PREPARED_CSV,
+        DEFAULT_LIVIA_SOURCE_CSV,
+        DEFAULT_TRAIN_WINDOW_STRIDE,
+    )
+    from personalization.finetune import app as finetune_app
+    from personalization.prepare import app as prepare_cli
+
+    livia = get_command(prepare_cli).commands["livia"]
+    input_opt = next(p for p in livia.params if "--input" in p.opts)
+    assert Path(str(input_opt.default)) == DEFAULT_LIVIA_SOURCE_CSV
+
+    ft = get_command(finetune_app)
+    commands = getattr(ft, "commands", {})
+    ft_cmd = commands.get("main", ft)
+    csv_opt = next(p for p in ft_cmd.params if "--personal-csv" in p.opts)
+    stride_opt = next(p for p in ft_cmd.params if "--train-window-stride" in p.opts)
+    assert Path(str(csv_opt.default)) == DEFAULT_LIVIA_PREPARED_CSV
+    assert int(stride_opt.default) == DEFAULT_TRAIN_WINDOW_STRIDE
+
+
+def test_personal_console_scripts() -> None:
+    import tomllib
+
+    scripts = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "scripts"
+    ]
+    expected = {
+        "personal-prepare": "personalization.prepare:app",
+        "personal-finetune": "personalization.finetune:app",
+        "personal-tune": "personalization.tune:app",
+        "personal-sweep-days": "personalization.sweep_data_size:app",
+        "personal-plot": "personalization.plots:app",
+        "personal-sweep-lr": "personalization.sweep_holdout_lr:app",
+        "personal-sweep-lwf": "personalization.sweep_lwf:app",
+        "personal-study": "personalization.study:app",
+    }
+    for name, target in expected.items():
+        assert scripts[name] == target
+    leftover = (
+        "prepare-personal-csv",
+        "finetune-personal",
+        "tune-personal",
+        "sweep-personal-hyperparams",
+        "validate-personal-holdouts",
+        "sweep-personal-curriculum",
+        "sweep-personal-data-size",
+        "plot-personal-data-size",
+        "run-personal-phase4",
+    )
+    for name in leftover:
+        assert name not in scripts
+
+
+def test_ensure_holdout_csv(tmp_path: Path) -> None:
+    from personalization.prepare import ensure_holdout_csv
+
+    loop_csv = tmp_path / "loop.csv"
+    _write_continuous_person_csv(loop_csv, n_rows=200, user_id="154")
+    out_dir = tmp_path / "holdouts"
+    first = ensure_holdout_csv(loop_csv, "154", out_dir, 0.25, 0.15)
+    second = ensure_holdout_csv(loop_csv, "154", out_dir, 0.25, 0.15)
+    assert first == second
+    assert first.is_file()
+    labeled = pl.read_csv(first)
+    assert set(labeled["Recommended Split"].unique().to_list()) == {"train", "val", "test"}
+    try:
+        ensure_holdout_csv(loop_csv, "999", out_dir, 0.25, 0.15)
+        raise AssertionError("expected missing user to raise")
+    except ValueError as exc:
+        assert "999" in str(exc)
+
+
 def test_plot_data_size_curve(tmp_path: Path) -> None:
-    from personalization.plot_data_size_curve import plot_data_size_curve
+    from personalization.plots import plot_data_size_curve
 
     rows = [
         {
@@ -601,7 +704,7 @@ def test_plot_data_size_curve(tmp_path: Path) -> None:
 
 
 def test_plot_combined_data_size_curves(tmp_path: Path) -> None:
-    from personalization.plot_data_size_curve import ALL_DUMMY_X, plot_combined_data_size_curves
+    from personalization.plots import ALL_DUMMY_X, plot_combined_data_size_curves
 
     livia = [
         {
@@ -663,7 +766,7 @@ def test_plot_combined_data_size_curves(tmp_path: Path) -> None:
 
 
 def test_plot_curriculum_mae_and_lambda(tmp_path: Path) -> None:
-    from personalization.plot_data_size_curve import plot_curriculum_mae_and_lambda
+    from personalization.plots import plot_curriculum_mae_and_lambda
 
     rows = [
         {
@@ -813,7 +916,7 @@ def test_train_span_from_split_meta() -> None:
 
 
 def test_decaying_lwf_lambda_schedule() -> None:
-    from personalization.sweep_curriculum import decaying_lwf_lambda, lwf_for_kind
+    from personalization.constants import decaying_lwf_lambda
     from personalization.sweep_lwf import lwf_for_independent_kind
 
     assert decaying_lwf_lambda(1) == 0.5
@@ -823,9 +926,6 @@ def test_decaying_lwf_lambda_schedule() -> None:
     assert decaying_lwf_lambda(30) == 0.0
     assert decaying_lwf_lambda(60) == 0.0
     assert decaying_lwf_lambda(None) == 0.0
-    assert lwf_for_kind("plain", 1) == 0.0
-    assert lwf_for_kind("lwf_decay", 1) == 0.5
-    assert lwf_for_kind("lwf_decay", None) == 0.0
     assert lwf_for_independent_kind("decay", 1) == 0.5
     assert lwf_for_independent_kind("decay", 14) == 0.2
     assert lwf_for_independent_kind("decay", 30) == 0.0

@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
-"""TOML-driven personalization fine-tune runner with leaderboard.
+"""TOML-driven SugarOne personalization tuner with a leaderboard.
 
-Control parameter grids or explicit [[runs]] in a config file; track completed
-combinations in state.json and leaderboard.csv (same pattern as tune_sugar_one).
-
-Default config: src/personalization/personalization_tune.toml
+Default config: src/personalization/tune.toml (Livia + sugar_one_1.0, stride 6).
 
 Examples:
-  uv run tune-personal
-  uv run tune-personal -c src/personalization/personalization_tune_window_stride.toml
-  uv run tune-personal --list
-  uv run tune-personal --dry-run
+  uv run personal-tune
+  uv run personal-tune -c src/personalization/tune_window_stride.toml
+  uv run personal-tune --list
+  uv run personal-tune --dry-run
 """
 from __future__ import annotations
 
@@ -49,7 +46,7 @@ app = typer.Typer(
     help="Run personalization fine-tunes from TOML; track trials in leaderboard.csv.",
 )
 
-DEFAULT_CONFIG_FILENAME = "personalization_tune.toml"
+DEFAULT_CONFIG_FILENAME = "tune.toml"
 _SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = _SCRIPT_DIR / DEFAULT_CONFIG_FILENAME
 
@@ -134,7 +131,7 @@ def main(
         None,
         "--config",
         "-c",
-        help="TOML config (default: src/personalization/personalization_tune.toml).",
+        help="TOML config (default: src/personalization/tune.toml).",
     ),
     dry_run: bool = typer.Option(
         False,

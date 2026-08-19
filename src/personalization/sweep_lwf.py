@@ -28,11 +28,11 @@ from personalization.constants import (
     DEFAULT_FT_PATIENCE,
     DEFAULT_SEED,
     LWF_CONST_LAMBDA,
+    decaying_lwf_lambda,
 )
 from personalization.finetune import run_finetune
 from personalization.leaderboard import find_resume_checkpoint
 from personalization.splits import load_train_span_days
-from personalization.sweep_curriculum import decaying_lwf_lambda
 from personalization.sweep_data_size import (
     _data_size_params,
     _finalize_summary,
@@ -132,7 +132,7 @@ def _write_status(payload: dict[str, Any]) -> None:
             "Re-run:",
             "",
             "```bash",
-            "uv run sweep-personal-lwf --device cuda",
+            "uv run personal-sweep-lwf --device cuda",
             "```",
             "",
         ]

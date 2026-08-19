@@ -42,7 +42,7 @@ from personalization.sweep_utils import (
     holdout_run_dir,
     write_summary,
 )
-from personalization.validate_holdouts import _ensure_holdout_csv
+from personalization.prepare import ensure_holdout_csv
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
@@ -376,7 +376,7 @@ def main(
             else:
                 if not loop_csv.exists():
                     raise ValueError(f"loop CSV not found: {loop_csv}")
-                personal_csv = _ensure_holdout_csv(
+                personal_csv = ensure_holdout_csv(
                     loop_csv,
                     uid,
                     holdout_dir,
