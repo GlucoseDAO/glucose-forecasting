@@ -33,13 +33,16 @@ from personalization.constants import (
 )
 from personalization.finetune import run_finetune
 from personalization.leaderboard import find_resume_checkpoint
+from personalization.splits import load_train_span_days
 from personalization.sweep_utils import (
+    archive_legacy_scaler_runs,
     data_size_row_from_metrics,
     data_size_run_dir,
     estimate_plateau_day,
     flatten_metrics,
     load_best_recipe,
     personalization_run_complete,
+    should_skip_day_budget,
     write_best_recipe,
     write_summary,
 )
@@ -90,6 +93,7 @@ def _data_size_params(
         "val_every_n_epochs": DEFAULT_VAL_EVERY_N_EPOCHS,
         "precision": precision,
         "eval_zero_shot": True,
+        "refit_scalers_on_personal": False,
     }
 
 
@@ -124,6 +128,239 @@ def _seed_day_from_run(
         raise ValueError(f"failed to read seeded metrics from {dest_run}")
     row["seeded_from"] = str(source_run)
     return row
+
+
+def _row_from_results(
+    *,
+    subject: str,
+    label: str,
+    lwf: float,
+    lr: float,
+    weight_decay: float,
+    patience: int,
+    run_dir: Path,
+    results: dict[str, Any],
+) -> dict[str, Any]:
+    cfg = results.get("config") if isinstance(results.get("config"), dict) else {}
+    return {
+        "subject": subject,
+        "personal_days": label,
+        "lwf_lambda": lwf,
+        "lr": lr,
+        "weight_decay": weight_decay,
+        "patience": patience,
+        "run_dir": str(run_dir),
+        "status": "ok",
+        "train_span_days": cfg.get("train_span_days"),
+        "used_train_days": cfg.get("used_train_days"),
+        "scaler_source": cfg.get("scaler_source"),
+        "refit_scalers_on_personal": cfg.get("refit_scalers_on_personal"),
+        **flatten_metrics("zs_test", results.get("zero_shot_test")),
+        **flatten_metrics("ft_test", results.get("finetuned_test")),
+        **flatten_metrics("ft_val", results.get("finetuned_val")),
+    }
+
+
+def run_data_size_sweep(
+    *,
+    base_run_dir: Path,
+    personal_csv: Path,
+    out_dir: Path,
+    recipe: dict[str, Any],
+    days_grid: list[int | None],
+    subject: str,
+    epochs: int,
+    batch_size: int,
+    seed: int,
+    device: str,
+    precision: str,
+    skip_completed: bool = True,
+    dry_run: bool = False,
+    plot: bool = True,
+    seed_all_from: Path | None = None,
+    archive_legacy: bool = True,
+    on_progress: Any | None = None,
+) -> list[dict[str, Any]]:
+    """Run or resume a data-size sweep. Safe to re-invoke after interruption."""
+    out_dir = Path(out_dir)
+    if archive_legacy and not dry_run:
+        archived = archive_legacy_scaler_runs(out_dir)
+        if archived is not None:
+            safe_echo(f"Archived personal-scaler runs to {archived}")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    lwf = float(recipe.get("lwf_lambda", DEFAULT_PERSONAL_LWF_LAMBDA))
+    lr = float(recipe.get("lr", 4e-4))
+    wd = float(recipe.get("weight_decay", 3e-5))
+    patience = int(recipe.get("patience", DEFAULT_FT_PATIENCE))
+    train_span = load_train_span_days(personal_csv)
+    if train_span is not None:
+        safe_echo(f"Train span: {train_span:.1f} days ({personal_csv})")
+
+    completed_rows: list[dict[str, Any]] = []
+    pending: list[tuple[str, int | None]] = []
+
+    for day_budget in days_grid:
+        label = "all" if day_budget is None else str(day_budget)
+        if should_skip_day_budget(day_budget, train_span):
+            safe_echo(
+                f"Skipping days={label}: budget covers full train span "
+                f"({train_span:.1f}d); using days=all instead"
+            )
+            continue
+        run_dir = data_size_run_dir(out_dir, subject, label)
+
+        if (
+            label == "all"
+            and seed_all_from is not None
+            and not (skip_completed and personalization_run_complete(run_dir))
+        ):
+            if dry_run:
+                safe_echo(f"  days=all would seed from {seed_all_from}")
+                continue
+            if not personalization_run_complete(seed_all_from):
+                safe_echo(
+                    f"Not seeding days=all from {seed_all_from} "
+                    "(incomplete or personal-scaler run)"
+                )
+            else:
+                safe_echo(f"Seeding days=all from {seed_all_from}")
+                row = _seed_day_from_run(
+                    source_run=seed_all_from,
+                    dest_run=run_dir,
+                    subject=subject,
+                    day_label=label,
+                    lwf=lwf,
+                    lr=lr,
+                    weight_decay=wd,
+                    patience=patience,
+                )
+                completed_rows.append(row)
+                continue
+
+        if skip_completed and personalization_run_complete(run_dir):
+            row = data_size_row_from_metrics(
+                run_dir,
+                subject=subject,
+                day_label=label,
+                lwf_lambda=lwf,
+                lr=lr,
+                weight_decay=wd,
+                patience=patience,
+            )
+            if row is not None:
+                if train_span is not None and row.get("train_span_days") is None:
+                    row["train_span_days"] = train_span
+                    if label != "all":
+                        row["used_train_days"] = min(float(label), train_span)
+                    else:
+                        row["used_train_days"] = train_span
+                completed_rows.append(row)
+            continue
+        pending.append((label, day_budget))
+
+    safe_echo(f"Completed day budgets: {len(completed_rows)}")
+    safe_echo(f"Pending day budgets: {len(pending)}")
+
+    if dry_run:
+        safe_echo("\n--- Pending ---")
+        for label, day_budget in pending:
+            combo_out = out_dir / f"days_{label}"
+            resume_ckpt = find_resume_checkpoint(
+                combo_out,
+                _data_size_params(
+                    base_run_dir=base_run_dir,
+                    personal_csv=personal_csv,
+                    lwf=lwf,
+                    lr=lr,
+                    weight_decay=wd,
+                    patience=patience,
+                    epochs=epochs,
+                    batch_size=batch_size,
+                    day_budget=day_budget,
+                    precision=precision,
+                ),
+            )
+            resume_note = f" resume={resume_ckpt}" if resume_ckpt else ""
+            safe_echo(f"  days={label}{resume_note}")
+        if completed_rows:
+            _finalize_summary(completed_rows, out_dir, recipe, plot=plot)
+        return completed_rows
+
+    rows: list[dict[str, Any]] = list(completed_rows)
+
+    for label, day_budget in pending:
+        safe_echo(f"\n===== {subject} data-size days={label} =====")
+        combo_out = out_dir / f"days_{label}"
+        params = _data_size_params(
+            base_run_dir=base_run_dir,
+            personal_csv=personal_csv,
+            lwf=lwf,
+            lr=lr,
+            weight_decay=wd,
+            patience=patience,
+            epochs=epochs,
+            batch_size=batch_size,
+            day_budget=day_budget,
+            precision=precision,
+        )
+        resume_ckpt = find_resume_checkpoint(combo_out, params)
+        if resume_ckpt is not None:
+            safe_echo(f"  Resume checkpoint: {resume_ckpt}")
+        try:
+            run_dir, results = run_finetune(
+                base_run_dir=base_run_dir,
+                personal_csv=personal_csv,
+                out_dir=combo_out,
+                run_name=f"{subject}_days_{label}",
+                personal_days=day_budget,
+                lwf_lambda=lwf,
+                epochs=epochs,
+                lr=lr,
+                weight_decay=wd,
+                patience=patience,
+                batch_size=batch_size,
+                seed=seed,
+                device=device,
+                precision=precision,
+                eval_zero_shot=True,
+                resume_from=resume_ckpt,
+                refit_scalers_on_personal=False,
+            )
+        except ValueError as exc:
+            safe_echo(f"Skipping days={label}: {exc}", err=True)
+            rows.append(
+                {
+                    "subject": subject,
+                    "personal_days": label,
+                    "lwf_lambda": lwf,
+                    "lr": lr,
+                    "status": "skipped",
+                    "error": str(exc),
+                }
+            )
+            if on_progress is not None:
+                on_progress(subject, rows)
+            continue
+
+        rows.append(
+            _row_from_results(
+                subject=subject,
+                label=label,
+                lwf=lwf,
+                lr=lr,
+                weight_decay=wd,
+                patience=patience,
+                run_dir=run_dir,
+                results=results,
+            )
+        )
+        _finalize_summary(rows, out_dir, recipe, plot=plot)
+        if on_progress is not None:
+            on_progress(subject, rows)
+
+    _finalize_summary(rows, out_dir, recipe, plot=plot)
+    return rows
 
 
 @app.command()
@@ -180,7 +417,6 @@ def main(
 ) -> None:
     """Run data-size learning curve with fixed LwF/LR; estimate plateau."""
     init_cli_console()
-    out_dir.mkdir(parents=True, exist_ok=True)
     recipe = load_best_recipe(recipe_json)
     lwf = float(recipe.get("lwf_lambda", DEFAULT_PERSONAL_LWF_LAMBDA))
     lr = float(recipe.get("lr", 4e-4))
@@ -219,148 +455,23 @@ def main(
         _finalize_summary(rows, out_dir, recipe, plot=plot)
         return
 
-    completed_rows: list[dict[str, Any]] = []
-    pending: list[tuple[str, int | None]] = []
-
-    for day_budget in grid:
-        label = "all" if day_budget is None else str(day_budget)
-        run_dir = data_size_run_dir(out_dir, subject, label)
-
-        if (
-            label == "all"
-            and seed_all_from is not None
-            and not (skip_completed and personalization_run_complete(run_dir))
-        ):
-            if dry_run:
-                safe_echo(f"  days=all would seed from {seed_all_from}")
-                continue
-            safe_echo(f"Seeding days=all from {seed_all_from}")
-            row = _seed_day_from_run(
-                source_run=seed_all_from,
-                dest_run=run_dir,
-                subject=subject,
-                day_label=label,
-                lwf=lwf,
-                lr=lr,
-                weight_decay=wd,
-                patience=patience,
-            )
-            completed_rows.append(row)
-            continue
-
-        if skip_completed and personalization_run_complete(run_dir):
-            row = data_size_row_from_metrics(
-                run_dir,
-                subject=subject,
-                day_label=label,
-                lwf_lambda=lwf,
-                lr=lr,
-                weight_decay=wd,
-                patience=patience,
-            )
-            if row is not None:
-                completed_rows.append(row)
-            continue
-        pending.append((label, day_budget))
-
-    safe_echo(f"Completed day budgets: {len(completed_rows)}")
-    safe_echo(f"Pending day budgets: {len(pending)}")
-
-    if dry_run:
-        safe_echo("\n--- Pending ---")
-        for label, day_budget in pending:
-            combo_out = out_dir / f"days_{label}"
-            resume_ckpt = find_resume_checkpoint(
-                combo_out,
-                _data_size_params(
-                    base_run_dir=base_run_dir,
-                    personal_csv=personal_csv,
-                    lwf=lwf,
-                    lr=lr,
-                    weight_decay=wd,
-                    patience=patience,
-                    epochs=recipe_epochs,
-                    batch_size=batch_size,
-                    day_budget=day_budget,
-                    precision=resolved_precision,
-                ),
-            )
-            resume_note = f" resume={resume_ckpt}" if resume_ckpt else ""
-            safe_echo(f"  days={label}{resume_note}")
-        if completed_rows:
-            _finalize_summary(completed_rows, out_dir, recipe, plot=plot)
-        return
-
-    rows: list[dict[str, Any]] = list(completed_rows)
-
-    for label, day_budget in pending:
-        safe_echo(f"\n===== data-size days={label} =====")
-        combo_out = out_dir / f"days_{label}"
-        params = _data_size_params(
-            base_run_dir=base_run_dir,
-            personal_csv=personal_csv,
-            lwf=lwf,
-            lr=lr,
-            weight_decay=wd,
-            patience=patience,
-            epochs=recipe_epochs,
-            batch_size=batch_size,
-            day_budget=day_budget,
-            precision=resolved_precision,
-        )
-        resume_ckpt = find_resume_checkpoint(combo_out, params)
-        if resume_ckpt is not None:
-            safe_echo(f"  Resume checkpoint: {resume_ckpt}")
-        try:
-            run_dir, results = run_finetune(
-                base_run_dir=base_run_dir,
-                personal_csv=personal_csv,
-                out_dir=combo_out,
-                run_name=f"{subject}_days_{label}",
-                personal_days=day_budget,
-                lwf_lambda=lwf,
-                epochs=recipe_epochs,
-                lr=lr,
-                weight_decay=wd,
-                patience=patience,
-                batch_size=batch_size,
-                seed=seed,
-                device=device,
-                precision=resolved_precision,
-                eval_zero_shot=True,
-                resume_from=resume_ckpt,
-            )
-        except ValueError as exc:
-            safe_echo(f"Skipping days={label}: {exc}", err=True)
-            rows.append(
-                {
-                    "subject": subject,
-                    "personal_days": label,
-                    "lwf_lambda": lwf,
-                    "lr": lr,
-                    "status": "skipped",
-                    "error": str(exc),
-                }
-            )
-            continue
-
-        rows.append(
-            {
-                "subject": subject,
-                "personal_days": label,
-                "lwf_lambda": lwf,
-                "lr": lr,
-                "weight_decay": wd,
-                "patience": patience,
-                "run_dir": str(run_dir),
-                "status": "ok",
-                **flatten_metrics("zs_test", results.get("zero_shot_test")),
-                **flatten_metrics("ft_test", results.get("finetuned_test")),
-                **flatten_metrics("ft_val", results.get("finetuned_val")),
-            }
-        )
-
-    _finalize_summary(rows, out_dir, recipe, plot=plot)
+    run_data_size_sweep(
+        base_run_dir=base_run_dir,
+        personal_csv=personal_csv,
+        out_dir=out_dir,
+        recipe=recipe,
+        days_grid=grid,
+        subject=subject,
+        epochs=recipe_epochs,
+        batch_size=batch_size,
+        seed=seed,
+        device=device,
+        precision=resolved_precision,
+        skip_completed=skip_completed,
+        dry_run=dry_run,
+        plot=plot,
+        seed_all_from=seed_all_from,
+    )
 
 
 def _finalize_summary(
@@ -398,13 +509,18 @@ def _finalize_summary(
 
         chart_path = out_dir / "data_size_curve.png"
         subject_name = str(rows[0].get("subject", "subject"))
-        plot_data_size_curve(
-            rows,
-            out_png=chart_path,
-            title=f"{subject_name} — personal train days vs test MAE",
-            subject=subject_name,
-        )
-        safe_echo(f"Wrote {chart_path}")
+        try:
+            plot_data_size_curve(
+                rows,
+                out_png=chart_path,
+                title=f"{subject_name} — personal train days vs test MAE (60 days)",
+                subject=subject_name,
+                mode="max_days",
+                max_days=60.0,
+            )
+            safe_echo(f"Wrote {chart_path}")
+        except ValueError as exc:
+            safe_echo(f"Skip 60-day chart: {exc}", err=True)
 
 
 if __name__ == "__main__":

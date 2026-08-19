@@ -114,6 +114,10 @@ def find_resume_checkpoint(out_root: Path, params: Mapping[str, Any]) -> Path | 
             continue
         if not training_params_match(cfg, params):
             continue
+        from personalization.sweep_utils import uses_base_scalers
+
+        if not uses_base_scalers(cfg):
+            continue
         metrics_path = run_dir / "personalization_metrics.json"
         if metrics_path.is_file():
             results = json.loads(metrics_path.read_text(encoding="utf-8"))

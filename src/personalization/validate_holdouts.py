@@ -26,11 +26,12 @@ from personalization.constants import (
 from personalization.finetune import run_finetune
 from personalization.prepare_personal_csv import prepare_person_frame
 from personalization.splits import write_split_meta
-from personalization.sweep_data_size import _parse_days_grid
+from personalization.sweep_data_size import _parse_days_grid, run_data_size_sweep
 from personalization.sweep_utils import (
     estimate_plateau_day,
     flatten_metrics,
     load_best_recipe,
+    personalization_run_complete,
     write_summary,
 )
 
@@ -83,6 +84,7 @@ def _run_data_size_for_subject(
     personal_csv: Path,
     out_dir: Path,
     subject: str,
+    recipe: dict[str, Any],
     lwf: float,
     lr: float,
     weight_decay: float,
@@ -93,52 +95,29 @@ def _run_data_size_for_subject(
     seed: int,
     device: str,
     precision: str = "bf16",
+    skip_completed: bool = True,
+    dry_run: bool = False,
+    on_progress: Any | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for day_budget in days_grid:
-        label = "all" if day_budget is None else str(day_budget)
-        try:
-            run_dir, results = run_finetune(
-                base_run_dir=base_run_dir,
-                personal_csv=personal_csv,
-                out_dir=out_dir / f"days_{label}",
-                run_name=f"{subject}_days_{label}",
-                personal_days=day_budget,
-                lwf_lambda=lwf,
-                epochs=epochs,
-                lr=lr,
-                weight_decay=weight_decay,
-                patience=patience,
-                batch_size=batch_size,
-                seed=seed,
-                device=device,
-                precision=precision,
-                eval_zero_shot=True,
-            )
-        except ValueError as exc:
-            rows.append(
-                {
-                    "subject": subject,
-                    "personal_days": label,
-                    "status": "skipped",
-                    "error": str(exc),
-                }
-            )
-            continue
-        rows.append(
-            {
-                "subject": subject,
-                "personal_days": label,
-                "lwf_lambda": lwf,
-                "lr": lr,
-                "weight_decay": weight_decay,
-                "patience": patience,
-                "run_dir": str(run_dir),
-                "status": "ok",
-                **flatten_metrics("zs_test", results.get("zero_shot_test")),
-                **flatten_metrics("ft_test", results.get("finetuned_test")),
-            }
-        )
+    rows = run_data_size_sweep(
+        base_run_dir=base_run_dir,
+        personal_csv=personal_csv,
+        out_dir=out_dir,
+        recipe=recipe,
+        days_grid=days_grid,
+        subject=subject,
+        epochs=epochs,
+        batch_size=batch_size,
+        seed=seed,
+        device=device,
+        precision=precision,
+        skip_completed=skip_completed,
+        dry_run=dry_run,
+        plot=True,
+        seed_all_from=None,
+        archive_legacy=True,
+        on_progress=on_progress,
+    )
     plateau = estimate_plateau_day(rows)
     return rows, plateau
 
@@ -189,6 +168,8 @@ def main(
         "--skip-data-size",
         help="Only run full-data params validation (phase A).",
     ),
+    skip_completed: bool = typer.Option(True, "--skip-completed/--no-skip-completed"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
     """Validate Livia hyperparameters and data-size curves on holdout users."""
     recipe = load_best_recipe(recipe_json)
@@ -229,51 +210,85 @@ def main(
                     val_fraction_of_remainder,
                 )
 
-            # Phase A: full train data with frozen Livia LwF/LR
-            typer.echo("Phase A: full-data fine-tune with Livia recipe")
-            run_dir, results = run_finetune(
-                base_run_dir=base_run_dir,
-                personal_csv=personal_csv,
-                out_dir=out_dir / "params" / subject,
-                run_name=f"{subject}_full_recipe",
-                personal_days=None,
-                lwf_lambda=lwf,
-                epochs=recipe_epochs,
-                lr=lr,
-                weight_decay=wd,
-                patience=patience,
-                batch_size=batch_size,
-                seed=seed,
-                device=device,
-                precision=recipe_precision,
-                eval_zero_shot=True,
-            )
+            phase_a_out = out_dir / "params" / subject
+            phase_a_run = phase_a_out / f"{subject}_full_recipe"
+            if skip_completed and personalization_run_complete(phase_a_run):
+                typer.echo(f"Phase A already complete: {phase_a_run}")
+                results = json.loads(
+                    (phase_a_run / "personalization_metrics.json").read_text(encoding="utf-8")
+                )
+                run_dir = phase_a_run
+            elif dry_run:
+                typer.echo(f"Phase A would run into {phase_a_out}")
+                results = {}
+                run_dir = phase_a_run
+            else:
+                typer.echo("Phase A: full-data fine-tune with Livia recipe")
+                from personalization.leaderboard import find_resume_checkpoint
+
+                resume_ckpt = find_resume_checkpoint(
+                    phase_a_out,
+                    {
+                        "base_run_dir": str(base_run_dir.resolve()),
+                        "personal_csv": str(personal_csv.resolve()),
+                        "lwf_lambda": lwf,
+                        "lr": lr,
+                        "weight_decay": wd,
+                        "patience": patience,
+                        "epochs": recipe_epochs,
+                        "batch_size": batch_size,
+                        "personal_days": None,
+                        "train_window_stride": 6,
+                        "val_every_n_epochs": 2,
+                        "precision": recipe_precision,
+                        "eval_zero_shot": True,
+                    },
+                )
+                run_dir, results = run_finetune(
+                    base_run_dir=base_run_dir,
+                    personal_csv=personal_csv,
+                    out_dir=phase_a_out,
+                    run_name=f"{subject}_full_recipe",
+                    personal_days=None,
+                    lwf_lambda=lwf,
+                    epochs=recipe_epochs,
+                    lr=lr,
+                    weight_decay=wd,
+                    patience=patience,
+                    batch_size=batch_size,
+                    seed=seed,
+                    device=device,
+                    precision=recipe_precision,
+                    eval_zero_shot=True,
+                    resume_from=resume_ckpt,
+                    refit_scalers_on_personal=False,
+                )
             zs = results.get("zero_shot_test") or {}
             ft = results.get("finetuned_test") or {}
             delta_mae = None
             if zs.get("mae") is not None and ft.get("mae") is not None:
                 delta_mae = float(ft["mae"]) - float(zs["mae"])
 
-            params_rows.append(
-                {
-                    "user_id": uid,
-                    "subject": subject,
-                    "phase": "params_validation",
-                    "status": "ok",
-                    "lwf_lambda": lwf,
-                    "lr": lr,
-                    "weight_decay": wd,
-                    "patience": patience,
-                    "personal_days": "all",
-                    "run_dir": str(run_dir),
-                    **flatten_metrics("zs_test", results.get("zero_shot_test")),
-                    **flatten_metrics("ft_test", results.get("finetuned_test")),
-                    "delta_mae_ft_minus_zs": delta_mae,
-                    "improved": (delta_mae is not None and delta_mae < 0),
-                }
-            )
+            if not dry_run or personalization_run_complete(phase_a_run):
+                params_rows.append(
+                    {
+                        "user_id": uid,
+                        "subject": subject,
+                        "phase": "params_validation",
+                        "status": "ok",
+                        "lwf_lambda": lwf,
+                        "lr": lr,
+                        "weight_decay": wd,
+                        "patience": patience,
+                        "personal_days": "all",
+                        "run_dir": str(run_dir),
+                        **flatten_metrics("zs_test", results.get("zero_shot_test")),
+                        **flatten_metrics("ft_test", results.get("finetuned_test")),
+                        "delta_mae_ft_minus_zs": delta_mae,
+                        "improved": (delta_mae is not None and delta_mae < 0),
+                    }
+                )
 
-            # Phase B: data-size curve with same LwF/LR
             if not skip_data_size:
                 typer.echo("Phase B: data-size sweep with frozen Livia LwF/LR")
                 ds_rows, plateau = _run_data_size_for_subject(
@@ -281,6 +296,7 @@ def main(
                     personal_csv=personal_csv,
                     out_dir=out_dir / "data_size" / subject,
                     subject=subject,
+                    recipe=recipe,
                     lwf=lwf,
                     lr=lr,
                     weight_decay=wd,
@@ -291,6 +307,8 @@ def main(
                     seed=seed,
                     device=device,
                     precision=recipe_precision,
+                    skip_completed=skip_completed,
+                    dry_run=dry_run,
                 )
                 data_size_by_user[uid] = ds_rows
                 plateau_by_user[uid] = plateau

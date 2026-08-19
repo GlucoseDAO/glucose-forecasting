@@ -19,16 +19,11 @@ LOOP_HOLDOUT_QUALITY_USERS: Final[tuple[str, ...]] = (
     "1082",
 )
 
-# Additional Loop users from loop_ai_ready_joined2 Recommended Split == test
-# (largest row counts among the 9 Loop test users; see data/input/personalization/subjects/).
-LOOP_TEST_EXTRA_USERS: Final[tuple[str, ...]] = (
-    "467",
-    "745",
-    "590",
-    "758",
-)
+# Extra Loop User IDs from joined2 test. Empty: T1DM is already covered by
+# Livia + LOOP_HOLDOUT_QUALITY_USERS, so loop_467 / loop_745 are not run.
+LOOP_TEST_EXTRA_USERS: Final[tuple[str, ...]] = ()
 
-# Full 10-user personalization cohort: 6 holdouts + 4 joined2 test users.
+# Loop numeric User IDs used in personalization (quality holdouts only).
 LOOP_PERSONALIZATION_COHORT_USERS: Final[tuple[str, ...]] = (
     LOOP_HOLDOUT_QUALITY_USERS + LOOP_TEST_EXTRA_USERS
 )
@@ -52,6 +47,18 @@ GLUMIND_BEST_LWF_AI_READY: Final[float] = 0.2
 
 # LwF grid for research / continual-learning experiments only (not default personalization).
 DEFAULT_LWF_LAMBDAS: Final[tuple[float, ...]] = (0.2, 0.25, 0.3, 0.35)
+
+# Independent-from-global LwF (teacher = sugar_one_1.0). λ=0 from 30 days
+# reuses the existing λ=0 independent data-size runs.
+LWF_CURRICULUM_ZERO_FROM_DAYS: Final[int] = 30
+LWF_DECAY_START: Final[float] = 0.5
+LWF_DECAY_SCHEDULE: Final[dict[int, float]] = {
+    1: 0.5,
+    3: 0.4,
+    7: 0.3,
+    14: 0.2,
+}
+LWF_CONST_LAMBDA: Final[float] = 0.1
 
 # Step 2: LR grid for holdout transfer check (Livia best was 2e-4).
 DEFAULT_HOLDOUT_LR_GRID: Final[tuple[float, ...]] = (0.0001, 0.0002, 0.0004)

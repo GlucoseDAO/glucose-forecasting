@@ -35,6 +35,7 @@ from common.scalers import (
     resolve_scalers_path,
     save_scalers_for_run,
 )
+from common.checkpoint import strip_compile_prefix
 from personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
     DEFAULT_FT_PATIENCE,
@@ -80,11 +81,48 @@ def _load_split_frames(csv_path: Path) -> tuple[pl.DataFrame, pl.DataFrame, pl.D
 
 
 def _make_lwf_teacher(model: nn.Module) -> nn.Module:
-    """Frozen copy of the global model for LwF distillation."""
+    """Frozen copy of ``model`` (call while it still holds global weights)."""
     teacher = copy.deepcopy(model)
     teacher.eval()
     for param in teacher.parameters():
         param.requires_grad = False
+    return teacher
+
+
+def load_student_weights(model: nn.Module, weights_path: Path, device: torch.device) -> None:
+    """Load ``best_model.pt`` / state_dict into the student (not the LwF teacher)."""
+    path = Path(weights_path)
+    if not path.is_file():
+        raise ValueError(f"init weights not found: {path}")
+    state = torch.load(path, map_location=device, weights_only=True)
+    if not isinstance(state, dict):
+        raise TypeError(f"Expected state_dict dict in {path}")
+    if "model_state_dict" in state and isinstance(state["model_state_dict"], dict):
+        state = state["model_state_dict"]
+    model.load_state_dict(strip_compile_prefix(state))
+
+
+def attach_lwf_teacher_and_init_student(
+    model: nn.Module,
+    *,
+    lwf_lambda: float,
+    from_scratch: bool,
+    init_weights_from: Path | None,
+    resume: bool,
+    device: torch.device,
+) -> nn.Module | None:
+    """Freeze a global teacher, then optionally load curriculum student weights.
+
+    Teacher is copied **before** student init so sequential curricula still
+    distill toward the pretrained model, not the previous personal checkpoint.
+    """
+    teacher: nn.Module | None = None
+    if lwf_lambda > 0.0 and not from_scratch:
+        teacher = _make_lwf_teacher(model)
+        teacher.to(device)
+        teacher.eval()
+    if init_weights_from is not None and not resume:
+        load_student_weights(model, init_weights_from, device)
     return teacher
 
 
@@ -226,6 +264,7 @@ def run_finetune(
     eval_zero_shot: bool = True,
     from_scratch: bool = False,
     resume_from: Path | None = None,
+    init_weights_from: Path | None = None,
     refit_scalers_on_personal: bool = False,
 ) -> tuple[Path, dict[str, Any]]:
     """Fine-tune on personal train split; return ``(run_dir, results)``."""
@@ -233,6 +272,11 @@ def run_finetune(
     resume_path = Path(resume_from).resolve() if resume_from is not None else None
     if resume_path is not None and not resume_path.is_file():
         raise ValueError(f"resume checkpoint not found: {resume_path}")
+    init_weights_path = (
+        Path(init_weights_from).resolve() if init_weights_from is not None else None
+    )
+    if init_weights_path is not None and not init_weights_path.is_file():
+        raise ValueError(f"init weights not found: {init_weights_path}")
 
     base_run_dir = resolve_project_path(base_run_dir)
     personal_csv = Path(personal_csv)
@@ -307,6 +351,14 @@ def run_finetune(
     p_train_full, p_val, p_test = _load_split_frames(personal_csv)
     if p_train_full.is_empty():
         raise ValueError("personal train split is empty")
+
+    train_t0 = p_train_full.select(pl.col("ds").min()).item()
+    train_t1 = p_train_full.select(pl.col("ds").max()).item()
+    train_span_days = max(0.0, (train_t1 - train_t0).total_seconds() / 86400.0)
+    if personal_days is not None:
+        used_train_days = min(float(personal_days), train_span_days)
+    else:
+        used_train_days = train_span_days
 
     project_root = Path(__file__).resolve().parents[2]
     scaler_source = "personal_train"
@@ -460,7 +512,11 @@ def run_finetune(
         "base_checkpoint": str(ckpt_path),
         "personal_csv": str(personal_csv),
         "personal_days": personal_days,
+        "train_span_days": train_span_days,
+        "used_train_days": used_train_days,
         "lwf_lambda": lwf_lambda,
+        "lwf_teacher": "global" if lwf_lambda > 0.0 and not from_scratch else "",
+        "init_weights_from": str(init_weights_path) if init_weights_path is not None else "",
         "from_scratch": from_scratch,
         "refit_scalers_on_personal": use_personal_scalers,
         "scaler_source": scaler_source,
@@ -569,9 +625,18 @@ def run_finetune(
         else None
     )
 
-    teacher: nn.Module | None = None
-    if lwf_lambda > 0.0 and not from_scratch:
-        teacher = _make_lwf_teacher(model)
+    teacher = attach_lwf_teacher_and_init_student(
+        model,
+        lwf_lambda=lwf_lambda,
+        from_scratch=from_scratch,
+        init_weights_from=init_weights_path if resume_path is None else None,
+        resume=resume_path is not None,
+        device=torch_device,
+    )
+    if teacher is not None:
+        safe_echo("LwF teacher: frozen global checkpoint")
+    if init_weights_path is not None and resume_path is None:
+        safe_echo(f"Initialized student from {init_weights_path}")
 
     optimizer, scheduler = make_optimizer_and_scheduler(
         model, resolved_lr, resolved_wd, epochs
@@ -721,6 +786,11 @@ def main(
         "--resume-from",
         help="Resume from last_checkpoint.pt (reuses run dir, skips zero-shot).",
     ),
+    init_weights_from: Optional[Path] = typer.Option(
+        None,
+        "--init-weights-from",
+        help="Load student weights (best_model.pt) before training; LwF teacher stays global.",
+    ),
     refit_scalers_on_personal: bool = typer.Option(
         False,
         "--refit-scalers-on-personal/--base-scalers",
@@ -755,6 +825,7 @@ def main(
             eval_zero_shot=eval_zero_shot,
             from_scratch=from_scratch,
             resume_from=resume_from,
+            init_weights_from=init_weights_from,
             refit_scalers_on_personal=refit_scalers_on_personal,
         )
     except ValueError as exc:

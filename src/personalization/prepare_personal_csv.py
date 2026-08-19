@@ -2,8 +2,9 @@
 """Prepare personalization CSVs with chronological train/val/test splits.
 
 Subcommands:
-  livia     — assign chronological Recommended Split on a Livia-style CSV
-  holdouts  — extract Loop quality holdout users and assign chronological splits
+  livia         — assign chronological Recommended Split on a Livia-style CSV
+  holdouts      — extract Loop quality holdout users and assign chronological splits
+  joined2-test  — extract two joined2 test users per study group
 """
 from __future__ import annotations
 
@@ -28,6 +29,11 @@ from personalization.constants import (
     DEFAULT_VAL_FRACTION_OF_REMAINDER,
     LOOP_HOLDOUT_QUALITY_USERS,
     TS_FORMAT,
+)
+from personalization.cohort import (
+    JOINED2_CSV,
+    JOINED2_CSV_DIR,
+    JOINED2_TEST_USERS,
 )
 from personalization.splits import (
     chronological_split_labels,
@@ -236,6 +242,75 @@ def prepare_holdouts(
         index.append({"user_id": uid, "csv": str(out_csv), **meta})
 
     index_path = out_dir / "holdouts_index.json"
+    with index_path.open("w", encoding="utf-8") as f:
+        json.dump(index, f, indent=2)
+    typer.echo(f"Wrote index {index_path} ({len(index)} users)")
+
+
+@app.command("joined2-test")
+def prepare_joined2_test(
+    joined2_csv: Path = typer.Option(
+        JOINED2_CSV,
+        "--joined2-csv",
+        help="loop_ai_ready_joined2.csv with Recommended Split + Study Group.",
+    ),
+    out_dir: Path = typer.Option(
+        JOINED2_CSV_DIR,
+        "--out-dir",
+    ),
+    test_fraction: float = typer.Option(DEFAULT_TEST_FRACTION, "--test-fraction"),
+    val_fraction_of_remainder: float = typer.Option(
+        DEFAULT_VAL_FRACTION_OF_REMAINDER, "--val-fraction-of-remainder"
+    ),
+    skip_existing: bool = typer.Option(True, "--skip-existing/--overwrite"),
+) -> None:
+    """Extract two joined2 test users per study group; chronological splits."""
+    if not joined2_csv.exists():
+        typer.echo(f"Error: joined2 CSV not found: {joined2_csv}", err=True)
+        raise typer.Exit(1)
+
+    user_ids = [uid for uid, _group in JOINED2_TEST_USERS]
+    typer.echo(f"Scanning {joined2_csv} for {len(user_ids)} joined2 test users")
+
+    lf = pl.scan_csv(joined2_csv, infer_schema_length=10_000).with_columns(
+        pl.col(COL_USER).cast(pl.Utf8)
+    )
+    people = lf.filter(pl.col(COL_USER).is_in(user_ids)).collect()
+    found = set(people[COL_USER].unique().to_list())
+    missing = [uid for uid in user_ids if uid not in found]
+    if missing:
+        typer.echo(f"Error: users not found in joined2 CSV: {missing}", err=True)
+        raise typer.Exit(1)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    index: list[dict] = []
+    for uid, study_group in JOINED2_TEST_USERS:
+        out_csv = out_dir / f"{uid}_chronological.csv"
+        meta_path = out_dir / f"{uid}_split_meta.json"
+        if skip_existing and out_csv.exists() and meta_path.exists():
+            typer.echo(f"Skip existing {out_csv}")
+            existing = json.loads(meta_path.read_text(encoding="utf-8"))
+            index.append({"user_id": uid, "csv": str(out_csv), **existing})
+            continue
+        person = people.filter(pl.col(COL_USER) == uid)
+        labeled, meta = prepare_person_frame(
+            person,
+            test_fraction=test_fraction,
+            val_fraction_of_remainder=val_fraction_of_remainder,
+            personal_days=None,
+            study_group=study_group,
+        )
+        meta["source"] = str(joined2_csv)
+        meta["subject"] = uid
+        meta["user_ids"] = [uid]
+        meta["study_group"] = study_group
+        meta["cohort"] = "joined2_test"
+        labeled.write_csv(out_csv)
+        write_split_meta(meta_path, meta)
+        typer.echo(f"Wrote {out_csv} ({labeled.height:,} rows, {study_group})")
+        index.append({"user_id": uid, "csv": str(out_csv), **meta})
+
+    index_path = out_dir / "joined2_test_index.json"
     with index_path.open("w", encoding="utf-8") as f:
         json.dump(index, f, indent=2)
     typer.echo(f"Wrote index {index_path} ({len(index)} users)")

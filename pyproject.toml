@@ -39,6 +39,9 @@ sweep-personal-data-size = "personalization.sweep_data_size:app"
 validate-personal-holdouts = "personalization.validate_holdouts:app"
 sweep-holdout-lr = "personalization.sweep_holdout_lr:app"
 plot-personal-data-size = "personalization.plot_data_size_curve:app"
+sweep-personal-curriculum = "personalization.sweep_curriculum:app"
+sweep-personal-lwf = "personalization.sweep_lwf:app"
+run-personal-phase4 = "personalization.run_phase4:app"
 
 [build-system]
 requires = ["hatchling>=1.26.0"]

@@ -98,6 +98,60 @@ def limit_train_days(
     return pl.concat([train_limited, other], how="vertical").sort(ts_col)
 
 
+def calendar_span_days(start: datetime, end: datetime) -> float:
+    """Inclusive calendar span in days between two timestamps."""
+    return max(0.0, (end - start).total_seconds() / 86400.0)
+
+
+def parse_timestamp(raw: str | datetime) -> datetime:
+    if isinstance(raw, datetime):
+        return raw
+    text = str(raw).strip()
+    for fmt in (TS_FORMAT, "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return datetime.fromisoformat(text)
+
+
+def train_span_days_from_split_meta(meta: dict[str, Any]) -> float | None:
+    """Train calendar span in days from a ``split_meta.json`` payload."""
+    part = meta.get("train")
+    if not isinstance(part, dict):
+        return None
+    start_raw = part.get("start")
+    end_raw = part.get("end")
+    if not start_raw or not end_raw:
+        return None
+    return calendar_span_days(parse_timestamp(str(start_raw)), parse_timestamp(str(end_raw)))
+
+
+def find_split_meta_path(personal_csv: Path) -> Path | None:
+    """Locate split_meta next to a prepared personal CSV."""
+    stem = personal_csv.stem
+    candidates = [
+        personal_csv.with_name(f"{stem}_split_meta.json"),
+        personal_csv.with_name(f"{stem.replace('_chronological', '')}_split_meta.json"),
+    ]
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
+
+
+def load_train_span_days(personal_csv: Path) -> float | None:
+    meta_path = find_split_meta_path(personal_csv)
+    if meta_path is None:
+        return None
+    import json
+
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    if not isinstance(meta, dict):
+        return None
+    return train_span_days_from_split_meta(meta)
+
+
 def split_meta(df: pl.DataFrame, *, ts_col: str = COL_TS) -> dict[str, Any]:
     """Summarize chronological split for reproducibility artifacts."""
     work = _ensure_datetime(df, ts_col)
@@ -113,6 +167,7 @@ def split_meta(df: pl.DataFrame, *, ts_col: str = COL_TS) -> dict[str, Any]:
             "n_rows": part.height,
             "start": str(t_min),
             "end": str(t_max),
+            "span_days": calendar_span_days(t_min, t_max),
         }
     return out
 

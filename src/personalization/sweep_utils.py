@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import json
+import shutil
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import polars as pl
 
@@ -154,6 +156,13 @@ def estimate_plateau_day(
     }
 
 
+def should_skip_day_budget(day_budget: int | None, train_span_days: float | None) -> bool:
+    """Skip a numeric day grid point that already covers the full train span."""
+    if day_budget is None or train_span_days is None:
+        return False
+    return float(day_budget) >= float(train_span_days)
+
+
 def build_holdout_lr_comparison(
     rows: list[dict[str, Any]],
     *,
@@ -235,16 +244,92 @@ def holdout_run_dir(out_dir: Path, subject: str, lr: float) -> Path:
     return holdout_combo_out_dir(out_dir, subject, lr) / f"{subject}_{label}"
 
 
-def personalization_run_complete(run_dir: Path) -> bool:
+def load_run_config(run_dir: Path) -> dict[str, Any]:
+    """Load ``config.json`` or the metrics-embedded config for a personalization run."""
+    cfg_path = run_dir / "config.json"
+    if cfg_path.is_file():
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return data
+    metrics_path = run_dir / "personalization_metrics.json"
+    if metrics_path.is_file():
+        results = json.loads(metrics_path.read_text(encoding="utf-8"))
+        cfg = results.get("config")
+        if isinstance(cfg, dict):
+            return cfg
+    return {}
+
+
+def uses_base_scalers(cfg: Mapping[str, Any]) -> bool:
+    """True when fine-tune stayed in the pretrained (base-run) scaler space.
+
+    Legacy runs fitted MinMax scalers on personal train (or omitted the flag).
+    Those are not comparable to the corrected protocol and must be re-run.
+    """
+    raw_refit = cfg.get("refit_scalers_on_personal")
+    if raw_refit is None or raw_refit == "":
+        refit = True
+    elif isinstance(raw_refit, str):
+        refit = raw_refit.strip().lower() in {"true", "1", "yes"}
+    else:
+        refit = bool(raw_refit)
+    if refit:
+        return False
+    source_raw = cfg.get("scaler_source")
+    if source_raw is None:
+        return False
+    source = str(source_raw).strip()
+    if not source or source in {"personal_train", "None", "null"}:
+        return False
+    return True
+
+
+def personalization_run_complete(
+    run_dir: Path,
+    *,
+    require_base_scalers: bool = True,
+) -> bool:
     metrics_path = run_dir / "personalization_metrics.json"
     if not metrics_path.is_file():
         return False
     results = json.loads(metrics_path.read_text(encoding="utf-8"))
-    return results.get("finetuned_test") is not None
+    if results.get("finetuned_test") is None:
+        return False
+    if require_base_scalers:
+        cfg = results.get("config") if isinstance(results.get("config"), dict) else {}
+        if not cfg:
+            cfg = load_run_config(run_dir)
+        if not uses_base_scalers(cfg):
+            return False
+    return True
+
+
+def archive_legacy_scaler_runs(out_dir: Path) -> Path | None:
+    """Move a data-size tree that still has personal-scaler runs out of the way.
+
+    Returns the archive path, or None if nothing needed archiving.
+    """
+    if not out_dir.is_dir():
+        return None
+    has_legacy = False
+    has_any_run = False
+    for metrics_path in out_dir.rglob("personalization_metrics.json"):
+        has_any_run = True
+        run_dir = metrics_path.parent
+        cfg = load_run_config(run_dir)
+        if not uses_base_scalers(cfg):
+            has_legacy = True
+            break
+    if not has_any_run or not has_legacy:
+        return None
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest = out_dir.with_name(f"{out_dir.name}_legacy_personal_scalers_{stamp}")
+    shutil.move(str(out_dir), str(dest))
+    return dest
 
 
 def holdout_run_complete(run_dir: Path) -> bool:
-    return personalization_run_complete(run_dir)
+    return personalization_run_complete(run_dir, require_base_scalers=False)
 
 
 def data_size_run_dir(out_dir: Path, subject: str, day_label: str) -> Path:
@@ -301,6 +386,11 @@ def data_size_row_from_metrics(
     results = json.loads(metrics_path.read_text(encoding="utf-8"))
     if results.get("finetuned_test") is None:
         return None
+    cfg = results.get("config") if isinstance(results.get("config"), dict) else {}
+    if not cfg:
+        cfg = load_run_config(run_dir)
+    train_span = cfg.get("train_span_days")
+    used_days = cfg.get("used_train_days")
     return {
         "subject": subject,
         "personal_days": day_label,
@@ -310,6 +400,10 @@ def data_size_row_from_metrics(
         "patience": patience,
         "run_dir": str(run_dir),
         "status": "ok",
+        "train_span_days": train_span,
+        "used_train_days": used_days,
+        "scaler_source": cfg.get("scaler_source"),
+        "refit_scalers_on_personal": cfg.get("refit_scalers_on_personal"),
         **flatten_metrics("zs_test", results.get("zero_shot_test")),
         **flatten_metrics("ft_test", results.get("finetuned_test")),
         **flatten_metrics("ft_val", results.get("finetuned_val")),

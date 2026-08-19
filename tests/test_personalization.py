@@ -574,41 +574,303 @@ def test_plot_data_size_curve(tmp_path: Path) -> None:
             "personal_days": "1",
             "ft_test_mae": 18.0,
             "zs_test_mae": 19.5,
+            "train_span_days": 345.0,
         },
         {
             "status": "ok",
             "personal_days": "7",
             "ft_test_mae": 17.2,
             "zs_test_mae": 19.5,
+            "train_span_days": 345.0,
         },
         {
             "status": "ok",
             "personal_days": "all",
             "ft_test_mae": 17.0,
             "zs_test_mae": 19.5,
+            "train_span_days": 345.0,
+            "used_train_days": 345.0,
         },
     ]
     out_png = tmp_path / "curve.png"
-    meta = plot_data_size_curve(rows, out_png=out_png, subject="livia")
+    meta = plot_data_size_curve(rows, out_png=out_png, subject="livia", mode="max_days")
     assert out_png.is_file()
-    assert meta["plateau"]["optimal_day"] in ("all", 7)
+    assert 345.0 not in meta["x_values"]
+    assert 999.0 not in meta["x_values"]
+    assert all(x <= 60.0 for x in meta["x_values"])
 
 
 def test_plot_combined_data_size_curves(tmp_path: Path) -> None:
-    from personalization.plot_data_size_curve import plot_combined_data_size_curves
+    from personalization.plot_data_size_curve import ALL_DUMMY_X, plot_combined_data_size_curves
 
     livia = [
-        {"status": "ok", "personal_days": "7", "ft_test_mae": 19.5, "zs_test_mae": 19.3},
-        {"status": "ok", "personal_days": "all", "ft_test_mae": 17.1, "zs_test_mae": 19.3},
+        {
+            "status": "ok",
+            "personal_days": "7",
+            "ft_test_mae": 19.5,
+            "zs_test_mae": 19.3,
+            "train_span_days": 345.0,
+        },
+        {
+            "status": "ok",
+            "personal_days": "all",
+            "ft_test_mae": 17.1,
+            "zs_test_mae": 19.3,
+            "train_span_days": 345.0,
+            "used_train_days": 345.0,
+        },
     ]
     other = [
-        {"status": "ok", "personal_days": "7", "ft_test_mae": 18.0, "zs_test_mae": 18.2},
-        {"status": "ok", "personal_days": "all", "ft_test_mae": 17.0, "zs_test_mae": 18.2},
+        {
+            "status": "ok",
+            "personal_days": "7",
+            "ft_test_mae": 18.0,
+            "zs_test_mae": 18.2,
+            "train_span_days": 91.0,
+        },
+        {
+            "status": "ok",
+            "personal_days": "all",
+            "ft_test_mae": 17.0,
+            "zs_test_mae": 18.2,
+            "train_span_days": 91.0,
+            "used_train_days": 91.0,
+        },
     ]
     out_png = tmp_path / "combined.png"
     meta = plot_combined_data_size_curves(
         [("livia", livia), ("loop_556", other)],
         out_png=out_png,
+        mode="dummy_all",
     )
     assert out_png.is_file()
     assert len(meta["subjects"]) == 2
+    all_x = [x for entry in meta["subjects"] for x in entry["x_values"]]
+    assert ALL_DUMMY_X in all_x
+    assert 999.0 not in all_x
+
+    out_60 = tmp_path / "combined_60.png"
+    meta_60 = plot_combined_data_size_curves(
+        [("livia", livia), ("loop_556", other)],
+        out_png=out_60,
+        mode="max_days",
+        max_days=60.0,
+    )
+    all_x_60 = [x for entry in meta_60["subjects"] for x in entry["x_values"]]
+    assert ALL_DUMMY_X not in all_x_60
+    assert 345.0 not in all_x_60
+    assert all(x <= 60.0 for x in all_x_60)
+
+
+def test_plot_curriculum_mae_and_lambda(tmp_path: Path) -> None:
+    from personalization.plot_data_size_curve import plot_curriculum_mae_and_lambda
+
+    rows = [
+        {
+            "status": "ok",
+            "personal_days": "1",
+            "ft_test_mae": 18.5,
+            "zs_test_mae": 18.3,
+            "lwf_lambda": 0.0,
+            "train_span_days": 345.0,
+        },
+        {
+            "status": "ok",
+            "personal_days": "all",
+            "ft_test_mae": 17.0,
+            "zs_test_mae": 18.3,
+            "lwf_lambda": 0.0,
+            "train_span_days": 345.0,
+            "used_train_days": 345.0,
+        },
+    ]
+    lwf_rows = [
+        {**rows[0], "lwf_lambda": 0.35, "ft_test_mae": 18.6},
+        {**rows[1], "lwf_lambda": 0.0, "ft_test_mae": 17.0},
+    ]
+    out_png = tmp_path / "mae_lambda.png"
+    plot_curriculum_mae_and_lambda(
+        [("livia_indep", rows), ("livia_curr_lwf", lwf_rows)],
+        out_png=out_png,
+    )
+    assert out_png.is_file()
+
+
+def test_uses_base_scalers_and_legacy_complete(tmp_path: Path) -> None:
+    from personalization.sweep_utils import personalization_run_complete, uses_base_scalers
+
+    assert uses_base_scalers({"refit_scalers_on_personal": False, "scaler_source": "fixtures/x/scalers.json"})
+    assert not uses_base_scalers({})
+    assert not uses_base_scalers({"refit_scalers_on_personal": None, "scaler_source": None})
+    assert not uses_base_scalers({"refit_scalers_on_personal": True, "scaler_source": "personal_train"})
+
+    run_dir = tmp_path / "legacy_run"
+    run_dir.mkdir()
+    (run_dir / "personalization_metrics.json").write_text(
+        json.dumps({"finetuned_test": {"mae": 19.5}, "config": {"personal_days": 1}}),
+        encoding="utf-8",
+    )
+    assert not personalization_run_complete(run_dir)
+    assert personalization_run_complete(run_dir, require_base_scalers=False)
+
+    new_dir = tmp_path / "new_run"
+    new_dir.mkdir()
+    (new_dir / "personalization_metrics.json").write_text(
+        json.dumps(
+            {
+                "finetuned_test": {"mae": 18.0},
+                "config": {
+                    "refit_scalers_on_personal": False,
+                    "scaler_source": "fixtures/checkpoints/sugar_one_1.0/scalers.json",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert personalization_run_complete(new_dir)
+
+
+def test_archive_legacy_scaler_runs(tmp_path: Path) -> None:
+    from personalization.sweep_utils import archive_legacy_scaler_runs
+
+    out_dir = tmp_path / "data_size"
+    run_dir = out_dir / "days_1" / "livia_days_1"
+    run_dir.mkdir(parents=True)
+    (run_dir / "personalization_metrics.json").write_text(
+        json.dumps({"finetuned_test": {"mae": 19.5}, "config": {"personal_days": 1}}),
+        encoding="utf-8",
+    )
+    archived = archive_legacy_scaler_runs(out_dir)
+    assert archived is not None
+    assert archived.is_dir()
+    assert not out_dir.exists()
+
+
+def test_should_skip_day_budget() -> None:
+    from personalization.sweep_utils import should_skip_day_budget
+
+    assert should_skip_day_budget(60, 37.4)
+    assert not should_skip_day_budget(30, 37.4)
+    assert not should_skip_day_budget(None, 37.4)
+
+
+def test_joined2_test_cohort_frozen() -> None:
+    from collections import Counter
+
+    from common.data.loading import STUDY_GROUP_ORDER
+    from personalization.cohort import (
+        JOINED2_TEST_USERS,
+        PHASE4_SUBJECTS,
+        joined2_test_subjects,
+        original_cohort_subjects,
+        select_two_test_users_per_group,
+    )
+
+    assert len(PHASE4_SUBJECTS) == 15
+    assert len(original_cohort_subjects()) == 7
+    joined = joined2_test_subjects()
+    assert len(joined) == 8
+    assert JOINED2_TEST_USERS == tuple((s.user_id, s.study_group) for s in joined)
+    counts = Counter(group for _uid, group in JOINED2_TEST_USERS)
+    ai_ready_groups = [g for g in STUDY_GROUP_ORDER if g != "T1DM"]
+    assert list(counts.keys()) == ai_ready_groups
+    assert all(n == 2 for n in counts.values())
+    assert all(not uid.startswith("loop_") for uid, _group in JOINED2_TEST_USERS)
+
+    stats = pl.DataFrame(
+        {
+            "uid": [
+                "ai_ready_b",
+                "ai_ready_a",
+                "ai_ready_c",
+                "loop_z",
+                "loop_y",
+            ],
+            "group": ["Healthy", "Healthy", "Healthy", "T1DM", "T1DM"],
+            "n_rows": [100, 100, 50, 500, 400],
+        }
+    )
+    picked = select_two_test_users_per_group(stats)
+    by_group = {g: [uid for uid, grp in picked if grp == g] for g in STUDY_GROUP_ORDER}
+    assert by_group["Healthy"] == ["ai_ready_a", "ai_ready_b"]
+    assert by_group["T1DM"] == ["loop_z", "loop_y"]
+    assert by_group["Pre-T2DM"] == []
+
+
+def test_train_span_from_split_meta() -> None:
+    from personalization.splits import train_span_days_from_split_meta
+
+    span = train_span_days_from_split_meta(
+        {
+            "train": {
+                "start": "2018-04-12 18:05:00",
+                "end": "2018-05-20 04:23:00",
+            }
+        }
+    )
+    assert span is not None
+    assert 37.0 < span < 38.0
+
+
+def test_decaying_lwf_lambda_schedule() -> None:
+    from personalization.sweep_curriculum import decaying_lwf_lambda, lwf_for_kind
+    from personalization.sweep_lwf import lwf_for_independent_kind
+
+    assert decaying_lwf_lambda(1) == 0.5
+    assert decaying_lwf_lambda(3) == 0.4
+    assert decaying_lwf_lambda(7) == 0.3
+    assert decaying_lwf_lambda(14) == 0.2
+    assert decaying_lwf_lambda(30) == 0.0
+    assert decaying_lwf_lambda(60) == 0.0
+    assert decaying_lwf_lambda(None) == 0.0
+    assert lwf_for_kind("plain", 1) == 0.0
+    assert lwf_for_kind("lwf_decay", 1) == 0.5
+    assert lwf_for_kind("lwf_decay", None) == 0.0
+    assert lwf_for_independent_kind("decay", 1) == 0.5
+    assert lwf_for_independent_kind("decay", 14) == 0.2
+    assert lwf_for_independent_kind("decay", 30) == 0.0
+    assert lwf_for_independent_kind("const", 1) == 0.1
+    assert lwf_for_independent_kind("const", 30) == 0.1
+    assert lwf_for_independent_kind("const", None) == 0.1
+
+
+def test_lwf_teacher_stays_global_after_student_init(tmp_path: Path) -> None:
+    from personalization.finetune import attach_lwf_teacher_and_init_student
+
+    def _model() -> SugarOneModel:
+        return SugarOneModel(
+            n_time_steps=TINY_INPUT_STEPS,
+            n_features=4,
+            d_model=TINY_D_MODEL,
+            n_heads=TINY_N_HEADS,
+            ff_units=TINY_FF_UNITS,
+            n_blocks=TINY_N_BLOCKS,
+            prediction_horizon=TINY_HORIZON,
+            dropout=0.0,
+        )
+
+    device = torch.device("cpu")
+    global_model = _model()
+    student = _model()
+    student.load_state_dict(global_model.state_dict())
+    with torch.no_grad():
+        for param in student.parameters():
+            param.add_(0.25)
+    weights = tmp_path / "best_model.pt"
+    torch.save(student.state_dict(), weights)
+
+    model = _model()
+    model.load_state_dict(global_model.state_dict())
+    teacher = attach_lwf_teacher_and_init_student(
+        model,
+        lwf_lambda=0.3,
+        from_scratch=False,
+        init_weights_from=weights,
+        resume=False,
+        device=device,
+    )
+    assert teacher is not None
+    for left, right in zip(teacher.parameters(), global_model.parameters(), strict=True):
+        assert torch.allclose(left, right)
+    for left, right in zip(model.parameters(), student.parameters(), strict=True):
+        assert torch.allclose(left, right)
