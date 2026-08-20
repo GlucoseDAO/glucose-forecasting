@@ -418,7 +418,7 @@ model.eval()
 |-----|----------|
 | **[CLI Reference](docs/CLI_REFERENCE.md)** | Platform + experiment CLI flags |
 | [Personalization](docs/PERSONALIZATION.md) | SugarOne + Livia fine-tune (`personal-*`) |
-| [Milestone 8 report](docs/MILESTONE_8_PERSONALIZATION_REPORT.md) | Personalization study results |
+| [Personalization report](docs/PERSONALIZATION_REPORT.md) | Personalization study results |
 | [Data guide](docs/DATA.md) | Preprocessing link, `data/input/` layout, joins |
 | [How to run a checkpoint](docs/How_to_run_checkpoint.md) | Reviewer smoke eval |
 | [Presentation](docs/presentation/PRESENTATION_NOTES.md) | RoBioinfo figures + talk notes |

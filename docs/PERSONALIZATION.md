@@ -2,7 +2,7 @@
 
 Fine-tune the production **SugarOne** checkpoint on one person's CGM and pump data (glucose, basal, bolus, carbohydrates). This is the insulin + carbs personalization path — not GluMind HR/steps.
 
-Package: `src/personalization/`. Console commands: `personal-*` (see [CLI reference](CLI_REFERENCE.md)). Technical results: [Milestone 8 report](MILESTONE_8_PERSONALIZATION_REPORT.md).
+Package: `src/personalization/`. Console commands: `personal-*` (see [CLI reference](CLI_REFERENCE.md)). Technical results: [Personalization report](PERSONALIZATION_REPORT.md).
 
 ## Locked recipe
 
@@ -53,7 +53,7 @@ uv run personal-finetune --device cuda
 | `personal-plot` | Data-size charts |
 | `personal-sweep-lr` | Holdout LR transfer vs Livia |
 | `personal-sweep-lwf` | Independent LwF vs plain fine-tune |
-| `personal-study` | Cohort data-size curves + Milestone 8 report |
+| `personal-study` | Cohort data-size curves + personalization report |
 
 ```bash
 uv run personal-prepare --help
@@ -77,4 +77,4 @@ Research sweeps used for Milestone 8 (holdouts, joined2 study groups, LwF). Re-r
 uv run personal-study --report-only
 ```
 
-Results: [Milestone 8 report](MILESTONE_8_PERSONALIZATION_REPORT.md). Out of scope here: personal vs general data mix, GluMind personalization, SugarOne architecture changes.
+Results: [Personalization report](PERSONALIZATION_REPORT.md). Out of scope here: personal vs general data mix, GluMind personalization, SugarOne architecture changes.
