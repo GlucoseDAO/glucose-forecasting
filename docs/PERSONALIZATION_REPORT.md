@@ -20,12 +20,13 @@ MAE is reported in mg/dL. **Δ vs zero-shot** is fine-tuned MAE minus frozen-che
 | Best learning rate on Livia (full train) | **2×10⁻⁴** |
 | Scaler protocol | Reuse the **base-run `scalers.json`**. Do not refit MinMax scalers on personal train. |
 | Coverage | Data-size curves for **15/15** subjects. Independent LwF on Livia and User 154: complete. |
+| Average MAE improvement vs train days | **0.26 / 0.71 / 1.16 mg/dL** at 30 / 60 / full history (n=6 T1DM with ≥60 train days) |
 
 **Locked recipe:** plain fine-tune, `weight_decay=3e-5`, `train_window_stride=6`, `precision=bf16`, chronological split (last 25% test / 15% of remainder val / rest train). A day budget only shortens **train**. Scalers come from the global checkpoint.
 
 Refitting scalers on 1–14 days of personal data shifts the input scale away from the pretrained model and made short fine-tunes look harmful. All tables and charts below use the corrected protocol.
 
-On T1DM users with long history, full-train fine-tuning typically improves MAE by about **0.5–2.1 mg/dL**. Gains usually appear after **30–60 days**. One- to fourteen-day budgets are often flat or slightly worse than the frozen model. LwF distillation against the global teacher does **not** rescue those short, harmful fine-tunes. AI-READY users have ~6 days of CGM and no insulin/carb columns (zero-filled); effects there are small and mixed.
+On T1DM users with long history, full-train fine-tuning typically improves MAE by about **0.5–2.1 mg/dL**. Gains usually appear after **30–60 days**. Averaged over the six T1DM users with at least 60 train days (Livia; Users 154, 556, 730, 1017, 1029), fine-tuning lowers test MAE by **0.26 mg/dL at 30 days**, **0.71 mg/dL at 60 days**, and **1.16 mg/dL** with full history (85–345 train days). One- to fourteen-day budgets are often flat or slightly worse than the frozen model. LwF distillation against the global teacher does **not** rescue those short, harmful fine-tunes. AI-READY users have ~6 days of CGM and no insulin/carb columns (zero-filled); effects there are small and mixed.
 
 ---
 
@@ -238,6 +239,16 @@ User 1082 is the T1DM exception: full train is only ~37 days, and fine-tuning is
 ![Holdouts combined with dummy All](figures/m8/data_size_curves_combined.png)
 
 ![Holdouts combined, first 60 days](figures/m8/data_size_curves_combined_60d.png)
+
+#### Average MAE improvement by train budget
+
+Mean test-MAE reduction versus zero-shot on the six T1DM users with at least 60 train days (Livia; Users 154, 556, 730, 1017, 1029). User 1082 (~37 days, no 60-day budget) and AI-READY users (~6–9 days) are excluded. Mean improvement is −mean Δ.
+
+| Train budget | Mean Δ vs ZS | Mean MAE improvement |
+|--------------|--------------|----------------------|
+| 30 days | -0.26 | 0.26 |
+| 60 days | -0.71 | 0.71 |
+| Full train (85–345 d) | -1.16 | 1.16 |
 
 ### 6.2 Joined2 test — two users per study group
 
