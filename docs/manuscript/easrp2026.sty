@@ -1,0 +1,48 @@
+% easrp2026.sty — The European AI Summer Research Paper template style
+% Minimal placeholder; replace with the official .sty when available.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{easrp2026}[2026/01/01 EASRP 2026 paper style]
+
+\newif\ifeasrpaccepted
+\easrpacceptedfalse
+\DeclareOption{accepted}{\easrpacceptedtrue}
+\ProcessOptions\relax
+
+% Margins: A4, 11pt, reasonable margins
+\RequirePackage[a4paper,margin=2.5cm]{geometry}
+\RequirePackage{natbib}
+% Font: use Computer Modern (default) for portability.
+% Replace with \RequirePackage{mathptmx} on systems with full TeX Live.
+
+% Author / affiliation macros
+\newcommand{\easrpauthor}[1]{\def\@easrpauthor{#1}}
+\newcommand{\easrpaffiliation}[1]{\def\@easrpaffiliation{#1}}
+\newcommand{\easrptitle}[1]{\title{#1}}
+
+\easrpauthor{}
+\easrpaffiliation{}
+
+% Redefine maketitle for anonymous vs accepted
+\ifeasrpaccepted
+  \renewcommand{\maketitle}{%
+    \begin{center}
+      {\LARGE\bfseries\@title\par}
+      \vspace{1em}
+      {\large\@easrpauthor\par}
+      \vspace{0.5em}
+      {\normalsize\itshape\@easrpaffiliation\par}
+      \vspace{1.5em}
+    \end{center}
+  }
+\else
+  \renewcommand{\maketitle}{%
+    \begin{center}
+      {\LARGE\bfseries\@title\par}
+      \vspace{1em}
+      {\large Anonymous submission to EASRP 2026\par}
+      \vspace{1.5em}
+    \end{center}
+  }
+\fi
+
+\endinput

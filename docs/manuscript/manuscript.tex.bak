@@ -1,0 +1,635 @@
+% ============================================================
+%  EASRP 2026 — Sugar I: A Hybrid Transformer–JEPA Architecture
+%  for Personalizable Next-Hour Glucose Forecasting
+%  from Wearable and Insulin Pump Signals
+% ============================================================
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{graphicx}
+\usepackage{easrp2026}            % anonymous submission
+% \usepackage[accepted]{easrp2026}  % camera-ready (reveals authors)
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{url}
+
+% --- Author details: used only in the accepted version -------
+\easrpauthor{Livia Zaharia, Andrii Sameliuk, Alex Karmazin, Nikolay Usanov, Anton Kulaga}
+\easrpaffiliation{%
+  IBIMA, Rostock University Medical Center, Germany \and
+  GlucoseDAO \and
+  HEALES (Healthy Life Extension Society)}
+
+\easrptitle{Sugar~I: A Hybrid Transformer--JEPA Architecture for Personalizable
+Next-Hour Glucose Forecasting from Wearable and Insulin Pump Signals}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Accurate 60-minute glucose forecasting can prevent hypoglycemic episodes and optimize insulin dosing, yet current models treat the task as a pure regression problem without considering whether their predictions are traceable enough to support clinical decisions.
+We present Sugar~I, a compact transformer architecture ($\sim$200K--420K parameters) that fuses heterogeneous physiological signals through parallel cross-attention (sensor fusion) and multi-scale self-attention (temporal context at multiple resolutions).
+Sugar~I accepts interchangeable covariate sets---heart rate and step counts from wearables, or basal rate, bolus insulin, and carbohydrates from insulin pumps---unified by learnable softmax mixing that lets the model discover each signal's contribution.
+On AI-READI (896 participants, four T2DM-spectrum cohorts) and Loop T1DM data, the wearable configuration achieves MARD 8.25\%, approaching the measurement accuracy of CGM sensors themselves ($\sim$10\%).
+
+We further integrate a self-supervised JEPA encoder as an auxiliary cross-attention stream, motivated by the Joint-Embedding Predictive Architecture's promise of separating state, action, and prediction into inspectable components---a prerequisite for biomedical decision support where traceability must come before capability.
+The resulting hybrid (Sugar~I + JEPA) reduces MAE by up to 18\% over the pump-only baseline, and linear probing of frozen JEPA embeddings recovers patient identity with 68\% accuracy across 665 individuals, demonstrating their potential as zero-shot patient embeddings.
+A personalization study on 15 subjects shows that fine-tuning from 60 days of personal data consistently improves predictions, while shorter windows typical of health-optimization CGM use do not yet suffice.
+The ongoing Sugar-Sugar human benchmarking study (ethics-approved, $n > 200$) will provide the first published human accuracy reference for glucose forecasting.
+All code and model weights are publicly available.
+\end{abstract}
+
+% ================================================================
+\section{Introduction}
+% ================================================================
+
+Diabetes mellitus affects 537 million adults worldwide and is projected to reach 783 million by 2045~\citep{idf2021atlas}.
+The disease spans a wide spectrum of severity: Type~2 diabetes (T2DM) ranges from prediabetes through oral-medication and insulin-dependent stages, while Type~1 diabetes (T1DM) is characterized by complete insulin dependence and large, rapid glucose excursions.
+For people with T1DM and insulin-dependent T2DM, accurate glucose forecasting is not a convenience but a safety-critical need---mistimed insulin can cause life-threatening hypoglycemia, and even brief hyperglycemic episodes accelerate long-term complications.
+Continuous glucose monitoring (CGM) devices measure interstitial glucose every five minutes, producing dense physiological time series that enable data-driven forecasting~\citep{rodbard2016cgm}.
+However, CGMs display \emph{current} glucose; by the time a patient observes a dangerous value, the event is already underway.
+Accurate 60-minute forecasting would enable proactive intervention---preventing hypoglycemic episodes, optimizing insulin dosing, and improving time-in-range (the proportion of readings within the clinical target of 70--180~mg/dL).
+
+Beyond insulin-dependent populations, CGM adoption is growing among healthy individuals and those with prediabetes who use sensors for metabolic health optimization---often wearing a sensor for just one or two weeks per year.
+For these users, the practical question is whether such a short personal data window is sufficient for a forecasting model to personalize.
+
+CGM sensors measure glucose (and, in some newer devices, ketones), but they do not capture the broader physiological context.
+Smartwatches and fitness trackers worn alongside a CGM can provide heart rate (HR) and physical activity (step counts), signals that may carry complementary metabolic and cardiovascular information.
+Whether these additional modalities genuinely improve glucose prediction is an open question.
+The AI-READI dataset pairs Dexcom~G6 CGM with Fitbit-derived HR and step counts, giving us the opportunity to train both glucose-only and multimodal models and compare them directly.
+On the insulin pump side, Loop system data provides basal rate, bolus insulin, and carbohydrate entries---covariates with a more direct pharmacological relationship to glucose dynamics.
+The architectural challenge is to fuse these heterogeneous, irregularly sampled signals into a single predictive model that generalizes across the full clinical spectrum---from healthy individuals through prediabetes to insulin-dependent T1DM and T2DM---while remaining personalizable to each user.
+
+Recent work has shown that transformer architectures with cross-sensor attention can generalize across sensor types and populations for wearable biosignals~\citep{luo2024biosignal, lutsker2024wearable}.
+\citet{bian2025glumind} proposed GluMind, a multimodal parallel-attention transformer that combines cross-attention for sensor fusion with multi-scale self-attention for capturing temporal dependencies at multiple resolutions, evaluated on the AI-READI dataset.
+However, a separate gap persists in evaluation methodology: published models are compared only against other models, with no reference to human performance on the same task.
+
+In this paper, we make the following contributions:
+
+\begin{enumerate}
+    \item We present \textbf{Sugar~I}, our implementation and extension of the GluMind architecture, achieving state-of-the-art results on the AI-READI T2DM cohorts (MAE 11.33~mg/dL, MARD 8.25\%) and competitive results on T1DM data.
+    \item We extend Sugar~I from wearable covariates (HR, steps) to \textbf{insulin pump signals} (basal, bolus, carbohydrates) via \emph{learnable softmax mixing weights}, and demonstrate that insulin covariates improve T1DM prediction by 3.6\%.
+    \item We conduct a systematic \textbf{personalization study} treating the global Sugar~I checkpoint as a foundation model and asking: \emph{what is the minimum viable personal data} for fine-tuning to improve over the global model? Across 15 subjects spanning five clinical groups---from T1DM patients with months of pump data to healthy users with only days of CGM---we find that 30--60 days are needed, and that shorter windows (as typical for health-optimization users who wear a sensor once a year) do not yet suffice.
+    \item We introduce \textbf{Sugar-Sugar}, an ethics-approved web-based human benchmarking study ($n > 200$ target, currently recruiting) that will produce the first published human accuracy baseline for glucose forecasting (to be described in a separate publication).
+    \item We release all code, preprocessing pipelines (supporting 9 CGM device formats across 50+ public datasets), and model weights as open-source resources.
+\end{enumerate}
+
+% ================================================================
+\section{Related Work}
+% ================================================================
+
+\paragraph{Classical and shallow approaches.}
+ARIMA models and their exogenous extensions (ARX) provide interpretable baselines for blood glucose forecasting but struggle with the nonlinear, non-stationary dynamics of glucose regulation~\citep{bian2025glumind}.
+Shallow feedforward networks improve on linear methods but cannot model complex temporal dependencies.
+
+\paragraph{Recurrent models.}
+LSTMs and GRUs have been widely applied to glucose prediction, with personalized multitask architectures showing promise for T1DM~\citep{li2019lstm, zhu2022personalized}.
+However, recurrent models face difficulties with long-range dependencies, varying sampling rates, and catastrophic forgetting during sequential fine-tuning across populations.
+
+\paragraph{Transformer-based models.}
+Transformers have emerged as a powerful alternative for time-series forecasting~\citep{vaswani2017attention}.
+The Informer~\citep{zhou2021informer} and Temporal Fusion Transformer~\citep{lim2021tft} address long-sequence efficiency and interpretability, respectively.
+For glucose specifically, GluFormer~\citep{sergazinov2023gluformer} incorporates hierarchical attention and uncertainty quantification.
+AttenGluco~\citep{zhu2023attengluco} introduced cross-attention for multimodal glucose forecasting but employed a \emph{sequential} configuration.
+N-HiTS~\citep{challu2023nhits} uses hierarchical interpolation for multi-horizon forecasting and serves as a strong non-transformer baseline.
+GluMind~\citep{bian2025glumind} proposed running cross-attention and multi-scale attention in \emph{parallel} and introduced Learning without Forgetting (LwF)~\citep{li2017lwf} for continual learning across cohorts, evaluated on AI-READI.
+
+\paragraph{Self-supervised and foundation models.}
+Recent work has explored self-supervised pretraining for CGM data.
+CGM-JEPA~\citep{cgmjepa2025} applies joint-embedding predictive architecture to glucose time series.
+Foundation models for wearable biosignals~\citep{luo2024biosignal, lutsker2024wearable} demonstrate that cross-sensor attention can generalize across devices and populations.
+
+\paragraph{Benchmarks.}
+Several recent efforts have standardized glucose forecasting evaluation.
+GlucoBench~\citep{glucobench2024} curated 13 public CGM datasets with unified prediction benchmarks.
+MetaboNet-Bench~\citep{jeffries2026metabonetbench} extends this to multi-modal T1DM data (glucose, insulin, carbohydrates) in an extensible open-source framework.
+EventGlucoseBench~\citep{luo2026eventglucose} introduces event-aware sampling centered on meals, medications, and exercise, with probabilistic evaluation via CRPS across 18 models.
+Despite this progress, a critical evaluation gap remains: no published study compares model predictions against human accuracy on the same glucose forecasting task.
+
+% ================================================================
+\section{Method}
+% ================================================================
+
+\subsection{Problem formulation}
+
+Given a set of $n$ sensor-derived time series $\mathbf{X} = [\mathbf{x}_1, \ldots, \mathbf{x}_n]$ sampled over a lookback window of $T$ steps, we predict future glucose values $\hat{\mathbf{x}}_g = [x_{g,T+1}, \ldots, x_{g,T+H}]^\top$ over a horizon of $H$ steps.
+In our primary configuration, $n = 3$ (glucose, heart rate, step count), $T = 80$ (400 minutes at 5-minute sampling), and $H = 12$ (60 minutes).
+
+\subsection{Sugar~I architecture}
+
+Sugar~I builds on the GluMind framework~\citep{bian2025glumind} with a parallel dual-attention design.
+Each of the $n$ input channels is independently projected from scalar dimension to $d_\text{model}$ via a learned linear embedding, then augmented with sinusoidal positional encoding.
+The resulting representations are processed by a stack of $B$ identical \texttt{ParallelBlocks}, each containing two sub-networks that execute simultaneously (Figure~\ref{fig:sugar_i_arch}):
+
+\paragraph{Cross-attention block (sensor fusion).}
+Glucose embeddings serve as queries $\mathbf{Q}$; each auxiliary modality (HR, steps) independently provides keys $\mathbf{K}_i$ and values $\mathbf{V}_i$ through separate multi-head attention modules:
+\begin{equation}
+    \mathbf{C}_i = \text{MultiHead}(\mathbf{Q}_\text{gluc}, \mathbf{K}_i, \mathbf{V}_i), \quad i \in \{1, \ldots, n-1\}
+\end{equation}
+The outputs are averaged with equal weights ($1/(n-1)$ each), followed by LayerNorm, a feedforward network (Linear $\to$ GELU $\to$ Dropout $\to$ Linear), and residual connections.
+This design allows the model to learn \emph{when} and \emph{how much} each auxiliary signal informs glucose dynamics---for example, detecting that a heart rate spike after a meal predicts a subsequent glucose rise.
+
+\paragraph{Multi-scale attention block (temporal context).}
+Self-attention is applied to the glucose stream at three temporal resolutions: full resolution (downsampling factor DS=1), half resolution (DS=2 via average pooling), and quarter resolution (DS=4 via average pooling).
+Each resolution has its own multi-head attention module.
+Downsampled representations are processed independently, then upsampled via nearest-neighbor interpolation back to full resolution, and summed:
+\begin{equation}
+    \mathbf{M} = \sum_{s \in \{1,2,4\}} \text{Upsample}\bigl(\text{MultiHead}_s(\mathbf{G}_s, \mathbf{G}_s, \mathbf{G}_s)\bigr)
+\end{equation}
+where $\mathbf{G}_s$ denotes the glucose representation at downsampling factor $s$.
+This multi-scale design captures rapid glucose fluctuations (5-minute scale), meal and activity responses (10-minute scale), and longer metabolic trends (20-minute scale) simultaneously.
+
+\paragraph{Fusion and output.}
+The cross-attention output $\mathbf{C}$ and multi-scale output $\mathbf{M}$ are summed and fused through a LayerNorm.
+After the final block, the representation is flattened and passed through a two-layer MLP ($d_\text{model} \times T \to d_\text{model} \to H$) with GELU activation to produce the $H$-step forecast.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.85\textwidth]{fig_architecture.png}
+\caption{Sugar~I architecture. Three sensor streams (CGM, heart rate, steps) are independently embedded, then processed by parallel cross-attention (sensor fusion) and multi-scale self-attention (temporal context at DS=1, 2, 4) blocks, repeated $\times 3$. The fused representation is decoded by an MLP into 12 glucose predictions (60 minutes).}
+\label{fig:sugar_i_arch}
+\end{figure}
+
+\paragraph{Hyperparameters.}
+The default configuration uses $d_\text{model} = 32$, $n_\text{heads} = 4$, $B = 3$ blocks, $\text{ff\_units} = 128$, and dropout = 0.1, yielding approximately \textbf{197K parameters}---compact enough for edge deployment on wearable devices.
+Training uses AdamW~\citep{loshchilov2019adamw} with learning rate $10^{-3}$, weight decay $10^{-4}$, batch size 4096, bf16 mixed precision~\citep{micikevicius2018mixed}, and early stopping with patience 20.
+
+\subsection{Insulin and carbohydrate extension}
+
+For insulin pump data, the auxiliary covariates change from (HR, steps) to (basal rate, bolus insulin, carbohydrates), yielding $n = 4$ input channels with $T = 128$ steps.
+The key architectural innovation is replacing the fixed-weight averaging of cross-attention outputs with \textbf{learnable softmax mixing}:
+\begin{equation}
+    \mathbf{C} = \sum_{i=1}^{3} w_i \cdot \mathbf{C}_i, \quad \text{where} \quad w_i = \frac{\exp(\alpha_i)}{\sum_{j=1}^{3} \exp(\alpha_j)}
+\end{equation}
+and $\boldsymbol{\alpha} = (\alpha_1, \alpha_2, \alpha_3)$ are learned parameters initialized to zero (equal mixing).
+This allows the model to autonomously discover that bolus insulin events (sparse but highly informative) should contribute differently from basal rate (continuous background signal).
+The production pump configuration uses $n_\text{heads} = 8$ and $B = 5$ blocks.
+
+\subsection{JEPA auxiliary stream: toward a glucose world model}
+
+The pump configuration is further extended with a fourth cross-attention stream derived from a pretrained JEPA encoder based on CGM-JEPA~\citep{cgmjepa2025}.
+
+\paragraph{Why JEPA.}
+The Joint-Embedding Predictive Architecture, popularized by \citet{lecun2022jepa}, was proposed as an alternative to autoregressive generative models.
+Its central promise is that the current state, a proposed action, and the predicted future state can be represented as distinct, inspectable parts of the model.
+This does not make predictions safe by default; it gives us a concrete safety claim to test.
+For biomedical decision support, traceability must come before capability: a plausible but untraceable prediction cannot safely support a clinical decision.
+Our JEPA experiment tests how far this requirement can be built into a physiological world model.
+The encoder receives recent glucose history, and the resulting latent state enters Sugar~I's cross-attention alongside explicit pharmacological signals (insulin, carbohydrates), producing a trajectory that can be audited at the embedding level.
+
+\paragraph{JEPA encoder training.}
+We train our own JEPA encoders on the unified Loop + AI-READI dataset (glucose only, no covariates), holding out a random 5\% subset for validation.
+In addition to the exponential moving average (EMA) teacher--student regularization from CGM-JEPA, we add a variance penalty inspired by VICReg~\citep{bardes2022vicreg}:
+\begin{equation}
+    L = \underbrace{\operatorname{SmoothL1}(\hat{z}, z)}_{\text{prediction loss}} + \lambda \underbrace{\frac{1}{E} \sum_{j=1}^{E} \operatorname{ReLU}\!\left(\sigma_{\text{target}} - \sigma_{c,j}\right)}_{\text{variance penalty}}
+\end{equation}
+where $E$ is the embedding dimensionality and $\sigma_{c,j}$ is the standard deviation of context-block representations along dimension $j$.
+This modification increases the number of informative dimensions and reduces representation collapse.
+
+To evaluate the effect of temporal context length, we train five encoder variants with input windows from 128 to 2016 steps (10.7 hours to 7 days), as summarized in Table~\ref{tab:jepa_variants}.
+
+\begin{table}[h]
+\centering
+\caption{JEPA encoder variants evaluated.}
+\label{tab:jepa_variants}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Encoder} & \textbf{Embed dim} & \textbf{Context size} \\
+\midrule
+jepa-128-64 & 64 & 128 (10.7\,h) \\
+jepa-128 & 96 & 128 (10.7\,h) \\
+jepa-288 & 96 & 288 (1\,d) \\
+jepa-864 & 96 & 864 (3\,d) \\
+jepa-2016 & 96 & 2016 (7\,d) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Integration with Sugar~I.}
+The pretrained JEPA encoder is added as an additional covariate branch, analogous to bolus, basal, and carbohydrate inputs.
+The JEPA embeddings are layer-normalized and linearly projected from 96 to $d_\text{model} = 32$ dimensions before entering the multi-head cross-attention block.
+When the JEPA encoder requires $m$ input steps and Sugar~I requires $n < m$ steps, training windows contain $m$ points: the full sequence feeds the JEPA encoder while only the final $n$ points feed the main branches.
+The 4-way learnable softmax mixing (Eq.~3 extended with a fourth term) integrates pharmacological covariates with the self-supervised glucose representation.
+During training with the JEPA stream, encoder weights are \emph{not} frozen but updated with a lower learning rate ($4 \times 10^{-5}$ vs.\ $4 \times 10^{-4}$ for the rest of the model).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.8\textwidth]{sugar_jepa.png}
+\caption{Sugar~I + JEPA architecture. The pump configuration is augmented with a JEPA-based auxiliary branch whose embeddings enter via a fourth cross-attention stream with learnable softmax mixing.}
+\label{fig:sugar_jepa}
+\end{figure}
+
+\paragraph{JEPA as patient embedding.}
+A key practical challenge in glucose prediction is adaptation to individual patients.
+Standard personalization requires accumulating sufficient patient-specific data for fine-tuning, during which no personalized model is available.
+We hypothesize that JEPA representations can serve as patient embeddings, capturing enough patient-specific information for \emph{zero-shot} personalization---the observation period for a representative JEPA embedding is substantially shorter than what fine-tuning requires.
+To test this, we train a dense classification head on top of frozen JEPA encoders for a patient identification task on held-out patients (see Section~\ref{sec:jepa_results}).
+
+\subsection{Continual learning with LwF}
+
+Following \citet{bian2025glumind}, we support continual training across cohorts (Healthy $\to$ Pre-T2DM $\to$ Oral-T2DM $\to$ Insulin-T2DM) using Learning without Forgetting~\citep{li2017lwf}:
+\begin{equation}
+    \mathcal{L} = (1 - \lambda)\,\mathcal{L}_\text{task} + \lambda\,\mathcal{L}_\text{distill}
+\end{equation}
+where $\mathcal{L}_\text{distill}$ is the MSE between the current model's predictions and those of a frozen teacher snapshot from the previous cohort.
+We find $\lambda = 0.3$ provides the best balance between plasticity and stability, with only $\sim$0.14~mg/dL MAE trade-off versus global training.
+
+\subsection{Personalization}
+
+We treat the globally trained Sugar~I (pump) checkpoint as a \emph{foundation model} and ask: what is the minimum amount of personal data required for fine-tuning to improve over the global model?
+This question is practically important across the clinical spectrum.
+T1DM and insulin-dependent T2DM patients accumulate months of continuous data from their pumps and CGMs, but healthy individuals and those with prediabetes who use CGM for metabolic health optimization may wear a sensor for only one or two weeks per year.
+
+Given the global checkpoint, personal fine-tuning uses the individual's chronological CGM and pump data (last 25\% test, 15\% of remainder validation, rest train), sweeping train budgets from 1 to 345 days.
+Critically, MinMax scalers are \emph{not} refitted on personal data but reused from the global checkpoint's \texttt{scalers.json}, preserving the pretrained input distribution.
+The locked recipe is: plain fine-tune ($\lambda = 0$), learning rate $2 \times 10^{-4}$, weight decay $3 \times 10^{-5}$, train window stride 6 (30-minute spacing), bf16, early stopping with patience 3.
+
+% ================================================================
+\section{Experimental Setup}
+% ================================================================
+
+\subsection{Datasets}
+
+\paragraph{AI-READI.}
+The AI-READI dataset~\citep{aireadi2024} comprises 896 participants across four clinically defined cohorts (each $n = 224$): Healthy, Pre-T2DM, Oral-medication T2DM, and Insulin-dependent T2DM.
+Each participant wore a Dexcom G6 CGM (5-minute sampling) alongside a Fitbit for heart rate and step counts ($\sim$1-minute sampling) for approximately 10 days.
+We apply 5-minute resampling, linear interpolation for gaps $\leq$15 minutes, and MinMax normalization per channel.
+Training/validation/test splits are user-wise (70/15/15\%).
+
+\paragraph{Loop (T1DM).}
+The Loop observational study (JAEB Center for Health Research) provides CGM and insulin pump data from $\sim$1000 participants with Type~1 diabetes using the open-source DIY Loop automated insulin delivery system.
+Data includes glucose, basal rate, bolus insulin, and carbohydrate entries, processed through our pipeline's \texttt{loop} format converter.
+Loop data exhibits substantially higher glycemic variability than AI-READI cohorts and provides the insulin and carbohydrate covariates required by the pump configuration.
+
+\paragraph{Joined benchmark.}
+For the pump and JEPA configurations, we construct a joined dataset (\texttt{loop\_ai\_ready\_joined2.csv}, 12.1M rows) vertically stacking AI-READI (49.9\%, wearable schema) and Loop pump data (50.1\%, T1DM with basal/bolus/carbs).
+Sequence IDs are prefixed to avoid collisions, and T1DM row mass is balanced against combined non-T1DM mass.
+
+\paragraph{Personalization subjects.}
+Fifteen subjects spanning five clinical groups: 7 T1DM (including one personal CGM/pump user with 345 days of data), and 8 AI-READI subjects (2 per non-T1DM group, $\sim$6 days each).
+
+\subsection{Baselines}
+
+We compare against three baselines, all run on the same data splits:
+\begin{itemize}
+    \item \textbf{N-HiTS}~\citep{challu2023nhits}: neural hierarchical interpolation model from the NeuralForecast library~\citep{neuralforecast2022}, representing a strong non-transformer baseline.
+    \item \textbf{GluFormer}~\citep{sergazinov2023gluformer}: transformer with hierarchical attention and uncertainty quantification.
+    \item \textbf{Original GluMind}~\citep{bian2025glumind}: the published results from the original paper (same architecture, different training configuration).
+\end{itemize}
+
+\subsection{Metrics}
+
+We report three standard metrics: Mean Absolute Error (MAE, mg/dL), Root Mean Squared Error (RMSE, mg/dL), and Mean Absolute Relative Difference (MARD, \%).
+MARD is the clinically preferred metric as it accounts for the difference between errors at low versus high glucose values; CGM sensors themselves have $\sim$10\% MARD~\citep{rodbard2016cgm}.
+
+\subsection{Data preprocessing pipeline}
+
+All CGM data is processed through a modular open-source pipeline (\texttt{glucose\_data\_processing}) with 9 device- and study-specific format converters: AI-READI, Loop, HUPA, T1D-UoM, UC-HT (T1DM + healthy controls), Minidose~1, Dexcom~G6, FreeStyle~Libre~3, and Medtronic.
+These converters cover the datasets we use most frequently, including multi-modality studies (CGM with heart rate, steps, insulin, carbohydrates, and meals).
+The pipeline performs: (1) format-specific consolidation to a standardized schema, (2) gap detection and sequence splitting, (3) linear interpolation for continuous fields with preservation of sparse event signals, (4) fixed-frequency resampling to 5 minutes, and (5) ML-ready export with train/val/test split columns.
+We have catalogued 51 public CGM datasets with download links; programmatic downloaders are included for datasets with open access.
+
+% ================================================================
+\section{Results}
+% ================================================================
+
+\subsection{Overall performance: AI-READI (T2DM spectrum)}
+
+Table~\ref{tab:overall_ai_ready} presents the main results on the AI-READI dataset across four T2DM-spectrum cohorts.
+
+\begin{table}[h]
+\centering
+\caption{Overall 60-minute glucose prediction on AI-READI (4 cohorts, 896 participants). Lower is better.}
+\label{tab:overall_ai_ready}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{MAE} $\downarrow$ & \textbf{RMSE} $\downarrow$ & \textbf{MARD} $\downarrow$ \\
+\midrule
+\textbf{Sugar~I (ours)} & \textbf{11.33} & \textbf{17.73} & \textbf{8.25\%} \\
+GluMind original~\citep{bian2025glumind} & 12.95 & 18.19 & --- \\
+GluFormer~\citep{sergazinov2023gluformer} & 19.53 & 33.28 & 13.03\% \\
+N-HiTS~\citep{challu2023nhits} & 20.60 & 34.45 & 13.33\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Sugar~I outperforms N-HiTS by 45.0\% on MAE, GluFormer by 42.0\%, and the original GluMind implementation by 12.5\%.
+The prediction MARD of 8.25\% is below the typical measurement MARD of CGM sensors ($\sim$10\%), meaning the 60-minute \emph{predictions} approach the accuracy of the \emph{sensor itself}.
+
+\subsection{Type~1 diabetes}
+
+\begin{table}[h]
+\centering
+\caption{60-minute glucose prediction on T1DM data. Sugar~I leads on MAE and MARD; N-HiTS retains lower RMSE.}
+\label{tab:t1dm}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{MAE} $\downarrow$ & \textbf{RMSE} $\downarrow$ & \textbf{MARD} $\downarrow$ \\
+\midrule
+\textbf{Sugar~I (ours)} & \textbf{14.51} & 23.00 & \textbf{10.99\%} \\
+N-HiTS & 15.11 & \textbf{21.05} & 11.24\% \\
+GluFormer & 19.53 & 33.28 & 15.10\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+T1DM is inherently harder to predict than T2DM: patients experience large, rapid glucose excursions driven by exogenous insulin timing and carbohydrate intake, producing substantially higher glycemic variability.
+Accordingly, all models show higher error on this cohort.
+Sugar~I leads on MAE ($-4.0\%$ vs.\ N-HiTS) and MARD, but N-HiTS retains lower RMSE (21.05 vs.\ 23.00), suggesting Sugar~I occasionally produces larger errors on extreme swings---an area for improvement.
+
+\subsection{Error gradient across disease severity}
+
+A consistent finding across all models is that prediction error increases monotonically with disease severity.
+Table~\ref{tab:per_cohort} and Figure~\ref{fig:per_cohort_mae} show per-cohort MAE for the combined AI-READI + T1DM benchmark.
+
+\begin{table}[h]
+\centering
+\caption{Per-cohort MAE (mg/dL) on the combined benchmark. Error tracks disease progression.}
+\label{tab:per_cohort}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Model} & \textbf{Healthy} & \textbf{Pre-T2DM} & \textbf{Oral} & \textbf{Ins-T2DM} & \textbf{T1DM} \\
+\midrule
+\textbf{Sugar~I} & \textbf{9.57} & \textbf{9.89} & \textbf{12.35} & \textbf{13.58} & \textbf{15.06} \\
+N-HiTS & 16.86 & 14.00 & 19.97 & 28.31 & 15.53 \\
+GluFormer & 17.08 & 14.21 & 19.36 & 26.36 & 15.46 \\
+GluMind orig. & 10.58 & 11.08 & 13.74 & 16.41 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Sugar~I achieves the largest improvement in the Insulin-T2DM cohort, reducing MAE by $\sim$50\% relative to baselines (13.58 vs.\ 26--28~mg/dL).
+This is where glucose dynamics are most complex and multimodal fusion provides the greatest benefit---cross-attention to HR and steps captures cardiovascular correlates of glycemic variability that glucose history alone misses.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.9\textwidth]{fig_per_cohort_mae.png}
+\caption{Per-cohort MAE comparison across all models. Sugar~I (teal) maintains consistently low error across the disease spectrum, while baseline models degrade sharply at the Insulin-T2DM stage. The gap narrows for T1DM, where all models face high glycemic variability.}
+\label{fig:per_cohort_mae}
+\end{figure}
+
+\subsection{Insulin covariate contribution}
+
+On the joined benchmark (12.1M rows, 50\% T1DM from Loop pump data), Sugar~I with full insulin/carb covariates achieves MAE 12.40~mg/dL (Table~\ref{tab:sugarone}).
+
+\begin{table}[h]
+\centering
+\caption{Sugar~I (pump) on the joined AI-READI + Loop benchmark. Covariate ablation via zeroing after imputation.}
+\label{tab:sugarone}
+\begin{tabular}{llccc}
+\toprule
+\textbf{Configuration} & \textbf{Covariates} & \textbf{MAE} $\downarrow$ & \textbf{RMSE} $\downarrow$ & \textbf{MARD} $\downarrow$ \\
+\midrule
+\textbf{Sugar~I (pump)} & basal + bolus + carbs & \textbf{12.40} & \textbf{19.03} & \textbf{9.91\%} \\
+Sugar~I (pump) & glucose only (\texttt{--zero-cov}) & 12.63 & 19.47 & 9.98\% \\
+Sugar~I (wearable) & glucose only & 12.73 & 19.66 & 10.28\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A detailed T1DM covariate ablation (819K windows, 9 users) reveals that \textbf{bolus insulin is the dominant channel}: including bolus alone recovers $\sim$70\% of the gain from using all three covariates (MAE 13.22 vs.\ 13.08 with all, 13.55 with none).
+Basal rate contributes least marginally (+0.03~mg/dL when excluded), consistent with its continuous, redundant nature after forward-fill imputation.
+
+\subsection{Personalization}
+
+Fine-tuning the global Sugar~I (pump) checkpoint on individual data produces consistent improvements for T1DM subjects with sufficient history (Table~\ref{tab:personalization}).
+Averaged over six T1DM users with $\geq$60 train days:
+
+\begin{table}[h]
+\centering
+\caption{Mean test-MAE improvement vs.\ zero-shot, averaged over 6 T1DM users ($\geq$60 train days).}
+\label{tab:personalization}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Train budget} & \textbf{Mean $\Delta$ MAE} & \textbf{Improvement} \\
+\midrule
+30 days & $-0.26$ & 0.26 mg/dL \\
+60 days & $-0.71$ & 0.71 mg/dL \\
+Full train (85--345 d) & $-1.16$ & 1.16 mg/dL \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Gains emerge after 30--60 days; 1--14 day budgets often show flat or slightly worse performance (Figure~\ref{fig:personalization}).
+This has direct implications for healthy and prediabetic users who wear a CGM sensor briefly for metabolic optimization: with only 1--2 weeks of data, the global foundation model remains the better option, and personalization should be gated on data availability.
+LwF distillation against the global teacher does \emph{not} rescue short-history fine-tunes.
+AI-READI subjects ($\sim$6 days of CGM, no insulin covariates) show small and mixed effects, confirming that the short data window typical of health-optimization use is insufficient for fine-tuning.
+The best individual improvement was $-2.09$~mg/dL (User 1029, 136 train days).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.9\textwidth]{fig_personalization_curves.png}
+\caption{Personalization learning curves for T1DM subjects (first 60 train days). Solid lines show fine-tuned test MAE as a function of personal training days; dashed lines show each user's zero-shot baseline. Most users require 30--60 days before fine-tuning consistently beats the global model.}
+\label{fig:personalization}
+\end{figure}
+
+\subsection{Continual learning}
+
+Global training outperforms continual (cohort-sequential) training by only 0.14~mg/dL MAE (11.34 vs.\ 11.48), demonstrating that LwF with $\lambda = 0.3$ effectively preserves knowledge across cohorts.
+This is relevant for clinical deployment where new patient populations arrive incrementally.
+
+\subsection{Sugar~I + JEPA results}
+\label{sec:jepa_results}
+
+\subsubsection{Encoder quality}
+
+Table~\ref{tab:jepa_qc} reports latent-space quality metrics for the five encoder variants.
+The 3-day encoder (jepa-864) achieves the highest effective rank (35.99), indicating the best utilization of the 96-dimensional latent space.
+Effective rank grows approximately linearly with context window size up to 3 days, but collapses for the 7-day encoder (jepa-2016, rank 16.71).
+The 7-day encoder compensates with higher mean standard deviation (0.83 vs.\ 0.56), but this reflects a highly unbalanced distribution: a few leading dimensions dominate while the rest collapse (Figure~\ref{fig:jepa_qc}).
+
+\begin{table}[h]
+\centering
+\caption{JEPA encoder quality metrics. Effective rank measures how many latent dimensions are actively used; mean std measures average spread. Higher is better for both.}
+\label{tab:jepa_qc}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Encoder} & \textbf{Effective rank} & \textbf{Mean std} \\
+\midrule
+jepa-128-64 & 17.62 & 0.56 \\
+jepa-128 & 26.26 & 0.57 \\
+jepa-288 & 27.43 & 0.56 \\
+jepa-864 & \textbf{35.99} & 0.56 \\
+jepa-2016 & 16.71 & \textbf{0.83} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.48\textwidth]{jepa-864-encoder.png}
+\hfill
+\includegraphics[width=0.48\textwidth]{jepa-2016-encoder.png}
+\caption{JEPA encoder comparison. 3-day encoder (left) shows higher effective rank and more even per-dimension standard deviation. 7-day encoder (right) concentrates variance in a few leading dimensions. Lower plots show PCA variance explained.}
+\label{fig:jepa_qc}
+\end{figure}
+
+All encoders produce embeddings that clearly separate the AI-READI and Loop datasets along PC1 (Figure~\ref{fig:pca_864}), reflecting their distinct patient populations and sampling densities.
+The 3-day encoder shows the strongest separation, yet overall representations remain well-mixed with a low dataset-level silhouette coefficient of 0.166 across all 96 dimensions.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.8\textwidth]{pca_w864.png}
+\caption{PCA of jepa-864 embeddings on held-out data. PC1 separates AI-READI from Loop, but the overall representation is well-mixed (silhouette = 0.166).}
+\label{fig:pca_864}
+\end{figure}
+
+\subsubsection{Patient identification probing}
+
+Linear probing on frozen encoders for patient identification (Table~\ref{tab:jepa_patient}) reveals that the 3-day encoder reaches 68.4\% validation accuracy across 665 previously unseen patients.
+Accuracy correlates with context window size; the 7-day encoder cannot be reliably evaluated due to insufficient patients ($n = 18$) with 7 consecutive days of measurements.
+
+\begin{table}[h]
+\centering
+\caption{Patient identification from frozen JEPA embeddings. $^{*}$jepa-2016 evaluated on 18 patients; all others on 665.}
+\label{tab:jepa_patient}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Encoder} & \textbf{Train Loss} & \textbf{Train Acc.} & \textbf{Val Loss} & \textbf{Val Acc.} \\
+\midrule
+jepa-128 & 4.09 & 0.136 & 4.41 & 0.113 \\
+jepa-288 & 2.24 & 0.419 & 2.59 & 0.365 \\
+\textbf{jepa-864} & \textbf{0.69} & \textbf{0.816} & \textbf{0.96} & \textbf{0.684} \\
+jepa-2016$^{*}$ & 1.23 & 0.583 & 1.71 & 0.483 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+These results confirm that JEPA embeddings encode substantial patient-specific information, supporting their potential as patient embeddings for zero-shot personalization.
+
+\subsubsection{Sugar~I + JEPA forecasting performance}
+
+Table~\ref{tab:sugar_jepa_test} presents Sugar~I + JEPA test metrics across all encoder variants and the original CGM-JEPA encoder for comparison.
+
+\begin{table}[h]
+\centering
+\caption{Sugar~I + JEPA test metrics on the joined benchmark. All encoders improve over the pump-only baseline (MAE 12.40).}
+\label{tab:sugar_jepa_test}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Encoder} & \textbf{MAE} $\downarrow$ & \textbf{RMSE} $\downarrow$ & \textbf{MARD} $\downarrow$ \\
+\midrule
+jepa-128-64 & 12.47 & 18.82 & 10.40\% \\
+jepa-128 & 12.03 & 18.54 & 9.80\% \\
+jepa-288 & 11.37 & 17.63 & 9.08\% \\
+jepa-864 & 10.90 & 17.06 & 8.55\% \\
+\textbf{jepa-2016} & \textbf{10.40} & \textbf{16.19} & \textbf{8.10\%} \\
+CGM-JEPA~\citep{cgmjepa2025} & 11.41 & 17.92 & 8.99\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+JEPA integration is consistently beneficial, with gains increasing alongside context window size.
+The 1-day encoder (jepa-288) already reaches average MARD of 9.08\%---approaching the $\sim$9--10\% threshold where CGM sensor noise itself becomes the dominant error source~\citep{garg2022dexcomg7}.
+The 3-day encoder (jepa-864) achieves 14\% MARD improvement over the pump-only baseline while requiring less than half the lookback data of the 7-day variant.
+The 7-day encoder (jepa-2016) pushes MAE to 10.40 (18\% improvement, MARD 8.10\%), but with diminishing returns relative to the data requirement.
+The 96-dimension embedding consistently outperforms the 64-dimension variant (jepa-128 vs.\ jepa-128-64).
+Our retrained encoders outperform the original CGM-JEPA encoder (MAE 11.41) at every context length from 1 day onward, likely due to the larger training corpus and VICReg regularization.
+
+% ================================================================
+\section{Discussion}
+% ================================================================
+
+\paragraph{Parallel attention as architectural principle.}
+The key architectural difference between Sugar~I and prior work (e.g., AttenGluco) is the \emph{parallel} execution of cross-attention and multi-scale self-attention within each block.
+Where AttenGluco applies these sequentially, the parallel design allows each mechanism to specialize: cross-attention handles multimodal fusion while multi-scale attention captures temporal patterns at different resolutions.
+Their outputs are combined by summation and LayerNorm, enabling the model to jointly reason about ``which sensor matters when'' and ``what temporal scale is relevant.''
+
+\paragraph{Error gradient reflects disease physiology.}
+The monotonic increase in prediction error from Healthy to T1DM (Table~\ref{tab:per_cohort}) directly reflects increasing glycemic variability with disease progression.
+T1DM and insulin-dependent T2DM patients exhibit the largest and most abrupt glucose excursions, driven by exogenous insulin timing and meal composition---signals that are only partially observable from CGM and wearable data alone.
+This error gradient is consistent across all tested models and is an expected consequence of the underlying physiology, not a modeling limitation: prediction difficulty is an intrinsic property of the clinical phenotype.
+
+\paragraph{Learnable mixing for heterogeneous covariates.}
+The learnable softmax mixing (Eq.~3) is a simple but effective solution for combining covariates with very different signal characteristics.
+Bolus insulin is sparse (present on only 4\% of rows) but highly informative; basal rate is dense but largely redundant with glucose trend after imputation.
+Fixed averaging would under-weight bolus and over-weight basal; the learned weights adapt automatically.
+
+\paragraph{Personalization: foundation model meets minimal data.}
+We frame personalization as fine-tuning a foundation model (the global Sugar~I checkpoint) on individual data, and ask what the minimum viable data budget is.
+For T1DM subjects with $\geq$60 days of history, fine-tuning consistently improves prediction (average $-0.71$~mg/dL MAE).
+However, short data budgets (1--14 days) can be harmful---a crucial finding for healthy and prediabetic users who typically wear a CGM sensor for only one or two weeks per year for metabolic health optimization.
+For these users, the global model currently remains the better option.
+The critical technical finding is that global-checkpoint scalers must be reused rather than refitted: personal data shifts the input distribution away from the pretrained model, causing short fine-tunes to degrade.
+For deployment, a practical gate should skip personalization when insufficient data is available, and the JEPA-based patient embedding (Section~\ref{sec:jepa_results}) offers a potential path to zero-shot personalization that does not require accumulating weeks of data.
+
+\paragraph{JEPA context window: quality versus data cost.}
+Encoder quality (effective rank) and forecasting accuracy both improve with longer context windows up to 3 days, but diverge beyond that.
+The 7-day encoder collapses to effective rank 16.71 (vs.\ 35.99 for 3-day), concentrating variance in a few dimensions---yet still achieves the best downstream MAE (10.40).
+This suggests that even a partially degenerate representation can carry predictive information when the raw lookback is long enough, but the 3-day encoder offers the best quality/data tradeoff: 14\% MARD improvement over baseline while requiring only 3 days of lookback versus 7.
+
+\paragraph{JEPA as zero-shot patient embedding.}
+The 68\% patient identification accuracy from frozen 3-day JEPA embeddings (665 patients, linear probe only) demonstrates that JEPA representations capture substantial patient-specific metabolic signatures.
+This opens a path toward zero-shot personalization: rather than accumulating 60+ days of data for fine-tuning, a 3-day JEPA observation window could provide implicit patient context through the cross-attention stream.
+While we have not yet evaluated this in a prospective setting, the patient recognition results provide encouraging evidence.
+
+\paragraph{Limitations.}
+(1) Sugar~I's RMSE on T1DM exceeds N-HiTS (23.00 vs.\ 21.05), indicating occasional large errors on extreme glucose swings.
+(2) The covariate ablation is inference-time only (same trained weights, zeroed inputs); retraining with matched covariate subsets could change relative rankings.
+(3) The 60-minute prediction horizon, while clinically actionable, is shorter than the 2--4 hour horizons explored by some models.
+(4) Sugar-Sugar results are not yet available (study currently recruiting).
+(5) Sugar~I + JEPA fine-tuning on individual patients has not yet been evaluated.
+(6) Better self-supervised training methods may be available, e.g., Sketched Isotropic Gaussian Regularization (SigReg).
+
+\paragraph{Generalizability.}
+The parallel cross-attention + multi-scale design is not glucose-specific.
+It applies to any setting where multiple physiological signals arrive at different sampling rates and carry complementary information: ECG + SpO$_2$ for cardiac monitoring, EEG + EMG for sleep staging, or cortisol + HR + activity for stress prediction.
+The architecture is a recipe for multimodal biomedical time-series fusion, not a one-off glucose solution.
+
+% ================================================================
+\section{Conclusion}
+% ================================================================
+
+We presented Sugar~I, a parallel-attention transformer achieving 8.25\% MARD on 60-minute glucose prediction across the T2DM spectrum---approaching CGM sensor accuracy and outperforming existing models by 40--45\%.
+The pump configuration demonstrates that learnable softmax mixing effectively integrates sparse insulin signals with continuous glucose history.
+The JEPA hybrid further improves prediction by incorporating self-supervised representations as an auxiliary cross-attention stream, achieving MAE 10.40~mg/dL (MARD 8.10\%) with a 7-day encoder---an 18\% improvement over the pump-only baseline.
+JEPA embeddings also encode patient-specific information (68\% identification accuracy), opening a path toward zero-shot personalization that does not require weeks of data collection.
+Personalization via fine-tuning improves predictions for individuals with sufficient personal CGM history ($\geq$60 days).
+The ongoing Sugar-Sugar study will provide the first human accuracy reference for this task, enabling the field to move beyond model-versus-model comparisons.
+All code and model weights are available at \url{https://github.com/GlucoseDAO}.
+
+% --- References ----------------------------------------------
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+% --- Appendix -------------------------------------------------
+\appendix
+\section{Architecture hyperparameters}
+\label{app:hparams}
+
+\begin{table}[h]
+\centering
+\caption{Model configurations.}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Parameter} & \textbf{Sugar~I (wearable)} & \textbf{Sugar~I (pump)} & \textbf{Sugar~I + JEPA} \\
+\midrule
+$d_\text{model}$ & 32 & 32 & 32 \\
+$n_\text{heads}$ & 4 & 8 & 8 \\
+$n_\text{blocks}$ & 3 & 5 & 5 \\
+ff\_units & 128 & 128 & 128 \\
+dropout & 0.1 & 0.1 & 0.1 \\
+input\_steps & 80 & 128 & 128 \\
+horizon & 12 & 12 & 12 \\
+JEPA window & --- & --- & 128--2016 \\
+JEPA embed dim & --- & --- & 64 or 96 \\
+JEPA LR & --- & --- & $4 \times 10^{-5}$ \\
+Total parameters & $\sim$197K & $\sim$300K & $\sim$420K \\
+Optimizer & AdamW & AdamW & AdamW \\
+Precision & bf16 & bf16 & bf16 \\
+Batch size & 4096 & 256 & 256 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Sugar-Sugar human benchmarking}
+\label{app:sugarstugar}
+
+Sugar-Sugar (\url{https://sugar-sugar.study}) is an ethics-approved web-based study (University Medical Center Rostock, ref.\ A~2026-0064) where participants view 3 hours of real CGM data and draw their 60-minute prediction by placing 12 points on a chart.
+The study targets $>$200 adults in a 2$\times$2 design crossing diabetes status with CGM experience, and will be described in a separate publication.
+It is currently in recruitment and will establish the first published human accuracy reference for glucose forecasting.
+
+\end{document}

@@ -78,6 +78,7 @@ Installed console commands (defined in `pyproject.toml` `[project.scripts]`, all
 - `tune-sugar-one` → `src/sugar_one/tune_sugar_one.py:app` (TOML-driven random hyperparameter search)
 - `download-glumind-hf` → `src/glumind/download_from_huggingface.py:app`
 - `personal-prepare` / `personal-finetune` / `personal-tune` → `src/personalization/` (SugarOne + Livia defaults; see `docs/PERSONALIZATION.md`)
+- `manuscript` → `src/manuscript/cli.py:app` (LaTeX → Markdown + PDF: `template`, `manuscript`)
 
 Scripts without a console entry point are run directly, e.g.:
 ```bash
@@ -156,3 +157,50 @@ One-off Loop+AI-READI join / sample scripts live under `temp_scripts/loop_ai_rea
 ### Reports and run artifacts
 
 `data/output/runs/` holds training outputs (checkpoints, per-split metrics CSVs, `tuning_meta.json`). `data/output/marked_runs/` is a curated/annotated subset with `RUNS_ANALYSIS.md` writeups per model/dataset combo. Data layout and CSV remap rules: `docs/DATA.md`. Durable comparison and milestone writeups live under `docs/` (e.g. `docs/GLUMIND_VS_SUGARONE_COMPARISON.md`, `docs/T1DM_COVARIATE_ABLATION_REPORT.md`, `docs/PERSONALIZATION_REPORT.md`). Intermediate / working reports go under `temp_docs/`. Root `CROSS_MODEL_COMPARISON.md` is the cross-model summary.
+
+## Manuscript writing
+
+The manuscript lives in `docs/manuscript/`. This is a scratch workspace for drafting the paper — not a finished submission.
+
+### Naming
+
+- **Sugar I** = presentation/public name for the GluMind architecture (`src/glumind/`)
+- **SugarOne** = insulin pump extension (`src/sugar_one/`)
+- **SugarJEPA** = SugarOne + frozen CGM-JEPA auxiliary (`src/sugar_jepa/`)
+- Code uses `glumind` / `sugar_one` / `sugar_jepa` internally
+
+### Files
+
+- `docs/manuscript/manuscript.tex` — LaTeX source (EASRP 2026 template, 8-page main text limit)
+- `docs/manuscript/manuscript.md` — Human-readable Markdown version (auto-generated)
+- `docs/manuscript/references.bib` — BibTeX references (`plainnat` style)
+- `docs/manuscript/easrp2026.sty` — Style file placeholder (replace with official when available)
+- `docs/manuscript/template.tex` — Original empty template for reference
+
+### Workflow
+
+1. **Edit** `docs/manuscript/manuscript.tex`
+2. **Compile** PDF:
+   ```bash
+   cd docs/manuscript && pdflatex manuscript.tex && bibtex manuscript && pdflatex manuscript.tex && pdflatex manuscript.tex
+   ```
+3. **Generate** Markdown:
+   ```bash
+   uv run manuscript docs/manuscript/manuscript.tex -o docs/manuscript/manuscript.md
+   ```
+4. After editing .tex, always regenerate both PDF and .md
+
+### Fact-checking
+
+- Verify all claims against actual run data in `docs/` reports and `data/output/`
+- Use exact numbers from `*_metrics_overall.csv` / `*_metrics_by_study_group.csv` files
+- Cross-reference `docs/presentation/PRESENTATION_NOTES.md` for fact-checked claims and known discrepancies
+- The abstract PDF is at `docs/presentation/RoBioinfo2026_Abstract_Zaharia_et_al .pdf`
+- Papers for context are downloaded to `data/cache/for_manuscript/` (gitignored)
+- The 8-page limit applies to main text only; references and appendix are unlimited
+
+### Related repositories (add to workspace for full manuscript context)
+
+- [glucose_data_processing](https://github.com/GlucoseDAO/glucose_data_processing) — CGM preprocessing pipeline (9 device formats, 50+ datasets)
+- [sugar-sugar](https://github.com/GlucoseDAO/sugar-sugar) — Human benchmarking web app (Sugar-Sugar study, ethics ref A 2026-0064)
+- [cgm_format](https://github.com/GlucoseDAO/cgm_format) — Individual CGM sensor format parsing

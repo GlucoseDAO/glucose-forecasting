@@ -101,6 +101,7 @@ uv run glucose release pull --repo ORG/NAME --out <dir> [--revision main]
 | `personal-sweep-lr` | `src/personalization/sweep_holdout_lr.py` | Holdout LR transfer |
 | `personal-sweep-lwf` | `src/personalization/sweep_lwf.py` | Independent LwF |
 | `personal-study` | `src/personalization/study.py` | Cohort curves + report |
+| `manuscript` | `src/manuscript/cli.py` | LaTeX → Markdown + PDF (`template`, `manuscript`) |
 
 Direct (no console script):
 
@@ -124,6 +125,17 @@ uv run personal-finetune --help
 ```
 
 The fixture CSV has an empty `Recommended Split`; `personal-prepare livia` assigns chronological train/val/test. Then `personal-tune` / `personal-finetune` read `data/input/personalization/prepared/livia_chronological.csv`.
+
+### `manuscript`
+
+Convert `docs/manuscript/` LaTeX sources to GitHub-Flavoured Markdown and compile PDF. Both engines (`pypandoc-binary`, `tecto`) live in the `dev` group.
+
+```bash
+uv run manuscript --help
+uv run manuscript template      # template.tex → template.md + template.pdf
+uv run manuscript manuscript    # manuscript.tex → manuscript.md + manuscript.pdf
+uv run manuscript template -o /tmp/template.md --pdf-output /tmp/template.pdf
+```
 
 ### `train-glumind`
 

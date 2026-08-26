@@ -1,2 +1,5 @@
 *
+!for_manuscript/
+!for_manuscript/.gitignore
+!manuscript/.gitignore
 !.gitignore

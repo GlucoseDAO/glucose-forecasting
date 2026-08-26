@@ -39,6 +39,7 @@ personal-sweep-lr = "personalization.sweep_holdout_lr:app"
 personal-plot = "personalization.plots:app"
 personal-sweep-lwf = "personalization.sweep_lwf:app"
 personal-study = "personalization.study:app"
+manuscript = "manuscript.cli:app"
 
 [build-system]
 requires = ["hatchling>=1.26.0"]
@@ -53,6 +54,7 @@ packages = [
     "src/sugar_jepa",
     "src/personalization",
     "src/nf_baselines",
+    "src/manuscript",
 ]
 
 [tool.hatch.build.targets.wheel.force-include]
@@ -75,7 +77,11 @@ url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [dependency-groups]
-dev = ["pytest>=8.3"]
+dev = [
+    "pypandoc-binary>=1.17",
+    "pytest>=8.3",
+    "tecto>=0.16.9",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
