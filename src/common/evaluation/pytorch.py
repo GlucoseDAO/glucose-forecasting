@@ -20,7 +20,7 @@ def evaluate_pytorch_run(
     test_csv: Path,
     train_csv: Path | None = None,
     checkpoint: Path | None = None,
-    model_type: Literal["auto", "glumind", "sugar_one", "glumind_uni", "sugar_jepa"] = "auto",
+    model_type: Literal["auto", "glumind", "sugar_one", "glumind_uni", "sugar_jepa", "sugar_jepa2"] = "auto",
     test_split: str | None = "test",
     batch_size: int | None = None,
     device: str = "auto",

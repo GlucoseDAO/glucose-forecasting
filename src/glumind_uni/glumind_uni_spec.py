@@ -33,6 +33,7 @@ class GluMindUniFamilySpec:
     covariate_aliases: Mapping[str, Sequence[str]] = field(default_factory=dict)
     # Uni shares embed_glucose with other families; detect only via explicit meta.
     fingerprint_keys: Sequence[str] = ()
+    exclude_keys: Sequence[str] = ()
     ffill_bfill_columns: Sequence[str] = ("glucose",)
     zero_fill_columns: Sequence[str] = ()
 

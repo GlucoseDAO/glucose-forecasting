@@ -3,7 +3,7 @@
 Shared PyTorch checkpoint evaluation used by ``glucose evaluate``.
 
 Supports registered model families (via ``common.model_spec``):
-  glumind / glumind_uni / sugar_one / sugar_jepa
+  glumind / glumind_uni / sugar_one / sugar_jepa / sugar_jepa2
 
 Prefer::
 
@@ -76,7 +76,7 @@ from sugar_one.train_sugar_one import (
     load_splits_streaming as load_splits_ic,
 )
 
-ModelKind = Literal["glumind", "sugar_one", "glumind_uni", "sugar_jepa"]
+ModelKind = Literal["glumind", "sugar_one", "glumind_uni", "sugar_jepa", "sugar_jepa2"]
 SUPPORTED_KINDS: tuple[str, ...] = tuple(
     t for t in SUPPORTED_MODEL_TYPES if t != "auto"
 )
@@ -363,6 +363,14 @@ def _load_train_for_scalers(
     return impute(train_df_raw)
 
 
+# Only ever used to recover scalers for a run with no scalers.json. Feature
+# scalers are fit over every train row *before* any window is enumerated, so the
+# stride cannot change them — it only avoids materializing a window index we
+# never read. At stride 1 the full loop CSV's train split is ~7.5M windows, which
+# is gigabytes of Python tuples to compute four min/max pairs.
+_SCALER_FIT_STRIDE = 512
+
+
 def _build_train_dataset(
     train_df: pl.DataFrame,
     model_kind: ModelKind,
@@ -373,6 +381,7 @@ def _build_train_dataset(
         input_steps=int(meta["input_steps"]),
         horizon=int(meta["horizon"]),
         fit_scalers=True,
+        window_stride=_SCALER_FIT_STRIDE,
         meta=meta,
     )
 

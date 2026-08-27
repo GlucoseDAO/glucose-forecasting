@@ -12,13 +12,14 @@ DEFAULT_CONFIG_FILENAME = "glucose_evaluate.yaml"
 # src/common/evaluation/config.py → parents[2] == src/ (or site-packages when installed)
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / DEFAULT_CONFIG_FILENAME
 
-ModelTypeName = Literal["auto", "glumind", "sugar_one", "glumind_uni", "sugar_jepa"]
+ModelTypeName = Literal["auto", "glumind", "sugar_one", "glumind_uni", "sugar_jepa", "sugar_jepa2"]
 SUPPORTED_MODEL_TYPES: tuple[str, ...] = (
     "auto",
     "glumind",
     "sugar_one",
     "glumind_uni",
     "sugar_jepa",
+    "sugar_jepa2",
 )
 
 

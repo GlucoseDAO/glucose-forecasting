@@ -43,6 +43,7 @@ class GluMindFamilySpec:
         }
     )
     fingerprint_keys: Sequence[str] = ("embed_hr.weight", "embed_steps.weight")
+    exclude_keys: Sequence[str] = ()
     ffill_bfill_columns: Sequence[str] = ("glucose", "hr", "steps")
     zero_fill_columns: Sequence[str] = ()
 

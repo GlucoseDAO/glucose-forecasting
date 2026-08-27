@@ -164,6 +164,25 @@ def test_sugar_one_window_stride_reduces_count() -> None:
     assert len(strided) == len(range(0, n_windows, 2))
 
 
+def test_window_stride_does_not_move_the_scalers() -> None:
+    """Scalers are fit over every train row before windows are enumerated.
+
+    ``checkpoint_eval`` relies on this to recover a legacy run's scalers at a
+    coarse stride instead of materializing millions of window tuples it discards.
+    """
+    input_steps, horizon = 4, 2
+    df = _sugar_one_df({"a": 60, "b": 45})
+    full = SugarOneWindowDataset(df, input_steps, horizon, fit_scalers=True, window_stride=1)
+    sparse = SugarOneWindowDataset(df, input_steps, horizon, fit_scalers=True, window_stride=16)
+
+    assert len(sparse) < len(full)
+    for channel in ("glucose", "basal", "bolus", "carbs"):
+        a = getattr(full, f"scaler_{channel}")
+        b = getattr(sparse, f"scaler_{channel}")
+        np.testing.assert_array_equal(a.data_min_, b.data_min_)
+        np.testing.assert_array_equal(a.data_max_, b.data_max_)
+
+
 def test_glucose_uni_window_dataset_shapes() -> None:
     input_steps, horizon = 4, 2
     df = _glumind_df({"a": 10}).select(

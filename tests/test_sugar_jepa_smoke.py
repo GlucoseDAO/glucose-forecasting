@@ -4,6 +4,9 @@ Not full coverage (time-boxed POC per AGENTS.md) — just enough to catch
 shape regressions in the model, the sliding-window dataset, and the
 checkpoint round-trip. Uses the vendored, locally-cached pretrained CGM-JEPA
 encoder (src/sugar_jepa/pretrained/cgm_jepa/) — no network access needed.
+
+Covers both variants: SugarJepaModel (vendored CGM-JEPA, second input tensor)
+and SugarJepaModel2 (our own encoder, one long window sliced per branch).
 """
 from __future__ import annotations
 
@@ -14,7 +17,7 @@ import pytest
 import torch
 
 from common.checkpoint import load_full_checkpoint, save_full_checkpoint
-from sugar_jepa.sugar_jepa_model import SugarJepaModel
+from sugar_jepa.sugar_jepa_model import JepaEncoder, SugarJepaModel, SugarJepaModel2
 from sugar_jepa.train_sugar_jepa import SugarJepaWindowDataset
 
 JEPA_WEIGHTS_DIR = "src/sugar_jepa/pretrained/cgm_jepa"
@@ -222,3 +225,108 @@ def test_sugar_jepa_checkpoint_round_trip(tmp_path: Path) -> None:
     assert best_epoch == 2
     for k, v in model.state_dict().items():
         assert torch.equal(v, reloaded.state_dict()[k])
+
+
+# ---------------------------------------------------------------------------
+# Two windows in one tensor (SugarJepaModel2)
+#
+# SugarJepaModel2 has no SugarJepaWindowDataset counterpart: the second window is
+# not a second tensor built by a bespoke dataset, it is a trailing slice the
+# model takes for itself, so that slicing is what needs guarding.
+# ---------------------------------------------------------------------------
+
+JEPA_WINDOW_LONG = 24  # 3 patches at JEPA2_PATCH_SIZE, and > INPUT_STEPS
+JEPA2_PATCH_SIZE = 8
+
+
+def _tiny_model2(jepa_window: int | None = None) -> SugarJepaModel2:
+    return SugarJepaModel2(
+        n_time_steps=INPUT_STEPS,
+        d_model=D_MODEL,
+        n_heads=N_HEADS,
+        ff_units=FF_UNITS,
+        n_blocks=N_BLOCKS,
+        prediction_horizon=HORIZON,
+        dropout=0.0,
+        jepa_window=jepa_window,
+        jepa_patch_size=JEPA2_PATCH_SIZE,
+        jepa_embed_dim=D_MODEL,
+        jepa_layers=1,
+        jepa_heads=N_HEADS,
+    )
+
+
+def test_lookback_defaults_to_the_backbone_window() -> None:
+    """Back-compat: no jepa_window means one window, exactly as before."""
+    model = _tiny_model2()
+    assert model.jepa_window == INPUT_STEPS
+    assert model.lookback == INPUT_STEPS
+    assert model(torch.randn(BATCH, INPUT_STEPS, 4)).shape == (BATCH, HORIZON)
+
+
+def test_longer_jepa_window_sets_the_lookback_and_forward_accepts_it() -> None:
+    model = _tiny_model2(JEPA_WINDOW_LONG)
+    assert model.lookback == JEPA_WINDOW_LONG
+    out = model(torch.randn(BATCH, JEPA_WINDOW_LONG, 4))
+    assert out.shape == (BATCH, HORIZON)
+
+
+def test_forward_rejects_a_window_that_is_not_the_lookback() -> None:
+    """A silently-accepted short window would mean the JEPA branch reads
+    whatever happens to be there — better to fail at the shape."""
+    model = _tiny_model2(JEPA_WINDOW_LONG)
+    with pytest.raises(ValueError, match="expected 24 steps"):
+        model(torch.randn(BATCH, INPUT_STEPS, 4))
+
+
+def test_backbone_ignores_covariates_outside_its_own_window() -> None:
+    """The two views are trailing slices ending at the same instant: the
+    backbone must see only the last INPUT_STEPS, while the JEPA branch
+    reads glucose across the whole lookback.
+
+    Perturbing basal/bolus/carbs in the leading region touches nothing any
+    branch reads, so the prediction must not move. Perturbing GLUCOSE there
+    must move it — that is the extra history the long window exists for.
+    """
+    torch.manual_seed(0)
+    model = _tiny_model2(JEPA_WINDOW_LONG).eval()
+    x = torch.randn(BATCH, JEPA_WINDOW_LONG, 4)
+    lead = JEPA_WINDOW_LONG - INPUT_STEPS  # steps only the JEPA branch sees
+
+    with torch.no_grad():
+        base = model(x)
+
+        covariates_only = x.clone()
+        covariates_only[:, :lead, 1:] += 5.0
+        torch.testing.assert_close(model(covariates_only), base)
+
+        with_glucose = x.clone()
+        with_glucose[:, :lead, 0] += 5.0
+        assert not torch.allclose(model(with_glucose), base), (
+            "the JEPA branch is not reading the extra history"
+        )
+
+
+def test_jepa_encoder_matches_a_checkpoint_pretrained_at_the_same_window() -> None:
+    """--jepa-init loads with strict=True, so the model's encoder must be
+    parameter-for-parameter what jepa_pretrain.py produces at that window."""
+    model = _tiny_model2(JEPA_WINDOW_LONG)
+    pretrained = JepaEncoder(
+        n_time_steps=JEPA_WINDOW_LONG,
+        patch_size=JEPA2_PATCH_SIZE,
+        embed_dim=D_MODEL,
+        n_layers=1,
+        n_heads=N_HEADS,
+    )
+    model.jepa_encoder.load_state_dict(pretrained.state_dict(), strict=True)
+
+    # And an encoder pretrained at the WRONG window must not load silently.
+    mismatched = JepaEncoder(
+        n_time_steps=JEPA_WINDOW_LONG * 2,
+        patch_size=JEPA2_PATCH_SIZE,
+        embed_dim=D_MODEL,
+        n_layers=1,
+        n_heads=N_HEADS,
+    )
+    with pytest.raises(RuntimeError, match="size mismatch"):
+        model.jepa_encoder.load_state_dict(mismatched.state_dict(), strict=True)

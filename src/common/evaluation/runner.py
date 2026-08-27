@@ -17,7 +17,7 @@ from common.evaluation.resolve_models import expand_model_specs
 from common.evaluation.types import RunDirKind, SingleModelResult
 from common.paths import resolve_project_path
 
-ModelTypeName = Literal["auto", "glumind", "sugar_one", "glumind_uni", "sugar_jepa"]
+ModelTypeName = Literal["auto", "glumind", "sugar_one", "glumind_uni", "sugar_jepa", "sugar_jepa2"]
 
 
 def evaluate_run_dir(

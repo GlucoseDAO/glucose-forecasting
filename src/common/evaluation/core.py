@@ -24,7 +24,7 @@ from torch.utils.data import DataLoader
 
 from common.model_spec import get_family_spec
 
-ModelKind = Literal["glumind", "sugar_one", "glumind_uni", "sugar_jepa"]
+ModelKind = Literal["glumind", "sugar_one", "glumind_uni", "sugar_jepa", "sugar_jepa2"]
 
 COL_EVENT = "Event Type"
 

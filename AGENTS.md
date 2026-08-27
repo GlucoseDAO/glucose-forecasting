@@ -50,6 +50,7 @@ Training, tuning, and evaluation pipelines for blood-glucose forecasting from CG
 - **GluMind** (`src/glumind/`) — glucose + heart rate + step count. Primary architecture (Farahmand et al., 2025b, arXiv:2509.18457): parallel cross-attention multimodal fusion + multi-scale self-attention, with optional LwF (learning-without-forgetting) for continual cross-cohort training.
 - **GluMind-Uni** (`src/glumind_uni/`) — glucose-only variant of the same architecture.
 - **SugarOne** (`src/sugar_one/`) — glucose + basal rate + bolus insulin + carbohydrates (Loop pump data), 3-way cross-attention with learnable softmax mixing weights (vs. GluMind's fixed 2-way averaging).
+- **SugarJepa** (`src/sugar_jepa/`) — SugarOne plus a JEPA glucose embedding as a 4th cross-attention auxiliary. Two variants share the fusion block: `sugar_jepa` (`train_sugar_jepa.py`, `SugarJepaModel`) uses the vendored pretrained CGM-JEPA encoder and a second input tensor with its own z-score scaler; `sugar_jepa2` (`train_sugar_jepa2.py`, `SugarJepaModel2`) uses an encoder we pretrain ourselves (`jepa_pretrain.py`) and keeps SugarOne's plain `(x, y)` batch by slicing one long window per branch. `global` training mode only.
 - **NeuralForecast baselines** (`src/nf_baselines/`) — preferred: sugarone-compatible holdout via `glucose neuralforecast` (128/12/stride-1); legacy tuner `tune_nf_baselines_by_group.py` kept until parity is verified.
 - **GluFormer** (`src/glumind/eval_gluformer_val_test_masked.py`) — evaluation only, against a pretrained Hugging Face model (`njeffrie/Gluformer`).
 
@@ -84,6 +85,9 @@ Scripts without a console entry point are run directly, e.g.:
 ```bash
 uv run python src/sugar_one/train_sugar_one.py --help          # Typer, no subcommand name
 uv run python src/glumind_uni/train_uniglumind.py train --help # Typer, `train` subcommand
+uv run python src/sugar_jepa/train_sugar_jepa.py --help         # Typer; --model-type sugar_jepa
+uv run python src/sugar_jepa/train_sugar_jepa2.py --help        # Typer; --model-type sugar_jepa2
+uv run python src/sugar_jepa/jepa_pretrain.py --help            # Typer; self-supervised encoder
 uv run python src/nf_baselines/tune_nf_baselines_by_group.py -h              # argparse
 uv run python src/glumind/eval_gluformer_val_test_masked.py -h          # argparse
 uv run python src/glumind/upload_to_huggingface.py --help
@@ -121,6 +125,7 @@ As of the last refactor, model-agnostic logic that used to be duplicated across 
 - `src/glumind/glumind_model.py` — `GluMindModel`. 2-auxiliary parallel cross-attention (HR, steps) with fixed averaging + multi-scale self-attention.
 - `src/sugar_one/sugar_one_model.py` — `SugarOneModel`. 3-auxiliary parallel cross-attention (basal, bolus, carbs) with **learnable softmax mixing weights** (the main architectural difference from GluMind).
 - `src/glumind_uni/glumind_uni_model.py` — glucose-only variant, same block structure.
+- `src/sugar_jepa/sugar_jepa_model.py` — `SugarJepaModel` (vendored CGM-JEPA encoder, `(seq, batch, d_model)` blocks) and `SugarJepaModel2` (`JepaEncoder`, ours; `batch_first=True` blocks). 4-auxiliary cross-attention (basal, bolus, carbs, jepa).
 
 These are intentionally isolated from the training scripts so a checkpoint can be loaded with just the model file + `torch.load(..., weights_only=True)` — no training-script imports needed (see README.md "Checkpoints and Model Reuse" for a minimal load example). `PositionalEncoding` and much of `MultiScaleAttentionBlock` are near-duplicated between `glumind_model.py` and `sugar_one_model.py`; this has been left as-is (not deduplicated) to avoid touching model internals and risking checkpoint/behavior drift — treat these files as intentionally frozen unless a change is specifically requested.
 

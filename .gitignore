@@ -232,3 +232,6 @@ temp_scripts/
 
 *.zip
 .DS_Store
+
+# Local agent workspace
+.claude

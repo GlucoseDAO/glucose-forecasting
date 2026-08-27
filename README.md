@@ -116,12 +116,18 @@ In a matched-hyperparameter development experiment, the frozen JEPA branch impro
 
 See the [full SugarJEPA vs SugarOne analysis](docs/SUGAR_JEPA_VS_SUGAR_ONE_DEV_COMPARISON.md).
 
+A second variant, **SugarJEPA-2** (`sugar_jepa2`), replaces the borrowed CGM-JEPA weights with an
+encoder we pretrain ourselves on this repo's own glucose data
+(`src/sugar_jepa/jepa_pretrain.py`), and folds the two lookbacks into a single window so the batch
+stays SugarOne's plain `(x, y)`. See [`src/sugar_jepa/README.md`](src/sugar_jepa/README.md).
+
 ## Choose your model
 
 | Model | Inputs | Best for |
 |-------|--------|----------|
 | **SugarOne** | glucose + basal + bolus + carbs | Insulin pump / Loop users |
 | **SugarJEPA** | SugarOne + pretrained CGM-JEPA representation | Hybrid supervised/self-supervised research |
+| **SugarJEPA-2** | SugarOne + our own self-pretrained JEPA encoder | Same, without borrowed weights |
 | **GluMind** | glucose + heart rate + steps | Wearable / AI-READI cohorts |
 | **GluMind-Uni** | glucose only | Ablation / univariate baseline |
 | **NeuralForecast** | configurable | TFT, NHITS, xLSTM, LSTM baselines |
@@ -175,6 +181,7 @@ uv run train-glumind --help
 uv run python src/sugar_one/train_sugar_one.py --help
 uv run python src/glumind_uni/train_uniglumind.py train --help
 uv run python src/sugar_jepa/train_sugar_jepa.py --help
+uv run python src/sugar_jepa/train_sugar_jepa2.py --help
 uv run tune-sugar-one -c src/sugar_one/tune_sugar_one_dev.toml
 ```
 
@@ -205,7 +212,7 @@ uv run glucose evaluate \
   --data data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv
 ```
 
-Auto-detects the family (`glumind`, `sugar_one`, `glumind_uni`, `sugar_jepa`, NeuralForecast) from the run directory when `--model-type auto`.
+Auto-detects the family (`glumind`, `sugar_one`, `glumind_uni`, `sugar_jepa`, `sugar_jepa2`, NeuralForecast) from the run directory when `--model-type auto`.
 
 ### Compare models across backends
 
@@ -356,7 +363,7 @@ Details: [docs/DATA.md](docs/DATA.md). Preprocessing options live in [glucose_da
 │   ├── glumind/               # GluMind model + train-glumind
 │   ├── glumind_uni/           # glucose-only variant
 │   ├── sugar_one/             # SugarOne model + train / tune
-│   ├── sugar_jepa/            # SugarJEPA experiment
+│   ├── sugar_jepa/            # SugarJEPA experiments (vendored + own encoder)
 │   ├── nf_baselines/          # NeuralForecast holdout + legacy tuner
 │   └── personalization/       # SugarOne personal fine-tune (`personal-*`)
 ├── fixtures/

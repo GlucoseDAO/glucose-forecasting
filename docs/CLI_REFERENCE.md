@@ -52,7 +52,7 @@ uv run glucose evaluate \
 | `--label` | Label per `--run-dir` (repeatable). |
 | `--out` | Comparison report directory (default `data/output/compare`). |
 | `--config` | YAML defaults (`src/glucose_evaluate.yaml`). |
-| `--model-type` | `auto` \| `glumind` \| `sugar_one` \| `glumind_uni` \| `sugar_jepa`. |
+| `--model-type` | `auto` \| `glumind` \| `sugar_one` \| `glumind_uni` \| `sugar_jepa` \| `sugar_jepa2`. |
 | `--test-split` | `Recommended Split` filter (default `test`; empty string disables). |
 | `--batch-size`, `--device` | Inference controls (`device`: `auto` \| `cuda` \| `mps` \| `cpu`). |
 | `--zero-cov` / `--include-cov` / `--exclude-cov` | Covariate ablation. |
@@ -109,6 +109,7 @@ Direct (no console script):
 uv run python src/sugar_one/train_sugar_one.py --help
 uv run python src/glumind_uni/train_uniglumind.py train --help
 uv run python src/sugar_jepa/train_sugar_jepa.py --help
+uv run python src/sugar_jepa/train_sugar_jepa2.py --help
 uv run python src/nf_baselines/tune_nf_baselines_by_group.py -h
 uv run python src/glumind/eval_gluformer_val_test_masked.py -h
 uv run python src/glumind/upload_to_huggingface.py --help
@@ -183,7 +184,8 @@ Typer apps with the same training modes as GluMind (`global`, `per_group`, `coho
 |--------|---------------------|------------|
 | `src/sugar_one/train_sugar_one.py` | `data/output/runs/sugar_one` | basal, bolus, carbs |
 | `src/glumind_uni/train_uniglumind.py` | `data/output/runs/glumind_uni` | glucose only |
-| `src/sugar_jepa/train_sugar_jepa.py` | under `data/output/runs/` | SugarOne + JEPA |
+| `src/sugar_jepa/train_sugar_jepa.py` | under `data/output/runs/` | SugarOne + pretrained CGM-JEPA |
+| `src/sugar_jepa/train_sugar_jepa2.py` | under `data/output/runs/` | SugarOne + our own JEPA encoder |
 
 ### `download-glumind-hf`
 

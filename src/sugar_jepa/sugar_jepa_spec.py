@@ -65,7 +65,10 @@ class SugarJepaFamilySpec:
             ),
         }
     )
+    # SugarOne's covariate embeddings are here too, but the vendored
+    # wrapper's projection is unique to this family.
     fingerprint_keys: Sequence[str] = ("jepa_encoder.proj.weight",)
+    exclude_keys: Sequence[str] = ()
     ffill_bfill_columns: Sequence[str] = ("glucose", "basal")
     zero_fill_columns: Sequence[str] = ("bolus", "carbs")
 

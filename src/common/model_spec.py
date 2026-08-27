@@ -24,6 +24,7 @@ _FAMILY_LAZY_IMPORTS: dict[str, str] = {
     "sugar_one": "sugar_one.sugar_one_spec:SUGAR_ONE_SPEC",
     "glumind_uni": "glumind_uni.glumind_uni_spec:GLUMIND_UNI_SPEC",
     "sugar_jepa": "sugar_jepa.sugar_jepa_spec:SUGAR_JEPA_SPEC",
+    "sugar_jepa2": "sugar_jepa.sugar_jepa2_spec:SUGAR_JEPA2_SPEC",
 }
 
 
@@ -38,6 +39,9 @@ class ModelFamilySpec(Protocol):
     csv_column_aliases: Mapping[str, Sequence[str]]
     covariate_aliases: Mapping[str, Sequence[str]]
     fingerprint_keys: Sequence[str]
+    # Keys that must be ABSENT — what tells a family apart from one that extends
+    # it and therefore carries every one of its fingerprint keys too.
+    exclude_keys: Sequence[str]
     ffill_bfill_columns: Sequence[str]
     zero_fill_columns: Sequence[str]
 
@@ -131,7 +135,14 @@ def detect_family_kind(
     meta: Mapping[str, Any],
     state: Mapping[str, Any] | None = None,
 ) -> str:
-    """Detect family kind from metadata and/or checkpoint state_dict keys."""
+    """Detect family kind from metadata and/or checkpoint state_dict keys.
+
+    Fingerprinting requires *every* key of a family's fingerprint and none of
+    its ``exclude_keys``. Matching on any one key would misread a family that
+    extends another: a real ``sugar_jepa2`` checkpoint carries SugarOne's three
+    covariate embeddings alongside its own encoder, so ``any()`` would call it
+    ``sugar_one`` and the load would then fail under ``strict=True``.
+    """
     _ensure_builtins_registered()
     explicit = meta.get("model_type") or meta.get("model") or meta.get("kind")
     if explicit is not None:
@@ -149,15 +160,17 @@ def detect_family_kind(
 
     if state is not None:
         normalized_keys = {str(k).removeprefix("_orig_mod.") for k in state}
-        # Prefer longer / more specific fingerprints first (JEPA before SugarOne).
-        ordered = sorted(
-            list_family_kinds(),
-            key=lambda k: -len(get_family_spec(k).fingerprint_keys),
-        )
-        for kind in ordered:
+        for kind in list_family_kinds():
             spec = get_family_spec(kind)
-            if any(fk in normalized_keys for fk in spec.fingerprint_keys):
-                return kind
+            # An empty fingerprint identifies nothing; `all()` over it matches
+            # every checkpoint, so such a family is never detectable by keys.
+            if not spec.fingerprint_keys:
+                continue
+            if not all(fk in normalized_keys for fk in spec.fingerprint_keys):
+                continue
+            if any(ek in normalized_keys for ek in spec.exclude_keys):
+                continue
+            return kind
 
     raise ValueError(
         "Could not detect model family from metadata/checkpoint. "
