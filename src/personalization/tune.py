@@ -282,6 +282,15 @@ def main(
                 precision=str(params.get("precision", "fp32")),
                 num_workers=int(params.get("num_workers", -1)),
                 eval_zero_shot=bool(params.get("eval_zero_shot", True)),
+                # SugarJepa2 only; None means inherit the base run's setting.
+                freeze_jepa=(
+                    bool(params["freeze_jepa"])
+                    if params.get("freeze_jepa") is not None
+                    else None
+                ),
+                jepa_lr=(
+                    float(params["jepa_lr"]) if params.get("jepa_lr") is not None else None
+                ),
                 resume_from=resume_ckpt,
             )
             finalize_trial_from_results(record, run_dir=run_dir, results=results)

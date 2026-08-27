@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import polars as pl
+import pytest
 import torch
 from typer.testing import CliRunner
 
@@ -13,11 +14,13 @@ from personalization.constants import LOOP_HOLDOUT_QUALITY_USERS, SPARSE_WINDOW_
 from personalization.finetune import run_finetune
 from personalization.prepare import app as prepare_app
 from personalization.registry import (
+    build_model_from_meta,
     detect_model_type,
     get_model_spec,
     list_model_types,
     load_base_checkpoint,
     register_model,
+    window_steps_from_meta,
 )
 from personalization.splits import chronological_split_labels, limit_train_days, split_meta
 from personalization.leaderboard import (
@@ -53,6 +56,28 @@ from tests.conftest import (
 
 runner = CliRunner()
 
+# A JEPA branch inside the tiny-model budget: jepa_window must divide by
+# jepa_patch_size, and jepa_embed_dim by jepa_heads. Longer than TINY_INPUT_STEPS
+# on purpose, so the lookback differs from input_steps.
+TINY_JEPA_WINDOW = 16
+
+# Per-family metadata beyond the shared architecture block. Keys mirror what each
+# training script writes into tuning_meta.json.
+BASE_RUN_EXTRA_META: dict[str, dict[str, object]] = {
+    "sugar_one": {},
+    "sugar_jepa2": {
+        "jepa_window": TINY_JEPA_WINDOW,
+        "jepa_patch_size": 4,
+        "jepa_embed_dim": TINY_D_MODEL,
+        "jepa_layers": 1,
+        "jepa_heads": TINY_N_HEADS,
+        "jepa_norm": "instance",
+        "jepa_lr": 4e-5,
+        "freeze_jepa": False,
+    },
+}
+MODEL_TYPES = sorted(BASE_RUN_EXTRA_META)
+
 
 def _write_continuous_person_csv(path: Path, *, n_rows: int = 400, user_id: str = "Subject000") -> None:
     start = datetime(2024, 1, 1, 0, 0, 0)
@@ -74,11 +99,9 @@ def _write_continuous_person_csv(path: Path, *, n_rows: int = 400, user_id: str 
     pl.DataFrame(rows).write_csv(path)
 
 
-def _make_tiny_base_run(tmp_path: Path, *, lr: float = 4e-4, patience: int = 10) -> Path:
-    run_dir = tmp_path / "base_sugar_one"
-    run_dir.mkdir(parents=True)
-    meta = {
-        "model_type": "sugar_one",
+def _tiny_meta(model_type: str, *, lr: float = 4e-4, patience: int = 10) -> dict:
+    return {
+        "model_type": model_type,
         "input_steps": TINY_INPUT_STEPS,
         "horizon": TINY_HORIZON,
         "d_model": TINY_D_MODEL,
@@ -89,26 +112,44 @@ def _make_tiny_base_run(tmp_path: Path, *, lr: float = 4e-4, patience: int = 10)
         "lr": lr,
         "patience": patience,
         "weight_decay": 3e-5,
+        **BASE_RUN_EXTRA_META[model_type],
     }
+
+
+def _make_tiny_base_run(
+    tmp_path: Path,
+    *,
+    model_type: str = "sugar_one",
+    lr: float = 4e-4,
+    patience: int = 10,
+) -> Path:
+    """A base run dir as the training scripts leave it: meta + best_model.pt."""
+    run_dir = tmp_path / f"base_{model_type}"
+    run_dir.mkdir(parents=True)
+    meta = _tiny_meta(model_type, lr=lr, patience=patience)
     with (run_dir / "tuning_meta.json").open("w", encoding="utf-8") as f:
         json.dump(meta, f)
-    model = SugarOneModel(
-        n_time_steps=TINY_INPUT_STEPS,
-        n_features=4,
-        d_model=TINY_D_MODEL,
-        n_heads=TINY_N_HEADS,
-        ff_units=TINY_FF_UNITS,
-        n_blocks=TINY_N_BLOCKS,
-        prediction_horizon=TINY_HORIZON,
-        dropout=0.0,
-    )
+    model = build_model_from_meta(model_type, meta, torch.device("cpu"))
     torch.save(model.state_dict(), run_dir / "best_model.pt")
     return run_dir
 
 
-def test_registry_lists_sugar_one() -> None:
-    assert "sugar_one" in list_model_types()
-    spec = get_model_spec("sugar_one")
+def _prepare_person(tmp_path: Path, *, n_rows: int = 300) -> Path:
+    raw = tmp_path / "raw.csv"
+    _write_continuous_person_csv(raw, n_rows=n_rows)
+    prepared_dir = tmp_path / "prepared"
+    prep = runner.invoke(
+        prepare_app,
+        ["livia", "--input", str(raw), "--out-dir", str(prepared_dir), "--out-name", "p.csv"],
+    )
+    assert prep.exit_code == 0, prep.output
+    return prepared_dir / "p.csv"
+
+
+@pytest.mark.parametrize("model_type", MODEL_TYPES)
+def test_registry_lists_family(model_type: str) -> None:
+    assert model_type in list_model_types()
+    spec = get_model_spec(model_type)
     assert spec.n_features == 4
     assert "basal" in spec.value_columns
 
@@ -180,18 +221,13 @@ def test_window_stride_reduces_train_windows(tmp_path: Path) -> None:
     assert len(sparse) >= len(dense) // SPARSE_WINDOW_STRIDE - 1
 
 
-def test_finetune_sparse_stride_smoke(tmp_path: Path) -> None:
-    base = _make_tiny_base_run(tmp_path)
-    raw = tmp_path / "raw.csv"
-    _write_continuous_person_csv(raw, n_rows=300)
-    prepared_dir = tmp_path / "prepared"
-    runner.invoke(
-        prepare_app,
-        ["livia", "--input", str(raw), "--out-dir", str(prepared_dir), "--out-name", "p.csv"],
-    )
+@pytest.mark.parametrize("model_type", MODEL_TYPES)
+def test_finetune_sparse_stride_smoke(tmp_path: Path, model_type: str) -> None:
+    base = _make_tiny_base_run(tmp_path, model_type=model_type)
+    personal_csv = _prepare_person(tmp_path)
     run_dir, results = run_finetune(
         base_run_dir=base,
-        personal_csv=prepared_dir / "p.csv",
+        personal_csv=personal_csv,
         out_dir=tmp_path / "ft_sparse",
         run_name="sparse_ft",
         train_window_stride=SPARSE_WINDOW_STRIDE,
@@ -208,20 +244,14 @@ def test_finetune_sparse_stride_smoke(tmp_path: Path) -> None:
     assert (run_dir / "personalization_metrics.json").exists()
 
 
-def test_finetune_smoke(tmp_path: Path) -> None:
-    base = _make_tiny_base_run(tmp_path)
-    raw = tmp_path / "raw.csv"
-    _write_continuous_person_csv(raw, n_rows=300)
-    prepared_dir = tmp_path / "prepared"
-    prep = runner.invoke(
-        prepare_app,
-        ["livia", "--input", str(raw), "--out-dir", str(prepared_dir), "--out-name", "p.csv"],
-    )
-    assert prep.exit_code == 0, prep.output
+@pytest.mark.parametrize("model_type", MODEL_TYPES)
+def test_finetune_smoke(tmp_path: Path, model_type: str) -> None:
+    base = _make_tiny_base_run(tmp_path, model_type=model_type)
+    personal_csv = _prepare_person(tmp_path)
 
     run_dir, results = run_finetune(
         base_run_dir=base,
-        personal_csv=prepared_dir / "p.csv",
+        personal_csv=personal_csv,
         out_dir=tmp_path / "ft_runs",
         run_name="smoke_ft",
         personal_days=2,
@@ -235,7 +265,81 @@ def test_finetune_smoke(tmp_path: Path) -> None:
     )
     assert (run_dir / "tuning_meta.json").exists()
     assert results.get("finetuned_test") is not None
-    assert results["config"]["lwf_lambda"] == 0.5
+    cfg = results["config"]
+    assert cfg["lwf_lambda"] == 0.5
+    assert cfg["model_type"] == model_type
+    # The dataset window must match what the model demands, not input_steps.
+    assert cfg["window_steps"] == window_steps_from_meta(model_type, _tiny_meta(model_type))
+
+
+@pytest.mark.parametrize("model_type", MODEL_TYPES)
+def test_model_type_detected_from_checkpoint(tmp_path: Path, model_type: str) -> None:
+    """Both families embed basal/bolus/carbs — detection must still separate them."""
+    base = _make_tiny_base_run(tmp_path, model_type=model_type)
+    state = torch.load(base / "best_model.pt", map_location="cpu", weights_only=True)
+    assert detect_model_type({}, state) == model_type
+
+
+@pytest.mark.parametrize("model_type", MODEL_TYPES)
+def test_finetune_run_dir_reloads_as_a_base_run(tmp_path: Path, model_type: str) -> None:
+    """A fine-tune run must be self-describing: its config alone rebuilds the model.
+
+    This is what --resume-from and every downstream eval depend on, and it breaks
+    first when a model gains constructor arguments the run config does not record.
+    """
+    base = _make_tiny_base_run(tmp_path, model_type=model_type)
+    personal_csv = _prepare_person(tmp_path)
+    run_dir, _ = run_finetune(
+        base_run_dir=base,
+        personal_csv=personal_csv,
+        out_dir=tmp_path / "ft_reload",
+        run_name="reload",
+        personal_days=2,
+        lwf_lambda=0.0,
+        epochs=1,
+        patience=0,
+        batch_size=8,
+        device="cpu",
+        num_workers=0,
+        eval_zero_shot=False,
+    )
+    model, meta, resolved, _ = load_base_checkpoint(run_dir, device=torch.device("cpu"))
+    assert resolved == model_type
+    steps = window_steps_from_meta(resolved, meta)
+    assert steps == window_steps_from_meta(model_type, _tiny_meta(model_type))
+    # Weights loaded into the rebuilt shape, so a forward pass runs.
+    assert model(torch.zeros(2, steps, 4)).shape == (2, TINY_HORIZON)
+
+
+def test_sugar_jepa2_finetune_can_freeze_encoder(tmp_path: Path) -> None:
+    """--freeze-jepa overrides the base run's setting and holds encoder weights fixed."""
+    base = _make_tiny_base_run(tmp_path, model_type="sugar_jepa2")
+    personal_csv = _prepare_person(tmp_path)
+    before = torch.load(base / "best_model.pt", map_location="cpu", weights_only=True)
+    encoder_keys = [k for k in before if k.startswith("jepa_encoder.")]
+    assert encoder_keys, "no JEPA encoder tensors to check"
+
+    run_dir, results = run_finetune(
+        base_run_dir=base,
+        personal_csv=personal_csv,
+        out_dir=tmp_path / "ft_frozen",
+        run_name="frozen",
+        personal_days=2,
+        lwf_lambda=0.0,
+        epochs=1,
+        patience=0,
+        batch_size=8,
+        device="cpu",
+        num_workers=0,
+        eval_zero_shot=False,
+        freeze_jepa=True,
+    )
+    assert results["config"]["freeze_jepa"] is True
+    after = torch.load(run_dir / "best_model.pt", map_location="cpu", weights_only=True)
+    for key in encoder_keys:
+        assert torch.equal(before[key], after[key]), f"{key} changed under --freeze-jepa"
+    # The backbone around it still trained.
+    assert not torch.equal(after["embed_glucose.weight"], before["embed_glucose.weight"])
 
 
 def test_finetune_lwf_zero_smoke(tmp_path: Path) -> None:

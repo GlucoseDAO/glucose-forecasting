@@ -102,6 +102,16 @@ DENSE_WINDOW_STRIDE: Final[int] = 1
 SPARSE_WINDOW_STRIDE: Final[int] = 6  # 6×5 min = 30 min between window starts
 DEFAULT_TRAIN_WINDOW_STRIDE: Final[int] = SPARSE_WINDOW_STRIDE
 
+# JEPA-branch fine-tuning knobs, shared by every CLI that drives run_finetune.
+FREEZE_JEPA_HELP: Final[str] = (
+    "SugarJepa2 only: freeze the JEPA encoder while adapting. "
+    "Default: inherit the base run's setting."
+)
+JEPA_LR_HELP: Final[str] = (
+    "SugarJepa2 only: absolute LR for the JEPA encoder's param group. "
+    "Default: keep the base run's jepa_lr/lr ratio against the fine-tune LR."
+)
+
 DEFAULT_SEED: Final[int] = 43
 DEFAULT_HORIZON: Final[int] = 12
 DEFAULT_STUDY_GROUP: Final[str] = "T1DM"

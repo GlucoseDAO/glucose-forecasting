@@ -17,6 +17,41 @@ Package: `src/personalization/`. Console commands: `personal-*` (see [CLI refere
 
 Chronological split (every subject): last **25%** of the timeline is test; **15%** of the remainder is val; the rest is train. A day budget only shortens **train**.
 
+## Model coverage
+
+The pipeline is family-agnostic. Every CLI resolves the architecture, the dataset
+window length, and the optimizer's param groups from `src/personalization/registry.py`,
+keyed on the `model_type` in the base run's `tuning_meta.json` (or fingerprinted from
+the checkpoint when that key is missing). No flag selects the model — point
+`--base-run-dir` at the run you want to personalize.
+
+| Family | Dataset window | Optimizer | Extra flags |
+|--------|----------------|-----------|-------------|
+| **SugarOne** | `input_steps` | one AdamW group | — |
+| **SugarJepa2** | `max(input_steps, jepa_window)` | separate LR group for the JEPA encoder | `--freeze-jepa`, `--jepa-lr` |
+
+`sugar_jepa` (the vendored-CGM-JEPA variant) is deliberately **not** registered: its
+dataset yields a second `glucose_jepa` tensor, which the SugarOne fine-tune loop does
+not pass on. Only families with plain `(x, y)` batches belong here.
+
+Two consequences when personalizing SugarJepa2:
+
+- **Longer windows shrink the usable population.** At `jepa_window=288` a person needs
+  ≥300 contiguous rows to yield one training window, against 140 for SugarOne at
+  `input_steps=128`; at 864 it is 876. Short subjects that fine-tune fine under SugarOne
+  can drop out entirely, and the low end of a days sweep (1, 3 days) is where it shows
+  first. Worth controlling for when comparing across JEPA windows.
+- **`--freeze-jepa` is a second anti-forgetting knob, orthogonal to LwF.** LwF pulls the
+  whole model toward the global teacher; freezing pins the glucose representation exactly
+  and lets only the backbone adapt. Defaults to the base run's setting. Unlike in
+  training, freezing is always safe here — the encoder comes from the base checkpoint,
+  never from a random init.
+
+By default the encoder's LR tracks the base run's `jepa_lr / lr` ratio, so an LR sweep
+moves both param groups together rather than silently changing their balance; `--jepa-lr`
+overrides with an absolute value. In the sweep CLIs both settings ride in the recipe /
+params dict alongside `lwf_lambda` and `lr`.
+
 ## Demo: Livia + SugarOne
 
 Tracked fixtures — no gitignored `data/input/` export required:

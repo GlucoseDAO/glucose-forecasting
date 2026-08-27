@@ -326,6 +326,9 @@ def run_data_size_sweep(
                 eval_zero_shot=True,
                 resume_from=resume_ckpt,
                 refit_scalers_on_personal=False,
+                # JEPA knobs ride in the recipe, like lwf/lr/weight_decay.
+                freeze_jepa=recipe.get("freeze_jepa"),
+                jepa_lr=recipe.get("jepa_lr"),
             )
         except ValueError as exc:
             safe_echo(f"Skipping days={label}: {exc}", err=True)

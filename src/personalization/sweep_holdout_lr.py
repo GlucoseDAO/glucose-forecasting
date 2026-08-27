@@ -476,6 +476,9 @@ def main(
                 device=device,
                 eval_zero_shot=True,
                 resume_from=resume_ckpt,
+                # JEPA knobs ride in the params dict, like lwf/lr.
+                freeze_jepa=params.get("freeze_jepa"),
+                jepa_lr=params.get("jepa_lr"),
             )
         except ValueError as exc:
             safe_echo(f"  Failed {label}: {exc}", err=True)

@@ -272,6 +272,9 @@ def run_independent_lwf_sweep(
             resume_from=resume_ckpt,
             init_weights_from=None,
             refit_scalers_on_personal=False,
+            # JEPA knobs ride in the recipe, like lwf/lr/weight_decay.
+            freeze_jepa=recipe.get("freeze_jepa"),
+            jepa_lr=recipe.get("jepa_lr"),
         )
         row = _row_from_results(
             subject=subject,

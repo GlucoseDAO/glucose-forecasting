@@ -36,6 +36,7 @@ from common.scalers import (
     save_scalers_for_run,
 )
 from common.checkpoint import strip_compile_prefix
+from common.model_spec import get_family_spec
 from personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
     DEFAULT_FT_PATIENCE,
@@ -46,16 +47,22 @@ from personalization.constants import (
     DEFAULT_TRAIN_WINDOW_STRIDE,
     DEFAULT_VAL_EVERY_N_EPOCHS,
     DENSE_WINDOW_STRIDE,
+    FREEZE_JEPA_HELP,
+    JEPA_LR_HELP,
     SUGAR_ONE_VALUE_COLUMNS,
 )
-from personalization.registry import build_model_from_meta, load_base_checkpoint
-from sugar_one.sugar_one_spec import SUGAR_ONE_SPEC
+from personalization.registry import (
+    build_model_from_meta,
+    list_model_types,
+    load_base_checkpoint,
+    make_finetune_optimizer,
+    window_steps_from_meta,
+)
 from sugar_one.train_sugar_one import (
     evaluate,
     impute_and_sort,
     load_full_checkpoint,
     load_splits_streaming,
-    make_optimizer_and_scheduler,
     train_loop,
 )
 
@@ -142,6 +149,13 @@ def _dataloader_kwargs(num_workers: int, device: torch.device, prefetch_factor: 
 
 def _metrics_dict(mae: float, rmse: float, mard: float) -> dict[str, float]:
     return {"mae": float(mae), "rmse": float(rmse), "mard": float(mard)}
+
+
+def _write_run_config(run_dir: Path, cfg: dict[str, Any]) -> None:
+    """Write the run config under both names the loaders look for."""
+    for fname in ("tuning_meta.json", "config.json"):
+        with (run_dir / fname).open("w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
 
 
 def _load_saved_run_config(run_dir: Path) -> dict[str, Any]:
@@ -267,6 +281,8 @@ def run_finetune(
     resume_from: Path | None = None,
     init_weights_from: Path | None = None,
     refit_scalers_on_personal: bool = False,
+    freeze_jepa: bool | None = None,
+    jepa_lr: float | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     """Fine-tune on personal train split; return ``(run_dir, results)``."""
     init_cli_console()
@@ -315,6 +331,10 @@ def run_finetune(
         refit_scalers_on_personal = bool(
             saved_cfg.get("refit_scalers_on_personal", refit_scalers_on_personal)
         )
+        if saved_cfg.get("freeze_jepa") is not None:
+            freeze_jepa = bool(saved_cfg["freeze_jepa"])
+        if saved_cfg.get("jepa_lr") is not None:
+            jepa_lr = float(saved_cfg["jepa_lr"])
         eval_zero_shot = False
 
     if not base_run_dir.exists():
@@ -331,9 +351,21 @@ def run_finetune(
     if device == "cuda" and torch_device.type != "cuda":
         safe_echo("Warning: CUDA requested but unavailable; using CPU.", err=True)
 
+    # Settings a fine-tune may pick differently from the base run. Ignored by
+    # families that declare no use for them (SugarOne has no JEPA branch).
+    meta_overrides: dict[str, Any] = {}
+    if freeze_jepa is not None:
+        meta_overrides["freeze_jepa"] = freeze_jepa
+    if jepa_lr is not None:
+        meta_overrides["finetune_jepa_lr"] = jepa_lr
+
     model, base_meta, resolved_type, ckpt_path = load_base_checkpoint(
-        base_run_dir, model_type=model_type, device=torch_device
+        base_run_dir,
+        model_type=model_type,
+        device=torch_device,
+        meta_overrides=meta_overrides,
     )
+    family = get_family_spec(resolved_type)
     if from_scratch:
         model = build_model_from_meta(resolved_type, base_meta, torch_device)
         safe_echo("Training from scratch (base weights discarded).")
@@ -348,6 +380,9 @@ def run_finetune(
 
     input_steps = int(base_meta.get("input_steps", 128))
     horizon = int(base_meta.get("horizon", 12))
+    # What __getitem__ must emit. Equals input_steps for SugarOne; SugarJepa2's
+    # longer glucose-only view makes it max(input_steps, jepa_window).
+    window_steps = window_steps_from_meta(resolved_type, base_meta)
 
     p_train_full, p_val, p_test = _load_split_frames(personal_csv)
     if p_train_full.is_empty():
@@ -370,15 +405,20 @@ def run_finetune(
         sidecar = resolve_scalers_path(base_run_dir, base_meta)
         if sidecar is not None:
             kind, base_scalers, _ = load_scalers(sidecar)
-            if kind is not None and kind != "sugar_one":
+            # Every registered family shares SugarOne's four channels, so a
+            # sidecar from any of them fits — the feature check below is the one
+            # that actually matters.
+            known_kinds = list_model_types()
+            if kind is not None and kind not in known_kinds:
                 raise ValueError(
-                    f"base scalers.json kind={kind!r}; personalization expects sugar_one"
+                    f"base scalers.json kind={kind!r}; personalization expects "
+                    f"one of {known_kinds}"
                 )
-            missing = [f for f in SUGAR_ONE_SPEC.feature_names if f not in base_scalers]
+            missing = [f for f in family.feature_names if f not in base_scalers]
             if missing:
                 raise ValueError(
                     f"base scalers.json missing features {missing}; "
-                    f"expected {list(SUGAR_ONE_SPEC.feature_names)}"
+                    f"expected {list(family.feature_names)}"
                 )
             scaler_glucose = base_scalers["glucose"]
             scaler_basal = base_scalers["basal"]
@@ -401,17 +441,22 @@ def run_finetune(
                     drop_interpolated=bool(base_meta.get("drop_interpolated", False)),
                 )
                 base_train_df = impute_and_sort(base_train_df)
-                base_scaler_ds = SugarOneWindowDataset(
-                    base_train_df, input_steps, horizon, fit_scalers=True, window_stride=1
+                base_scaler_ds = family.build_window_dataset(
+                    base_train_df,
+                    input_steps=input_steps,
+                    horizon=horizon,
+                    fit_scalers=True,
+                    window_stride=1,
+                    meta=base_meta,
                 )
-                base_scalers = SUGAR_ONE_SPEC.extract_scalers(base_scaler_ds)
+                base_scalers = family.extract_scalers(base_scaler_ds)
                 scaler_glucose = base_scalers["glucose"]
                 scaler_basal = base_scalers["basal"]
                 scaler_bolus = base_scalers["bolus"]
                 scaler_carbs = base_scalers["carbs"]
                 save_scalers_for_run(
                     base_run_dir,
-                    kind="sugar_one",
+                    kind=resolved_type,
                     scalers=base_scalers,
                     provenance={"csv": str(resolved_csv), "source": "legacy_refit"},
                 )
@@ -427,10 +472,15 @@ def run_finetune(
                 use_personal_scalers = True
 
     if use_personal_scalers:
-        personal_scaler_ds = SugarOneWindowDataset(
-            p_train_full, input_steps, horizon, fit_scalers=True, window_stride=1
+        personal_scaler_ds = family.build_window_dataset(
+            p_train_full,
+            input_steps=input_steps,
+            horizon=horizon,
+            fit_scalers=True,
+            window_stride=1,
+            meta=base_meta,
         )
-        personal_scalers = SUGAR_ONE_SPEC.extract_scalers(personal_scaler_ds)
+        personal_scalers = family.extract_scalers(personal_scaler_ds)
         scaler_glucose = personal_scalers["glucose"]
         scaler_basal = personal_scalers["basal"]
         scaler_bolus = personal_scalers["bolus"]
@@ -460,6 +510,13 @@ def run_finetune(
         if p_train.is_empty():
             raise ValueError(f"personal_days={personal_days} left no train rows")
 
+    fitted_scalers = {
+        "glucose": scaler_glucose,
+        "basal": scaler_basal,
+        "bolus": scaler_bolus,
+        "carbs": scaler_carbs,
+    }
+
     def _make_ds(
         df: pl.DataFrame,
         *,
@@ -467,22 +524,25 @@ def run_finetune(
     ) -> SugarOneWindowDataset | None:
         if df.is_empty():
             return None
-        return SugarOneWindowDataset(
+        # The family turns input_steps into whatever window its model demands.
+        return family.build_window_dataset(
             df,
-            input_steps,
-            horizon,
-            scaler_glucose=scaler_glucose,
-            scaler_basal=scaler_basal,
-            scaler_bolus=scaler_bolus,
-            scaler_carbs=scaler_carbs,
+            input_steps=input_steps,
+            horizon=horizon,
+            scalers=fitted_scalers,
             window_stride=window_stride,
+            meta=base_meta,
         )
 
     personal_train_ds = _make_ds(p_train, window_stride=train_window_stride)
     personal_val_ds = _make_ds(p_val, window_stride=1)
     personal_test_ds = _make_ds(p_test, window_stride=1)
     if personal_train_ds is None or len(personal_train_ds) == 0:
-        raise ValueError("no personal train windows (check days / input_steps)")
+        raise ValueError(
+            f"no personal train windows: every series is shorter than "
+            f"{window_steps + horizon} rows (lookback {window_steps} + horizon "
+            f"{horizon}). Check --personal-days, or the model's window length."
+        )
 
     if resume_path is None:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -496,8 +556,8 @@ def run_finetune(
 
     save_scalers_for_run(
         run_dir,
-        kind="sugar_one",
-        scalers=SUGAR_ONE_SPEC.extract_scalers(scaler_ds),
+        kind=resolved_type,
+        scalers=family.extract_scalers(scaler_ds),
         provenance={
             "source": scaler_source,
             "base_run_dir": str(base_run_dir),
@@ -530,6 +590,10 @@ def run_finetune(
         "ff_units": int(base_meta.get("ff_units", 128)),
         "n_blocks": int(base_meta.get("n_blocks", 5)),
         "dropout": float(base_meta.get("dropout", 0.1)),
+        # Family-specific architecture (the JEPA branch shape), carried across so
+        # this run dir rebuilds its own model without consulting the base run.
+        **{k: v for k, v in base_meta.items() if k.startswith("jepa_")},
+        "window_steps": window_steps,
         "epochs": epochs,
         "lr": resolved_lr,
         "weight_decay": resolved_wd,
@@ -561,10 +625,7 @@ def run_finetune(
             else datetime.now().isoformat()
         ),
     }
-    with (run_dir / "tuning_meta.json").open("w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
-    with (run_dir / "config.json").open("w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
+    _write_run_config(run_dir, cfg)
 
     workers = resolve_num_workers(num_workers, torch_device)
     loader_kwargs = _dataloader_kwargs(num_workers, torch_device, int(cfg["prefetch_factor"]))
@@ -639,9 +700,14 @@ def run_finetune(
     if init_weights_path is not None and resume_path is None:
         safe_echo(f"Initialized student from {init_weights_path}")
 
-    optimizer, scheduler = make_optimizer_and_scheduler(
-        model, resolved_lr, resolved_wd, epochs
+    optimizer, scheduler, optim_cfg = make_finetune_optimizer(
+        resolved_type, model, resolved_lr, resolved_wd, epochs, base_meta
     )
+    if optim_cfg:
+        # What the hook resolved (an encoder LR, a freeze) belongs in the run's
+        # config, so --resume-from and any reread reproduce this run.
+        cfg.update(optim_cfg)
+        _write_run_config(run_dir, cfg)
     loss_fn = nn.MSELoss()
     grad_scaler = torch.amp.GradScaler(
         "cuda", enabled=(torch_device.type == "cuda" and precision == "fp16")
@@ -673,8 +739,10 @@ def run_finetune(
         if train_window_stride != DENSE_WINDOW_STRIDE
         else ""
     )
+    window_note = f" | lookback={window_steps}" if window_steps != input_steps else ""
     safe_echo(
-        f"Fine-tuning: train={len(personal_train_ds):,} val={len(personal_val_ds) if personal_val_ds else 0:,} "
+        f"Fine-tuning {resolved_type}{window_note}: "
+        f"train={len(personal_train_ds):,} val={len(personal_val_ds) if personal_val_ds else 0:,} "
         f"test={len(personal_test_ds) if personal_test_ds else 0:,} | days={personal_days or 'all'} | "
         f"lr={resolved_lr:g} wd={resolved_wd:g} patience={resolved_patience} "
         f"val_every={resolved_val_every}{lwf_note}{stride_note}"
@@ -719,10 +787,7 @@ def run_finetune(
     results["wall_time_s"] = wall_time_s
     cfg["wall_time_s"] = wall_time_s
     cfg["end_time"] = datetime.now().isoformat()
-    with (run_dir / "tuning_meta.json").open("w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
-    with (run_dir / "config.json").open("w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
+    _write_run_config(run_dir, cfg)
 
     with (run_dir / "personalization_metrics.json").open("w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
@@ -804,6 +869,10 @@ def main(
             "scalers.json so fine-tuning stays in the pretrained input scale."
         ),
     ),
+    freeze_jepa: Optional[bool] = typer.Option(
+        None, "--freeze-jepa/--no-freeze-jepa", help=FREEZE_JEPA_HELP
+    ),
+    jepa_lr: Optional[float] = typer.Option(None, "--jepa-lr", help=JEPA_LR_HELP),
 ) -> None:
     """Fine-tune a global checkpoint on one person's chronological splits."""
     init_cli_console()
@@ -832,6 +901,8 @@ def main(
             resume_from=resume_from,
             init_weights_from=init_weights_from,
             refit_scalers_on_personal=refit_scalers_on_personal,
+            freeze_jepa=freeze_jepa,
+            jepa_lr=jepa_lr,
         )
     except ValueError as exc:
         safe_echo(f"Error: {exc}", err=True)
