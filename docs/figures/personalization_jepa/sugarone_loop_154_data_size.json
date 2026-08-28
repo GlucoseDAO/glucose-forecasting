@@ -1,0 +1,52 @@
+{
+  "subject": "loop_154",
+  "summary_rows": 6,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "7",
+    "optimal_day": "3",
+    "best_mae": 24.572,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 24.7423,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 24.572,
+        "delta_mae": -0.170300000000001
+      },
+      {
+        "personal_days": "7",
+        "mae": 24.572,
+        "delta_mae": 0.0
+      },
+      {
+        "personal_days": "14",
+        "mae": 24.572,
+        "delta_mae": 0.0
+      },
+      {
+        "personal_days": "30",
+        "mae": 24.8353,
+        "delta_mae": 0.263300000000001
+      },
+      {
+        "personal_days": "60",
+        "mae": 24.8059,
+        "delta_mae": -0.029399999999998983
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_jepa\\sugarone_loop_154_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    7.0,
+    14.0,
+    30.0,
+    60.0
+  ]
+}

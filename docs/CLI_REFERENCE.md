@@ -112,6 +112,8 @@ uv run python src/sugar_one/train_sugar_one.py --help
 uv run python src/glumind_uni/train_uniglumind.py train --help
 uv run python src/sugar_jepa/train_sugar_jepa.py --help
 uv run python src/sugar_jepa/train_sugar_jepa2.py --help
+uv run python src/sugar_jepa/jepa_pretrain.py --help
+uv run python src/sugar_jepa/jepa_report.py
 uv run python src/nf_baselines/tune_nf_baselines_by_group.py -h
 uv run python src/glumind/eval_gluformer_val_test_masked.py -h
 uv run python src/glumind/upload_to_huggingface.py --help

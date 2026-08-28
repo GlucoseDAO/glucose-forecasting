@@ -1,0 +1,28 @@
+{
+  "subject": "loop_1017",
+  "summary_rows": 2,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "60",
+    "optimal_day": "30",
+    "best_mae": 16.84528160095215,
+    "steps": [
+      {
+        "personal_days": "30",
+        "mae": 16.84528160095215,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "60",
+        "mae": 17.014026641845703,
+        "delta_mae": 0.1687450408935547
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_jepa\\jepa864_loop_1017_data_size.png",
+  "x_values": [
+    30.0,
+    60.0
+  ]
+}

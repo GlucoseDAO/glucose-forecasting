@@ -1,0 +1,11 @@
+This is short vision of scientific paper on jepa finetuning methods.
+
+Main idea of this work is to show adding JEPA to model as additional feature, could benifit finetuning on personal data.
+In this work should be explained that SugarOne model is derived from Glumind architecture by fiting it to covariates that acceseble from comodity CGMs.
+There should be explanation of architecture and comparison on test data. Should be stressed on which datasets this models was trained and about what test we are speaking about.
+JEPA implementation should be laso explained. It was taken from this project (https://github.com/cruiseresearchgroup/CGM-JEPA)
+In brife bseline models from neuroforcaster should be mentioned and there results.
+Main focus should be done on finetuning reports and there comparison. There are three of them: SugarOne (docs\PERSONALIZATION_REPORT.md), JEPA (temp_docs\jepa_mae_by_days.csv) and baseline neuroforcaster (docs\PERSONALIZATION_NF_REPORT.md) models.
+Paper should be writen in such way that every section should lead to final conclusion. There should not be orfant parts that did not lead to anything. It is better to make text smaller then put redundent information. Overall text size shuold be around 8 pages.
+Also data pipeline should be described from https://github.com/GlucoseDAO/glucose_data_processing project or (D:\dev\glucose_data_processing) on local this machine.
+Dataset data\input\loop_and_ai_ready\loop_ai_ready_joined2.csv should be explained.

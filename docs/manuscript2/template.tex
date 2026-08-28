@@ -1,0 +1,122 @@
+% ============================================================
+%  The European AI Summer Research
+%  Paper template (recommended, optional)
+%
+%  HOW TO USE
+%  ----------
+%  1. Open this folder on Overleaf (overleaf.com) or compile
+%     locally with pdflatex. Keep easrp2026.sty in the same folder.
+%  2. Write your paper in the marked sections below.
+%  3. Keep it ANONYMOUS: no names, no affiliations, no
+%     identifying acknowledgements. See README.txt.
+%  4. Compile to PDF and submit the PDF.
+%
+%  PAGE LIMIT: up to 8 pages of main text (11pt, A4).
+%  References and any appendix do NOT count toward this limit.
+%
+%  When your paper is ACCEPTED, change the line
+%      \usepackage{easrp2026}
+%  to
+%      \usepackage[accepted]{easrp2026}
+%  and fill in \easrpauthor / \easrpaffiliation below to show
+%  your name on the final version.
+% ============================================================
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{graphicx}             % for inserting images
+\usepackage{easrp2026}            % anonymous submission
+% \usepackage[accepted]{easrp2026}  % camera-ready (reveals authors)
+
+% --- Author details: used only in the accepted version -------
+% Leave these here; they are ignored while in anonymous mode.
+\easrpauthor{Your Name, Co-author Name}
+\easrpaffiliation{Your University, City, Country}
+
+\easrptitle{Your paper title here}
+
+\begin{document}
+
+\maketitle
+
+% Delete this note in your final paper.
+\begin{center}
+\fbox{\parbox{0.9\linewidth}{\small\itshape
+Formatting: up to 8 pages of main text at 11pt on A4; references
+and any appendix do not count toward the limit. Keep the
+submission anonymous (no names, affiliations, or identifying
+acknowledgements).}}
+\end{center}
+
+\begin{abstract}
+Write a short abstract here, roughly 150--250 words: the
+problem, your approach, and your main result, in plain
+language. Do not include anything that identifies you or your
+institution.
+\end{abstract}
+
+\section{Introduction}
+Introduce the problem and why it matters, and state your
+contribution clearly. Write in an anonymous style: refer to
+your own prior work in the third person (for example,
+``Smith (2024) showed\ldots'') rather than ``our previous
+work''.
+
+\section{Related work}
+Situate your work among existing research: summarise what has
+been done, identify what remains open, and make clear how your
+contribution differs. Cite credible, verifiable sources, and
+prefer peer-reviewed papers where they exist. Preprints,
+technical reports, datasets, theses, and software may be cited
+when they are the appropriate source (as is common in machine
+learning); avoid relying on non-authoritative web content such
+as blog posts.
+
+The accompanying bibliography file includes examples of several
+reference types: a journal article \cite{lecun2015deep}, a
+conference paper \cite{vaswani2017attention}, a book
+\cite{russell2020aima}, a book chapter \cite{rumelhart1986learning},
+a technical report \cite{krizhevsky2009cifar}, a thesis
+\cite{sutton1984thesis}, a preprint \cite{devlin2018bert}, and a
+web resource \cite{turing1950webexample}.
+
+This template uses \texttt{natbib}, which offers several citation
+commands. Use \verb|\citet| for a textual citation that reads as
+part of the sentence: \citet{vaswani2017attention} introduced the
+Transformer. Use \verb|\citep| for a parenthetical citation: the
+Transformer dispenses with recurrence \citep{vaswani2017attention}.
+The starred forms \verb|\citet*| and \verb|\citep*| list every
+author rather than abbreviating with ``et al.'':
+\citep*{vaswani2017attention}. You can also cite just the year with
+\verb|\citeyear| \citeyear{lecun2015deep}, just the authors with
+\verb|\citeauthor| \citeauthor{lecun2015deep}, or give multiple
+references at once \citep{lecun2015deep, devlin2018bert}.
+
+\section{Method}
+Describe your approach, model, or argument with enough detail
+that an expert could follow and, where applicable, reproduce
+it.
+
+\section{Results}
+Present your findings. A rigorous negative result is valued:
+you will not be penalised for failing to beat the state of the
+art.
+
+\section{Discussion}
+Interpret your results, state limitations honestly, and
+suggest future directions.
+
+\section{Conclusion}
+Summarise your contribution in a few sentences.
+
+% --- References ----------------------------------------------
+% References and any appendix do NOT count toward the 8-page limit.
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+% --- Appendix (optional; does NOT count toward the limit) ----
+\appendix
+\section{Appendix}
+Supplementary material, proofs, or extra detail may go here.
+
+\end{document}

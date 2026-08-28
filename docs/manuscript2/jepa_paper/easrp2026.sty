@@ -1,0 +1,86 @@
+% ============================================================
+%  easrp2026.sty
+%  Style file for The European AI Summer Research,
+%  created for the program by the EuroTECH Federation.
+%
+%  Template originally designed by Karol Wapniarski, 2026.
+%  Queries, bug reports, and suggestions: contact@eurotech-federation.com
+%
+%  This is a LIGHT style file. It sets the page geometry,
+%  the anonymous title block, and the abstract formatting that
+%  match the program's submission rules. It does NOT force a
+%  two-column layout or a specific font, so that authors who
+%  prefer other tools are not disadvantaged.
+%
+%  Two modes:
+%    \usepackage{easrp2026}            -> anonymous submission (default)
+%    \usepackage[accepted]{easrp2026}  -> camera-ready, shows authors
+% ============================================================
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{easrp2026}[2026/06/02 European AI Summer Research Program light style]
+
+% --- Option: accepted (reveals author information) -----------
+\newif\if@accepted
+\@acceptedfalse
+\DeclareOption{accepted}{\@acceptedtrue}
+\ProcessOptions\relax
+
+% --- Page geometry: 1 inch margins ---------------------------
+\RequirePackage[margin=1in,a4paper]{geometry}
+
+% --- Encoding, maths, graphics, links ------------------------
+\RequirePackage[utf8]{inputenc}
+\RequirePackage[T1]{fontenc}
+\RequirePackage{amsmath,amssymb}
+\RequirePackage{graphicx}
+\RequirePackage{booktabs}
+\RequirePackage{url}
+\RequirePackage{natbib}
+\RequirePackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue]{hyperref}
+\RequirePackage{setspace}
+\onehalfspacing
+
+% --- Author macros (collected, shown only if accepted) -------
+\newcommand{\@easrpauthors}{Anonymous submission}
+\newcommand{\@easrpaffil}{}
+\newcommand{\easrpauthor}[1]{\renewcommand{\@easrpauthors}{#1}}
+\newcommand{\easrpaffiliation}[1]{\renewcommand{\@easrpaffil}{#1}}
+
+% --- Title macro ---------------------------------------------
+\newcommand{\@easrptitle}{}
+\newcommand{\easrptitle}[1]{\renewcommand{\@easrptitle}{#1}}
+
+% --- Title rendering -----------------------------------------
+% Redefine \maketitle to honour the accepted flag.
+\renewcommand{\maketitle}{%
+  \begin{center}%
+    {\LARGE\bfseries \@easrptitle \par}%
+    \vspace{0.6em}%
+    \if@accepted
+      {\large \@easrpauthors \par}%
+      \ifx\@easrpaffil\empty\else
+        \vspace{0.2em}{\normalsize\itshape \@easrpaffil \par}%
+      \fi
+    \else
+      {\large Anonymous submission \par}%
+    \fi
+  \end{center}%
+  \vspace{0.5em}%
+  % Under-review footer on submissions only
+  \if@accepted\else
+    \thispagestyle{plain}%
+    \begingroup
+      \renewcommand{\thefootnote}{}%
+      \footnotetext{Preliminary work. Under review for the European AI Summer Research Program. Do not distribute.}%
+    \endgroup
+  \fi
+}
+
+% --- Abstract: keep it brief, indented -----------------------
+\renewenvironment{abstract}{%
+  \begin{center}{\bfseries Abstract}\end{center}%
+  \begin{quote}%
+}{%
+  \end{quote}%
+  \vspace{0.4em}%
+}

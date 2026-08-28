@@ -89,6 +89,7 @@ uv run python src/glumind_uni/train_uniglumind.py train --help # Typer, `train` 
 uv run python src/sugar_jepa/train_sugar_jepa.py --help         # Typer; --model-type sugar_jepa
 uv run python src/sugar_jepa/train_sugar_jepa2.py --help        # Typer; --model-type sugar_jepa2
 uv run python src/sugar_jepa/jepa_pretrain.py --help            # Typer; self-supervised encoder
+uv run python src/sugar_jepa/jepa_report.py                 # one-shot PERSONALIZATION_JEPA_REPORT.md
 uv run python src/nf_baselines/tune_nf_baselines_by_group.py -h              # argparse
 uv run python src/glumind/eval_gluformer_val_test_masked.py -h          # argparse
 uv run python src/glumind/upload_to_huggingface.py --help

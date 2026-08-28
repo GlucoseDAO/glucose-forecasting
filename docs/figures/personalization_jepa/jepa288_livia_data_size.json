@@ -1,0 +1,46 @@
+{
+  "subject": "livia",
+  "summary_rows": 5,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "30",
+    "optimal_day": "60",
+    "best_mae": 16.8273,
+    "steps": [
+      {
+        "personal_days": "3",
+        "mae": 17.6148,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "7",
+        "mae": 17.2092,
+        "delta_mae": -0.40559999999999974
+      },
+      {
+        "personal_days": "14",
+        "mae": 17.0865,
+        "delta_mae": -0.12269999999999825
+      },
+      {
+        "personal_days": "30",
+        "mae": 17.1216,
+        "delta_mae": 0.03509999999999991
+      },
+      {
+        "personal_days": "60",
+        "mae": 16.8273,
+        "delta_mae": -0.2942999999999998
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_jepa\\jepa288_livia_data_size.png",
+  "x_values": [
+    3.0,
+    7.0,
+    14.0,
+    30.0,
+    60.0
+  ]
+}

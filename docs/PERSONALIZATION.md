@@ -2,7 +2,7 @@
 
 Fine-tune the production **SugarOne** checkpoint on one person's CGM and pump data (glucose, basal, bolus, carbohydrates). This is the insulin + carbs personalization path — not GluMind HR/steps.
 
-Package: `src/personalization/`. Console commands: `personal-*` (see [CLI reference](CLI_REFERENCE.md)). Technical results: [Personalization report](PERSONALIZATION_REPORT.md).
+Package: `src/personalization/`. Console commands: `personal-*` (see [CLI reference](CLI_REFERENCE.md)). Technical results: [Personalization report](PERSONALIZATION_REPORT.md), [NeuralForecast](PERSONALIZATION_NF_REPORT.md), [SugarJEPA](PERSONALIZATION_JEPA_REPORT.md).
 
 ## Locked recipe
 
@@ -114,4 +114,4 @@ uv run personal-study --report-only
 
 Results: [Personalization report](PERSONALIZATION_REPORT.md). Out of scope here: personal vs general data mix, GluMind personalization, SugarOne architecture changes.
 
-NeuralForecast counterpart (continue-fit, no LwF/LR search): `uv run personal-nf-study` — [PERSONALIZATION_NF_REPORT.md](PERSONALIZATION_NF_REPORT.md).
+NeuralForecast counterpart (continue-fit, no LwF/LR search): `uv run personal-nf-study` — [PERSONALIZATION_NF_REPORT.md](PERSONALIZATION_NF_REPORT.md). SugarJEPA day-budget write-up: [PERSONALIZATION_JEPA_REPORT.md](PERSONALIZATION_JEPA_REPORT.md).

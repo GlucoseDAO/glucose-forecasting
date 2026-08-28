@@ -1,0 +1,106 @@
+{
+  "subjects": [
+    {
+      "subject": "livia",
+      "display": "Livia",
+      "color": "#0072B2",
+      "plateau": {
+        "plateau_day": "60",
+        "optimal_day": "60",
+        "best_mae": 17.46380615234375,
+        "steps": [
+          {
+            "personal_days": "14",
+            "mae": 18.073192596435547,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "30",
+            "mae": 18.1514949798584,
+            "delta_mae": 0.07830238342285156
+          },
+          {
+            "personal_days": "60",
+            "mae": 17.46380615234375,
+            "delta_mae": -0.6876888275146484
+          }
+        ]
+      },
+      "n_points": 3,
+      "x_values": [
+        14.0,
+        30.0,
+        60.0
+      ]
+    },
+    {
+      "subject": "loop_556",
+      "display": "User 556",
+      "color": "#D55E00",
+      "plateau": {
+        "plateau_day": "60",
+        "optimal_day": "30",
+        "best_mae": 15.178496360778809,
+        "steps": [
+          {
+            "personal_days": "14",
+            "mae": 19.689697265625,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "30",
+            "mae": 15.178496360778809,
+            "delta_mae": -4.511200904846191
+          },
+          {
+            "personal_days": "60",
+            "mae": 15.487432479858398,
+            "delta_mae": 0.30893611907958984
+          }
+        ]
+      },
+      "n_points": 3,
+      "x_values": [
+        14.0,
+        30.0,
+        60.0
+      ]
+    },
+    {
+      "subject": "loop_730",
+      "display": "User 730",
+      "color": "#009E73",
+      "plateau": {
+        "plateau_day": "30",
+        "optimal_day": "30",
+        "best_mae": 14.927517890930176,
+        "steps": [
+          {
+            "personal_days": "14",
+            "mae": 14.949405670166016,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "30",
+            "mae": 14.927517890930176,
+            "delta_mae": -0.021887779235839844
+          },
+          {
+            "personal_days": "60",
+            "mae": 15.752033233642578,
+            "delta_mae": 0.8245153427124023
+          }
+        ]
+      },
+      "n_points": 3,
+      "x_values": [
+        14.0,
+        30.0,
+        60.0
+      ]
+    }
+  ],
+  "mode": "max_days",
+  "max_days": 60.0,
+  "chart_path": "docs\\figures\\personalization_jepa\\jepa2016_data_size_curves_combined_60d.png"
+}

@@ -1,0 +1,40 @@
+{
+  "subject": "loop_1082",
+  "summary_rows": 4,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "30",
+    "optimal_day": "7",
+    "best_mae": 14.826887130737305,
+    "steps": [
+      {
+        "personal_days": "7",
+        "mae": 14.826887130737305,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "14",
+        "mae": 14.970489501953125,
+        "delta_mae": 0.1436023712158203
+      },
+      {
+        "personal_days": "30",
+        "mae": 14.970489501953125,
+        "delta_mae": 0.0
+      },
+      {
+        "personal_days": "all",
+        "mae": 14.970489501953125,
+        "delta_mae": 0.0
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_jepa\\jepa864_loop_1082_data_size.png",
+  "x_values": [
+    7.0,
+    14.0,
+    30.0,
+    37.42916666666667
+  ]
+}
