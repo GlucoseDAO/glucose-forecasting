@@ -1,0 +1,12 @@
+kind,name,source_run,weights,sha256_16,window,embed_dim,patch,layers,heads,epochs_run,best_epoch,freeze_jepa,lr,jepa_lr,eff_rank,latent_std,test_mae,test_rmse,test_mard
+encoder,jepa-128-64,runs/jepa_encoder/jepa_encoder_w128_p8_d64_l3_h8_20260715_072253,encoder_best.pt,b710b148cd9390a0,128,64,8,3,8,50,47,,,,17.6219,0.5552,,,
+encoder,jepa-128,runs/jepa_encoder/jepa_encoder_w128_p8_d96_l3_h6_20260715_012418,encoder_best.pt,5e6a8718a1fe9b1d,128,96,8,3,6,50,47,,,,26.2624,0.5694,,,
+encoder,jepa-288,runs/jepa_encoder-288/jepa_encoder_w288_p8_d96_l3_h6_20260813_000957,encoder_best.pt,95913a25b6006660,288,96,8,3,6,50,50,,,,27.4313,0.5567,,,
+encoder,jepa-864,runs/jepa_encoder-864/jepa_encoder_w864_p8_d96_l3_h6_20260820_002218,encoder_best.pt,1cfac1dd75fe4a26,864,96,8,3,6,50,50,,,,35.9919,0.557,,,
+encoder,jepa-2016,runs/jepa_encoder-2016/jepa_encoder_w2016_p8_d96_l3_h6_20260820_014234,encoder_best.pt,e722a13cf7fd0b39,2016,96,8,3,6,50,19,,,,16.7125,0.8286,,,
+forecaster,sugar_jepa-128-64,runs/sugar_jepa/sugar_jepa_global_h12_20260715_163101_jepaencoder,last_model.pt,e021c72dc2164981,128,64,8,3,8,30,,,0.0004,4e-05,,,12.4736,18.8224,10.3967
+forecaster,sugar_jepa-128,runs/sugar_jepa/sugar_jepa_global_h12_20260721_184108,last_model.pt,a812fe098dae0b89,128,96,8,3,6,30,,,0.0004,4e-05,,,12.0281,18.5426,9.8045
+forecaster,sugar_jepa-288,data/output/runs/sugar_jepa/sugar_jepa_global_h12_20260813_144024,last_model.pt,5e41bc0d8fb03fcf,288,96,8,3,6,30,,,0.0004,4e-05,,,11.3685,17.6306,9.0752
+forecaster,sugar_jepa-864,data/output/runs/sugar_jepa_864/sugar_jepa_global_h12_20260826_153705,last_model.pt,344675dbd8e4292a,864,96,8,3,6,50,,True,0.0004,4e-05,,,10.8974,17.0588,8.5527
+forecaster,sugar_jepa-cgm,runs/sugar_cgm-jepa/sugar_jepa_global_h12_20260723_104848,last_model.pt,1ee70bfb9e1185c8,288,,12,,,30,,,0.0004,4e-05,,,11.4101,17.9209,8.9862
+forecaster,sugar_one-baseline,data/output/runs/sugar_one_dev/sugar_one_global_h12_20260720_205814_baseline,last_model.pt,49c3edb21d680cf5,80,,,,,200,,,0.001,,,,12.4334,19.2181,9.6978
