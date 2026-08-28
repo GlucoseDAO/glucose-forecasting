@@ -160,8 +160,8 @@ Zero-shot personal MAE is not global test MAE. Every results paragraph names whi
 |-------|--------|--------|
 | SugarOne day-budget MAE, gate at 30–60 days, LwF failure | `docs/PERSONALIZATION_REPORT.md` | Ready; copy from run CSVs |
 | NF continue-fit paths (harmful vs smooth) | `docs/PERSONALIZATION_NF_REPORT.md` | Ready |
-| SugarJEPA vs SugarOne curves | `temp_docs/jepa_mae_by_days.csv` | Draft. **Fact-check before LaTeX.** |
-| Global SugarJEPA tables | `docs/manuscript2/jepa_paper/easrp2026.tex` | Not primary |
+| SugarJEPA vs SugarOne curves | `jepa_paper/easrp2026.tex` table + `temp_docs/jepa_mae_by_days.csv` | **JEPA paper is SoT** (protocol, freeze, architecture). CSV is MAE only. |
+| Global SugarJEPA tables | `docs/manuscript2/jepa_paper/easrp2026.tex` | Primary for JEPA global numbers; still drop 864/2016 from the main global table (population shift) |
 | Dataset / join | `docs/DATA.md`, `docs/GLUMIND_VS_SUGARONE_COMPARISON.md` | Ready |
 | Old draft mistakes | `docs/manuscript/review.md` | Do-not-repeat list |
 
@@ -199,8 +199,8 @@ Public names: **SugarOne**, **SugarJEPA**, **CGM-JEPA**. Cite **GluMind** as the
 
 ## 11. Work order
 
-1. Theme and comparison settings: **locked** (this document).
-2. Write **paper structure**.
+1. Theme and comparison settings: **locked** (`plan.md`).
+2. Paper structure: **written** (`structure.md`).
 3. Lock hero numbers from run CSVs.
 4. Draft LaTeX from `docs/manuscript2/template.tex`.
 5. Compile and cut to 8 pages by deleting. Claims we must not make will be caught while drafting.
@@ -213,12 +213,14 @@ Public names: **SugarOne**, **SugarJEPA**, **CGM-JEPA**. Cite **GluMind** as the
 |---|----------|
 | Hero encoder | **SugarJEPA-288** on the main curve. |
 | Long encoders (3 d / 7 d) | **Appendix only.** |
-| NeuralForecast on the main figure | Harmful path (**N-HiTS or NBEATSx**, one of them) **and** **TFT** (smooth exception). Not all five. |
+| NeuralForecast on the main figure | **NBEATSx** (harmful through 30 d) **and** **TFT** (helps from 30 d; harmful at 3--14 d). Not all five. |
 | Personal cohort | **7 T1DM users** with JEPA curves. AI-READY short wear = limitation only. |
 | 1-day fine-tune | **Drop from the main figure for every model.** `jepa-288` needs a 1-day lookback, so a 1-day train budget cannot yield a window. Curves: zero-shot, then 3 / 7 / 14 / 30 / 60 / full. |
 | Venue | **EASRP 2026**, anonymous, 8-page A4 main text. |
 | SugarOne publication | **None.** Introduce it in Methods as GluMind blocks + different covariates, mixing, hyperparameters, and dataset. Not a second thesis. |
 | Patient-ID probe | **Skip.** |
+| JEPA source of truth | **`docs/manuscript2/jepa_paper/`.** Personalization JEPA report is CSV MAE only; it does not override freeze/protocol. |
+| Personal JEPA fine-tune | **Encoder frozen**; only SugarOne weights update. Global training: encoder unfrozen, lower LR. |
 | Forbidden claims | Not pre-listed. Catch during drafting (no clinical deployment, no guaranteed-safe adaptation, no world model). |
 
 ### Headline result (not a theme change)
