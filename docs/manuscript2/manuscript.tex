@@ -104,7 +104,7 @@ baselines~\citep{olivares2023nbeatsx,lim2021tft,neuralforecast2022}.
 
 Each model maps a lookback window to the next \(H=12\) glucose values
 (60 minutes). The lead metric is MAE in mg/dL. Tables also report RMSE and
-MARD where we have them. The horizon is the same for every model.
+MARD. The horizon is the same for every model.
 
 \subsection{Data and two tests}
 \label{sec:data}
@@ -259,11 +259,11 @@ NeuralForecast models are in Appendix~\ref{app:nf}.
 \label{sec:global}
 
 Table~\ref{tab:global} is the joined-corpus holdout, not the personal
-chronological test. SugarOne and SugarJEPA-288 are scored on the dataset
-\texttt{test} split. NBEATSx and TFT numbers are the holdout MAE of the
-global NeuralForecast bundles used for continue-fit. These models are not
-weak toys. Personal zero-shot MAE on the seven T1DM users is higher for
-every model (Section~\ref{sec:paths}); that is a different test.
+chronological test. All four models are scored on the dataset
+\texttt{test} split. NBEATSx and TFT are the global NeuralForecast bundles
+used for continue-fit. These models are not weak toys. Personal zero-shot
+MAE on the seven T1DM users is higher for every model
+(Section~\ref{sec:paths}); that is a different test.
 
 \begin{table}[t]
 \centering
@@ -274,12 +274,12 @@ Model & MAE & RMSE & MARD \\
 \midrule
 SugarOne & 12.41 & 19.05 & 9.90\% \\
 SugarJEPA-288 & 11.37 & 17.63 & 9.08\% \\
-NBEATSx & 11.71 & --- & --- \\
-TFT & 11.95 & --- & --- \\
+NBEATSx & 11.81 & 19.10 & 8.05\% \\
+TFT & 12.69 & 20.36 & 8.47\% \\
 \bottomrule
 \end{tabular}
-\caption{Joined-corpus holdout (global test). SugarOne and SugarJEPA-288:
-dataset \texttt{test} split. NBEATSx and TFT: global-bundle holdout MAE.
+\caption{Joined-corpus holdout (global test). Dataset \texttt{test} split.
+NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit.
 SugarJEPA-864/2016 are omitted; they score a smaller population of long
 series.}
 \label{tab:global}
@@ -530,11 +530,13 @@ draft table. Means do not fill empty cells with zeros.}
 N-HiTS on the same six T1DM users with \(\ge\)60 train days has mean
 continue-fit \(\Delta\) \(+2.24\) at 30 days (harmful), \(+0.16\) at 60 days,
 and \(-1.92\) at full history---the same shape as NBEATSx
-\citep{challu2023nhits}. LSTM is worse at 30 days (\(\Delta\) \(+6.00\)).
-TiDE's 30-day mean \(\Delta\) is \(-7.01\) (helpful) but its global holdout
-MAE is 15.90, well above the models in Table~\ref{tab:global}. We left them
-off Figure~\ref{fig:curves} so the harmful-path contrast is one curve
-(NBEATSx), not five.
+\citep{challu2023nhits}. Its joined-corpus test MAE is 11.94 (RMSE 19.38,
+MARD 8.08\%), close to NBEATSx. LSTM is worse at 30 days (\(\Delta\)
+\(+6.00\)) and weaker globally (test MAE 17.37, RMSE 26.30, MARD 11.57\%).
+TiDE's 30-day mean \(\Delta\) is \(-7.01\) (helpful) but its global test MAE
+is 16.12 (RMSE 24.01, MARD 11.07\%), well above the models in
+Table~\ref{tab:global}. We left them off Figure~\ref{fig:curves} so the
+harmful-path contrast is one curve (NBEATSx), not five.
 
 \section{One-day fine-tune}
 \label{app:oneday}

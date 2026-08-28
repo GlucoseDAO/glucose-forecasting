@@ -21,6 +21,30 @@ MAE is reported in mg/dL. **Δ vs zero-shot** is continue-fit MAE minus frozen-b
 | TiDE | 15/15 | 15.90 | 7.01 (n=6) | 7.17 (n=6) | 7.47 (n=6) |
 | LSTM | 15/15 | 16.80 | -6.00 (n=6) | -0.13 (n=6) | 3.06 (n=6) |
 
+## Global holdout metrics (joined2)
+
+MAE, RMSE, and MARD from the saved `nf_holdout` bundles (`val_metrics_overall.csv` / `test_metrics_overall.csv`). **Val** is the split used to pick these runs. **Test** is the joined-corpus holdout used in the manuscript global-test table (same question as SugarOne and SugarJEPA-288). These are population-model numbers, not the personal chronological test in the curves below.
+
+| Model | Val MAE | Val RMSE | Val MARD | Test MAE | Test RMSE | Test MARD |
+|-------|---------|----------|----------|----------|-----------|-----------|
+| NBEATSx | 11.71 | 18.37 | 8.30% | 11.81 | 19.10 | 8.05% |
+| NHITS | 11.72 | 18.47 | 8.26% | 11.94 | 19.38 | 8.08% |
+| TFT | 11.95 | 18.62 | 8.35% | 12.69 | 20.36 | 8.47% |
+| TiDE | 15.90 | 23.10 | 11.41% | 16.12 | 24.01 | 11.07% |
+| LSTM | 16.80 | 24.82 | 11.74% | 17.37 | 26.30 | 11.57% |
+
+Source runs under `data/output/runs/nf_holdout/__ALL__/`:
+
+| Model | Run directory |
+|-------|---------------|
+| NBEATSx | `NBEATSx_20260811T160552Z` |
+| NHITS | `NHITS_20260811T160526Z` |
+| TFT | `TFT_20260811T160708Z` |
+| TiDE | `TiDE_20260811T160931Z` |
+| LSTM | `LSTM_20260811T160617Z` |
+
+The manuscript Table 2 uses the **test** columns for NBEATSx and TFT. The 11.71 / 11.95 figures previously quoted for those models were **val** MAE.
+
 **Locked recipe:** continue-fit from the global bundle, same learning rate and `max_steps` as the source holdout run, train-tail early stopping (patience 10) when the day budget still leaves one input+horizon window, sugarone-compatible dense 128/12 evaluation. A day budget only shortens **train**. Val and test never change.
 
 Mixing a few personal days into the original joined2 training CSV and retraining from scratch was rejected: that corpus is ~12 million rows, so 1–60 days of one user would not move the fit, and it would cost a full global retrain per subject×day×model. Continue-fit on personal data is the transfer-learning analogue of SugarOne fine-tuning.
@@ -61,7 +85,7 @@ Source holdout runs already used `learning_rate=1e-3` and `max_steps=400`. Perso
 
 ## NBEATSx
 
-Global holdout run: `data/output/runs/nf_holdout/__ALL__/NBEATSx_20260811T160552Z`. Source val MAE **11.71** mg/dL (joined2 global test, not the personal chronological test).
+Global holdout run: `data/output/runs/nf_holdout/__ALL__/NBEATSx_20260811T160552Z`. Joined2 val MAE **11.71** (RMSE 18.37, MARD 8.30%); test MAE **11.81** (RMSE 19.10, MARD 8.05%). Population-model numbers, not the personal chronological test below.
 
 ### Full train, continue-fit from global weights
 
@@ -300,7 +324,7 @@ Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train da
 
 ## NHITS
 
-Global holdout run: `data/output/runs/nf_holdout/__ALL__/NHITS_20260811T160526Z`. Source val MAE **11.72** mg/dL (joined2 global test, not the personal chronological test).
+Global holdout run: `data/output/runs/nf_holdout/__ALL__/NHITS_20260811T160526Z`. Joined2 val MAE **11.72** (RMSE 18.47, MARD 8.26%); test MAE **11.94** (RMSE 19.38, MARD 8.08%). Population-model numbers, not the personal chronological test below.
 
 ### Full train, continue-fit from global weights
 
@@ -539,7 +563,7 @@ Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train da
 
 ## TFT
 
-Global holdout run: `data/output/runs/nf_holdout/__ALL__/TFT_20260811T160708Z`. Source val MAE **11.95** mg/dL (joined2 global test, not the personal chronological test).
+Global holdout run: `data/output/runs/nf_holdout/__ALL__/TFT_20260811T160708Z`. Joined2 val MAE **11.95** (RMSE 18.62, MARD 8.35%); test MAE **12.69** (RMSE 20.36, MARD 8.47%). Population-model numbers, not the personal chronological test below.
 
 ### Full train, continue-fit from global weights
 
@@ -778,7 +802,7 @@ Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train da
 
 ## TiDE
 
-Global holdout run: `data/output/runs/nf_holdout/__ALL__/TiDE_20260811T160931Z`. Source val MAE **15.90** mg/dL (joined2 global test, not the personal chronological test).
+Global holdout run: `data/output/runs/nf_holdout/__ALL__/TiDE_20260811T160931Z`. Joined2 val MAE **15.90** (RMSE 23.10, MARD 11.41%); test MAE **16.12** (RMSE 24.01, MARD 11.07%). Population-model numbers, not the personal chronological test below.
 
 ### Full train, continue-fit from global weights
 
@@ -1017,7 +1041,7 @@ Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train da
 
 ## LSTM
 
-Global holdout run: `data/output/runs/nf_holdout/__ALL__/LSTM_20260811T160617Z`. Source val MAE **16.80** mg/dL (joined2 global test, not the personal chronological test).
+Global holdout run: `data/output/runs/nf_holdout/__ALL__/LSTM_20260811T160617Z`. Joined2 val MAE **16.80** (RMSE 24.82, MARD 11.74%); test MAE **17.37** (RMSE 26.30, MARD 11.57%). Population-model numbers, not the personal chronological test below.
 
 ### Full train, continue-fit from global weights
 

@@ -9,6 +9,8 @@ from typing import Any
 import polars as pl
 
 from common.console import safe_echo
+from common.evaluation.readers import read_precomputed_split_metrics
+from common.evaluation.types import RegressionMetrics
 from personalization.cohort import (
     COHORT_JOINED2_TEST,
     PHASE4_SUBJECTS,
@@ -34,6 +36,45 @@ def _fmt(value: Any, digits: int = 2) -> str:
         return f"{float(value):.{digits}f}"
     except (TypeError, ValueError):
         return str(value)
+
+
+def _fmt_mard(value: Any) -> str:
+    formatted = _fmt(value)
+    return "—" if formatted == "—" else f"{formatted}%"
+
+
+def _holdout_split_metrics(run_dir: Path) -> dict[str, RegressionMetrics]:
+    loaded = read_precomputed_split_metrics(run_dir)
+    return {split: item.overall for split, item in loaded.items()}
+
+
+def _metric_triple(metrics: RegressionMetrics | None) -> str:
+    if metrics is None:
+        return "MAE — (RMSE —, MARD —)"
+    return (
+        f"MAE **{_fmt(metrics.mae)}** (RMSE {_fmt(metrics.rmse)}, "
+        f"MARD {_fmt_mard(metrics.mard)})"
+    )
+
+
+def _global_holdout_table(holdouts: list[NfHoldoutRun]) -> str:
+    lines = [
+        "| Model | Val MAE | Val RMSE | Val MARD | Test MAE | Test RMSE | Test MARD |",
+        "|-------|---------|----------|----------|----------|-----------|-----------|",
+    ]
+    for holdout in holdouts:
+        metrics = _holdout_split_metrics(holdout.run_dir)
+        val = metrics.get("val")
+        test = metrics.get("test")
+        lines.append(
+            f"| {holdout.model_key} | {_fmt(None if val is None else val.mae)} | "
+            f"{_fmt(None if val is None else val.rmse)} | "
+            f"{_fmt_mard(None if val is None else val.mard)} | "
+            f"{_fmt(None if test is None else test.mae)} | "
+            f"{_fmt(None if test is None else test.rmse)} | "
+            f"{_fmt_mard(None if test is None else test.mard)} |"
+        )
+    return "\n".join(lines)
 
 
 def _copy(src: Path, dest: Path) -> None:
@@ -350,6 +391,7 @@ def write_personalization_nf_report(
             mean_delta, n = pair
             return f"{-mean_delta:.2f} (n={n})"
 
+        holdout_metrics = _holdout_split_metrics(holdout.run_dir)
         exec_rows.append(
             f"| {holdout.model_key} | {n_subjects}/15 | {_fmt(holdout.val_mae)} | "
             f"{_mean_cell(mean_30)} | {_mean_cell(mean_60)} | {_mean_cell(mean_all)} |"
@@ -397,8 +439,9 @@ def write_personalization_nf_report(
                     f"## {holdout.model_key}",
                     "",
                     f"Global holdout run: `{holdout.run_dir.as_posix()}`. "
-                    f"Source val MAE **{_fmt(holdout.val_mae)}** mg/dL "
-                    "(joined2 global test, not the personal chronological test).",
+                    f"Joined2 val {_metric_triple(holdout_metrics.get('val'))}; "
+                    f"test {_metric_triple(holdout_metrics.get('test'))}. "
+                    "Population-model numbers, not the personal chronological test below.",
                     "",
                     "### Full train, continue-fit from global weights",
                     "",
@@ -466,6 +509,19 @@ def write_personalization_nf_report(
             "| Model | Subjects with runs | Global val MAE | Mean MAE gain at 30 d | 60 d | Full train |",
             "|-------|--------------------|----------------|-----------------------|------|------------|",
             "\n".join(exec_rows) if exec_rows else "| — | — | — | — | — | — |",
+            "",
+            "## Global holdout metrics (joined2)",
+            "",
+            "MAE, RMSE, and MARD from the saved `nf_holdout` bundles "
+            "(`val_metrics_overall.csv` / `test_metrics_overall.csv`). "
+            "**Val** is the split used to pick these runs. **Test** is the joined-corpus "
+            "holdout used in the manuscript global-test table (same question as SugarOne "
+            "and SugarJEPA-288). These are population-model numbers, not the personal "
+            "chronological test in the curves below.",
+            "",
+            _global_holdout_table(holdouts),
+            "",
+            "The manuscript Table 2 uses the **test** columns for NBEATSx and TFT.",
             "",
             "**Locked recipe:** continue-fit from the global bundle, same learning rate "
             "and `max_steps` as the source holdout run, train-tail early stopping "

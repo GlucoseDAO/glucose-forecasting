@@ -16,7 +16,12 @@ from personalization_nf.data import (
     span_days,
 )
 from personalization_nf.discover import parse_model_filter
-from personalization_nf.report import _days_table, _fmt, _full_train_table
+from personalization_nf.report import (
+    _days_table,
+    _fmt,
+    _full_train_table,
+    _global_holdout_table,
+)
 from personalization_nf.study import app as study_app
 from personalization_nf.sweep import parse_days_grid
 from personalization.cohort import Phase4Subject
@@ -176,3 +181,32 @@ def test_discover_holdout_runs_picks_best_per_model(tmp_path: Path) -> None:
     assert by_key["NHITS"].run_dir == better
     filtered = discover_holdout_runs(root, models=("TFT",))
     assert [item.model_key for item in filtered] == ["TFT"]
+
+
+def test_global_holdout_table_reads_val_and_test(tmp_path: Path) -> None:
+    from personalization_nf.discover import NfHoldoutRun
+
+    run = tmp_path / "NBEATSx_20260811T160552Z"
+    run.mkdir()
+    (run / "val_metrics_overall.csv").write_text(
+        "mae,rmse,mard\n11.70753,18.37375,8.29882\n",
+        encoding="utf-8",
+    )
+    (run / "test_metrics_overall.csv").write_text(
+        "mae,rmse,mard\n11.80877,19.09758,8.05482\n",
+        encoding="utf-8",
+    )
+    holdout = NfHoldoutRun(
+        model_key="NBEATSx",
+        run_dir=run,
+        bundle_dir=run / "neuralforecast",
+        val_mae=11.70753,
+        config={},
+    )
+    table = _global_holdout_table([holdout])
+    assert "11.71" in table
+    assert "18.37" in table
+    assert "8.30%" in table
+    assert "11.81" in table
+    assert "19.10" in table
+    assert "8.05%" in table

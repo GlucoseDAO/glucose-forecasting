@@ -32,7 +32,7 @@ Fine-tuning and meta-learning for T1DM typically yield one adapted model . Gluc
 
 ## Task
 
-Each model maps a lookback window to the next $`H=12`$ glucose values (60 minutes). The lead metric is MAE in mg/dL. Tables also report RMSE and MARD where we have them. The horizon is the same for every model.
+Each model maps a lookback window to the next $`H=12`$ glucose values (60 minutes). The lead metric is MAE in mg/dL. Tables also report RMSE and MARD. The horizon is the same for every model.
 
 ## Data and two tests
 
@@ -114,7 +114,7 @@ The main figure has four curves: SugarOne, SugarJEPA-288, NBEATSx (harmful short
 
 ## Global test
 
-Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">2</a> is the joined-corpus holdout, not the personal chronological test. SugarOne and SugarJEPA-288 are scored on the dataset `test` split. NBEATSx and TFT numbers are the holdout MAE of the global NeuralForecast bundles used for continue-fit. These models are not weak toys. Personal zero-shot MAE on the seven T1DM users is higher for every model (Section <a href="#sec:paths" data-reference-type="ref" data-reference="sec:paths">4.2</a>); that is a different test.
+Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">2</a> is the joined-corpus holdout, not the personal chronological test. All four models are scored on the dataset `test` split. NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit. These models are not weak toys. Personal zero-shot MAE on the seven T1DM users is higher for every model (Section <a href="#sec:paths" data-reference-type="ref" data-reference="sec:paths">4.2</a>); that is a different test.
 
 <div id="tab:global">
 
@@ -122,10 +122,10 @@ Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:globa
 |:--------------|:-----:|:-----:|:-----:|
 | SugarOne      | 12.41 | 19.05 | 9.90% |
 | SugarJEPA-288 | 11.37 | 17.63 | 9.08% |
-| NBEATSx       | 11.71 |   —   |   —   |
-| TFT           | 11.95 |   —   |   —   |
+| NBEATSx       | 11.81 | 19.10 | 8.05% |
+| TFT           | 12.69 | 20.36 | 8.47% |
 
-Joined-corpus holdout (global test). SugarOne and SugarJEPA-288: dataset `test` split. NBEATSx and TFT: global-bundle holdout MAE. SugarJEPA-864/2016 are omitted; they score a smaller population of long series.
+Joined-corpus holdout (global test). Dataset `test` split. NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit. SugarJEPA-864/2016 are omitted; they score a smaller population of long series.
 
 </div>
 
@@ -781,7 +781,7 @@ Mean personal zero-shot MAE: SugarOne 19.48; jepa-128-64 19.00; jepa-128 18.87; 
 
 # Other NeuralForecast models
 
-N-HiTS on the same six T1DM users with $`\ge`$<!-- -->60 train days has mean continue-fit $`\Delta`$ $`+2.24`$ at 30 days (harmful), $`+0.16`$ at 60 days, and $`-1.92`$ at full history—the same shape as NBEATSx . LSTM is worse at 30 days ($`\Delta`$ $`+6.00`$). TiDE’s 30-day mean $`\Delta`$ is $`-7.01`$ (helpful) but its global holdout MAE is 15.90, well above the models in Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">2</a>. We left them off Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">2</a> so the harmful-path contrast is one curve (NBEATSx), not five.
+N-HiTS on the same six T1DM users with $`\ge`$<!-- -->60 train days has mean continue-fit $`\Delta`$ $`+2.24`$ at 30 days (harmful), $`+0.16`$ at 60 days, and $`-1.92`$ at full history—the same shape as NBEATSx . Its joined-corpus test MAE is 11.94 (RMSE 19.38, MARD 8.08%), close to NBEATSx. LSTM is worse at 30 days ($`\Delta`$ $`+6.00`$) and weaker globally (test MAE 17.37, RMSE 26.30, MARD 11.57%). TiDE’s 30-day mean $`\Delta`$ is $`-7.01`$ (helpful) but its global test MAE is 16.12 (RMSE 24.01, MARD 11.07%), well above the models in Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">2</a>. We left them off Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">2</a> so the harmful-path contrast is one curve (NBEATSx), not five.
 
 # One-day fine-tune
 
