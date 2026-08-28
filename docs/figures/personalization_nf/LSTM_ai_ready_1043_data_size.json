@@ -1,0 +1,34 @@
+{
+  "subject": "ai_ready_1043",
+  "summary_rows": 3,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "all",
+    "optimal_day": "all",
+    "best_mae": 16.798152923583984,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 21.643550872802734,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 23.63663673400879,
+        "delta_mae": 1.9930858612060547
+      },
+      {
+        "personal_days": "all",
+        "mae": 16.798152923583984,
+        "delta_mae": -6.838483810424805
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_nf\\LSTM_ai_ready_1043_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    6.319444444444445
+  ]
+}

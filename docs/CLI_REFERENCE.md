@@ -101,6 +101,8 @@ uv run glucose release pull --repo ORG/NAME --out <dir> [--revision main]
 | `personal-sweep-lr` | `src/personalization/sweep_holdout_lr.py` | Holdout LR transfer |
 | `personal-sweep-lwf` | `src/personalization/sweep_lwf.py` | Independent LwF |
 | `personal-study` | `src/personalization/study.py` | Cohort curves + report |
+| `personal-nf-study` | `src/personalization_nf/study.py` | NF zero-shot vs continue-fit |
+| `personal-nf-adapt` | `src/personalization_nf/adapt.py` | One NF subject×model continue-fit |
 | `manuscript` | `src/manuscript/cli.py` | LaTeX → Markdown + PDF (`template`, `manuscript`) |
 
 Direct (no console script):
@@ -126,6 +128,16 @@ uv run personal-finetune --help
 ```
 
 The fixture CSV has an empty `Recommended Split`; `personal-prepare livia` assigns chronological train/val/test. Then `personal-tune` / `personal-finetune` read `data/input/personalization/prepared/livia_chronological.csv`.
+
+### NeuralForecast personalization (`personal-nf-*`)
+
+Continue-fit the global `nf_holdout` bundles on the same chronological personal CSVs. No LwF, no LR search. Writeup: [PERSONALIZATION_NF_REPORT.md](PERSONALIZATION_NF_REPORT.md).
+
+```bash
+uv run personal-nf-study --dry-run
+uv run personal-nf-study --device auto
+uv run personal-nf-study --report-only
+```
 
 ### `manuscript`
 

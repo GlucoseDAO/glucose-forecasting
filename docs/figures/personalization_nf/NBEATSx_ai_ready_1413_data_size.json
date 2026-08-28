@@ -1,0 +1,40 @@
+{
+  "subject": "ai_ready_1413",
+  "summary_rows": 4,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "all",
+    "optimal_day": "1",
+    "best_mae": 14.859288215637207,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 14.859288215637207,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 16.564178466796875,
+        "delta_mae": 1.704890251159668
+      },
+      {
+        "personal_days": "7",
+        "mae": 15.099944114685059,
+        "delta_mae": -1.4642343521118164
+      },
+      {
+        "personal_days": "all",
+        "mae": 16.742921829223633,
+        "delta_mae": 1.6429777145385742
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_nf\\NBEATSx_ai_ready_1413_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    7.0,
+    9.149305555555555
+  ]
+}

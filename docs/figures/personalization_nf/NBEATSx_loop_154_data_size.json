@@ -1,0 +1,52 @@
+{
+  "subject": "loop_154",
+  "summary_rows": 6,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "7",
+    "optimal_day": "3",
+    "best_mae": 33.36073303222656,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 36.9345588684082,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 33.36073303222656,
+        "delta_mae": -3.5738258361816406
+      },
+      {
+        "personal_days": "7",
+        "mae": 33.36073303222656,
+        "delta_mae": 0.0
+      },
+      {
+        "personal_days": "14",
+        "mae": 33.36073303222656,
+        "delta_mae": 0.0
+      },
+      {
+        "personal_days": "30",
+        "mae": 33.62309265136719,
+        "delta_mae": 0.262359619140625
+      },
+      {
+        "personal_days": "60",
+        "mae": 35.47718811035156,
+        "delta_mae": 1.854095458984375
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_nf\\NBEATSx_loop_154_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    7.0,
+    14.0,
+    30.0,
+    60.0
+  ]
+}

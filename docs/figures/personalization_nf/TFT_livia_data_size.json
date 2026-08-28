@@ -1,0 +1,52 @@
+{
+  "subject": "livia",
+  "summary_rows": 6,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "60",
+    "optimal_day": "30",
+    "best_mae": 18.57141876220703,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 31.743288040161133,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 28.9525203704834,
+        "delta_mae": -2.7907676696777344
+      },
+      {
+        "personal_days": "7",
+        "mae": 25.326642990112305,
+        "delta_mae": -3.6258773803710938
+      },
+      {
+        "personal_days": "14",
+        "mae": 21.937671661376953,
+        "delta_mae": -3.3889713287353516
+      },
+      {
+        "personal_days": "30",
+        "mae": 18.57141876220703,
+        "delta_mae": -3.366252899169922
+      },
+      {
+        "personal_days": "60",
+        "mae": 18.577560424804688,
+        "delta_mae": 0.00614166259765625
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_nf\\TFT_livia_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    7.0,
+    14.0,
+    30.0,
+    60.0
+  ]
+}

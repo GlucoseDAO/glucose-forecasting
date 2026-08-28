@@ -1,0 +1,277 @@
+{
+  "subjects": [
+    {
+      "subject": "ai_ready_1030",
+      "display": "1030 (Healthy)",
+      "color": "#4daf4a",
+      "plateau": {
+        "plateau_day": "all",
+        "optimal_day": "1",
+        "best_mae": 12.858292579650879,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 12.858292579650879,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 15.072432518005371,
+            "delta_mae": 2.214139938354492
+          },
+          {
+            "personal_days": "all",
+            "mae": 14.282382011413574,
+            "delta_mae": -0.7900505065917969
+          }
+        ]
+      },
+      "n_points": 3,
+      "x_values": [
+        1.0,
+        3.0,
+        90.0
+      ]
+    },
+    {
+      "subject": "ai_ready_1043",
+      "display": "1043 (Healthy)",
+      "color": "#a6d854",
+      "plateau": {
+        "plateau_day": "all",
+        "optimal_day": "all",
+        "best_mae": 16.798152923583984,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 21.643550872802734,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 23.63663673400879,
+            "delta_mae": 1.9930858612060547
+          },
+          {
+            "personal_days": "all",
+            "mae": 16.798152923583984,
+            "delta_mae": -6.838483810424805
+          }
+        ]
+      },
+      "n_points": 3,
+      "x_values": [
+        1.0,
+        3.0,
+        90.0
+      ]
+    },
+    {
+      "subject": "ai_ready_1034",
+      "display": "1034 (Pre-T2DM)",
+      "color": "#ff7f00",
+      "plateau": {
+        "plateau_day": "all",
+        "optimal_day": "1",
+        "best_mae": 17.038026809692383,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 17.038026809692383,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 20.867794036865234,
+            "delta_mae": 3.8297672271728516
+          },
+          {
+            "personal_days": "all",
+            "mae": 21.170080184936523,
+            "delta_mae": 0.30228614807128906
+          }
+        ]
+      },
+      "n_points": 3,
+      "x_values": [
+        1.0,
+        3.0,
+        90.0
+      ]
+    },
+    {
+      "subject": "ai_ready_1049",
+      "display": "1049 (Pre-T2DM)",
+      "color": "#fdbf6f",
+      "plateau": {
+        "plateau_day": "all",
+        "optimal_day": "all",
+        "best_mae": 18.33668327331543,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 23.081918716430664,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 21.082427978515625,
+            "delta_mae": -1.999490737915039
+          },
+          {
+            "personal_days": "all",
+            "mae": 18.33668327331543,
+            "delta_mae": -2.7457447052001953
+          }
+        ]
+      },
+      "n_points": 3,
+      "x_values": [
+        1.0,
+        3.0,
+        90.0
+      ]
+    },
+    {
+      "subject": "ai_ready_1019",
+      "display": "1019 (Oral-T2DM)",
+      "color": "#984ea3",
+      "plateau": {
+        "plateau_day": "all",
+        "optimal_day": "1",
+        "best_mae": 18.83538246154785,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 18.83538246154785,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 19.42084503173828,
+            "delta_mae": 0.5854625701904297
+          },
+          {
+            "personal_days": "all",
+            "mae": 20.577716827392578,
+            "delta_mae": 1.1568717956542969
+          }
+        ]
+      },
+      "n_points": 3,
+      "x_values": [
+        1.0,
+        3.0,
+        90.0
+      ]
+    },
+    {
+      "subject": "ai_ready_1127",
+      "display": "1127 (Oral-T2DM)",
+      "color": "#c994c7",
+      "plateau": {
+        "plateau_day": "all",
+        "optimal_day": "1",
+        "best_mae": 28.130746841430664,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 28.130746841430664,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 30.804298400878906,
+            "delta_mae": 2.673551559448242
+          },
+          {
+            "personal_days": "all",
+            "mae": 31.275068283081055,
+            "delta_mae": 0.47076988220214844
+          }
+        ]
+      },
+      "n_points": 3,
+      "x_values": [
+        1.0,
+        3.0,
+        90.0
+      ]
+    },
+    {
+      "subject": "ai_ready_1413",
+      "display": "1413 (Insulin-T2DM)",
+      "color": "#8c510a",
+      "plateau": {
+        "plateau_day": "all",
+        "optimal_day": "all",
+        "best_mae": 28.025768280029297,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 32.416141510009766,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 28.71904945373535,
+            "delta_mae": -3.697092056274414
+          },
+          {
+            "personal_days": "7",
+            "mae": 31.57041358947754,
+            "delta_mae": 2.8513641357421875
+          },
+          {
+            "personal_days": "all",
+            "mae": 28.025768280029297,
+            "delta_mae": -3.544645309448242
+          }
+        ]
+      },
+      "n_points": 4,
+      "x_values": [
+        1.0,
+        3.0,
+        7.0,
+        90.0
+      ]
+    },
+    {
+      "subject": "ai_ready_1036",
+      "display": "1036 (Insulin-T2DM)",
+      "color": "#bf812d",
+      "plateau": {
+        "plateau_day": "all",
+        "optimal_day": "1",
+        "best_mae": 32.90382385253906,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 32.90382385253906,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 35.420066833496094,
+            "delta_mae": 2.5162429809570312
+          },
+          {
+            "personal_days": "all",
+            "mae": 40.93022537231445,
+            "delta_mae": 5.510158538818359
+          }
+        ]
+      },
+      "n_points": 3,
+      "x_values": [
+        1.0,
+        3.0,
+        90.0
+      ]
+    }
+  ],
+  "mode": "dummy_all",
+  "max_days": 60.0,
+  "chart_path": "docs\\figures\\personalization_nf\\LSTM_data_size_curves_combined_joined2.png"
+}

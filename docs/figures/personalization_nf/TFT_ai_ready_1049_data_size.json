@@ -1,0 +1,34 @@
+{
+  "subject": "ai_ready_1049",
+  "summary_rows": 3,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "all",
+    "optimal_day": "all",
+    "best_mae": 11.578242301940918,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 22.1618595123291,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 13.606727600097656,
+        "delta_mae": -8.555131912231445
+      },
+      {
+        "personal_days": "all",
+        "mae": 11.578242301940918,
+        "delta_mae": -2.0284852981567383
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_nf\\TFT_ai_ready_1049_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    6.319444444444445
+  ]
+}

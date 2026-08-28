@@ -79,6 +79,7 @@ Installed console commands (defined in `pyproject.toml` `[project.scripts]`, all
 - `tune-sugar-one` → `src/sugar_one/tune_sugar_one.py:app` (TOML-driven random hyperparameter search)
 - `download-glumind-hf` → `src/glumind/download_from_huggingface.py:app`
 - `personal-prepare` / `personal-finetune` / `personal-tune` → `src/personalization/` (SugarOne + Livia defaults; see `docs/PERSONALIZATION.md`)
+- `personal-nf-study` / `personal-nf-adapt` → `src/personalization_nf/` (NeuralForecast continue-fit; see `docs/PERSONALIZATION_NF_REPORT.md`)
 - `manuscript` → `src/manuscript/cli.py:app` (LaTeX → Markdown + PDF: `template`, `manuscript`)
 
 Scripts without a console entry point are run directly, e.g.:

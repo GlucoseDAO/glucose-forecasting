@@ -39,6 +39,8 @@ personal-sweep-lr = "personalization.sweep_holdout_lr:app"
 personal-plot = "personalization.plots:app"
 personal-sweep-lwf = "personalization.sweep_lwf:app"
 personal-study = "personalization.study:app"
+personal-nf-study = "personalization_nf.study:app"
+personal-nf-adapt = "personalization_nf.adapt:app"
 manuscript = "manuscript.cli:app"
 
 [build-system]
@@ -53,6 +55,7 @@ packages = [
     "src/sugar_one",
     "src/sugar_jepa",
     "src/personalization",
+    "src/personalization_nf",
     "src/nf_baselines",
     "src/manuscript",
 ]

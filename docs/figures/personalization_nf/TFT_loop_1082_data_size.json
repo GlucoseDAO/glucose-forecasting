@@ -1,0 +1,52 @@
+{
+  "subject": "loop_1082",
+  "summary_rows": 6,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "all",
+    "optimal_day": "all",
+    "best_mae": 18.004270553588867,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 30.126604080200195,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 34.746646881103516,
+        "delta_mae": 4.62004280090332
+      },
+      {
+        "personal_days": "7",
+        "mae": 25.674318313598633,
+        "delta_mae": -9.072328567504883
+      },
+      {
+        "personal_days": "14",
+        "mae": 22.448932647705078,
+        "delta_mae": -3.2253856658935547
+      },
+      {
+        "personal_days": "30",
+        "mae": 19.729005813598633,
+        "delta_mae": -2.7199268341064453
+      },
+      {
+        "personal_days": "all",
+        "mae": 18.004270553588867,
+        "delta_mae": -1.7247352600097656
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_nf\\TFT_loop_1082_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    7.0,
+    14.0,
+    30.0,
+    37.42916666666667
+  ]
+}

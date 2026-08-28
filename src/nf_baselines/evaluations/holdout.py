@@ -16,7 +16,7 @@ from nf_baselines.adapter import (
     filter_minimum_length,
     prepare_splits,
 )
-from nf_baselines.benchmark import calculate_metrics, to_neuralforecast_frame
+from nf_baselines.benchmark import BenchmarkMetrics, calculate_metrics, to_neuralforecast_frame
 from nf_baselines.catalog import ModelDefinition, create_model, resolve_models
 from nf_baselines.config import (
     ModelSuiteConfig,
@@ -192,6 +192,7 @@ def run_loaded_holdout(
             input_size=input_size,
             run_dir=run_dir,
             config=config,
+            write_predictions=True,
         )
     (run_dir / "run_config.json").write_text(config.model_dump_json(indent=2), encoding="utf-8")
     (run_dir / "source_bundle.txt").write_text(f"{bundle_dir}\n", encoding="utf-8")
@@ -339,6 +340,7 @@ def _fit_one(
             input_size=input_size,
             run_dir=run_dir,
             config=config,
+            write_predictions=True,
         )
     (run_dir / "run_config.json").write_text(
         config.model_dump_json(indent=2),
@@ -349,22 +351,26 @@ def _fit_one(
     return run_dir
 
 
-def _evaluate_split(
+def evaluate_prepared_split(
     neuralforecast: Any,
     *,
-    split_name: str,
     frame: pl.DataFrame,
     profile_exogenous: tuple[str, ...],
     horizon: int,
     input_size: int,
-    run_dir: Path,
-    config: NeuralForecastRunConfig,
-) -> pl.DataFrame | None:
-    frame = limit_series(frame, config.max_eval_series)
+    holdout_protocol: str,
+    max_eval_series: int = 0,
+    mask_interpolated_targets: bool = False,
+) -> tuple[BenchmarkMetrics, pl.DataFrame] | None:
+    """Score one prepared split with a fitted NeuralForecast bundle.
+
+    Returns ``(metrics, evaluated_frame)`` or ``None`` when no windows remain.
+    """
+    frame = limit_series(frame, max_eval_series)
     frame = filter_minimum_length(frame, input_size + horizon)
     if frame.is_empty():
         return None
-    if config.holdout_protocol in {"sugarone-compatible", "dense"}:
+    if holdout_protocol in {"sugarone-compatible", "dense"}:
         evaluated = _evaluate_dense_split(
             neuralforecast,
             frame=frame,
@@ -378,11 +384,38 @@ def _evaluate_split(
             profile_exogenous=profile_exogenous,
             horizon=horizon,
         )
-    if config.mask_interpolated_targets:
+    if mask_interpolated_targets:
         evaluated = evaluated.filter(pl.col("event_type") != "Interpolated")
     if evaluated.is_empty():
         return None
-    metrics = calculate_metrics(evaluated)
+    return calculate_metrics(evaluated), evaluated
+
+
+def _evaluate_split(
+    neuralforecast: Any,
+    *,
+    split_name: str,
+    frame: pl.DataFrame,
+    profile_exogenous: tuple[str, ...],
+    horizon: int,
+    input_size: int,
+    run_dir: Path,
+    config: NeuralForecastRunConfig,
+    write_predictions: bool = True,
+) -> pl.DataFrame | None:
+    scored = evaluate_prepared_split(
+        neuralforecast,
+        frame=frame,
+        profile_exogenous=profile_exogenous,
+        horizon=horizon,
+        input_size=input_size,
+        holdout_protocol=config.holdout_protocol,
+        max_eval_series=config.max_eval_series,
+        mask_interpolated_targets=config.mask_interpolated_targets,
+    )
+    if scored is None:
+        return None
+    metrics, evaluated = scored
     print(
         f"{split_name} metrics: MAE={metrics.overall.mae:.3f}, "
         f"RMSE={metrics.overall.rmse:.3f}, MARD={metrics.overall.mard:.3f}%."
@@ -395,7 +428,8 @@ def _evaluate_split(
         }]
     ).write_csv(run_dir / f"{split_name}_metrics_overall.csv")
     metrics.by_study_group.write_csv(run_dir / f"{split_name}_metrics_by_study_group.csv")
-    evaluated.write_csv(run_dir / f"{split_name}_predictions.csv")
+    if write_predictions:
+        evaluated.write_csv(run_dir / f"{split_name}_predictions.csv")
     return evaluated
 
 

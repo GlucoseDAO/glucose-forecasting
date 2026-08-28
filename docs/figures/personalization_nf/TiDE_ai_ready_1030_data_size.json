@@ -1,0 +1,34 @@
+{
+  "subject": "ai_ready_1030",
+  "summary_rows": 3,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "all",
+    "optimal_day": "all",
+    "best_mae": 9.1756010055542,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 12.00092601776123,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 9.26910400390625,
+        "delta_mae": -2.7318220138549805
+      },
+      {
+        "personal_days": "all",
+        "mae": 9.1756010055542,
+        "delta_mae": -0.09350299835205078
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_nf\\TiDE_ai_ready_1030_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    6.319444444444445
+  ]
+}

@@ -1,0 +1,400 @@
+{
+  "subjects": [
+    {
+      "subject": "livia",
+      "display": "Livia",
+      "color": "#0072B2",
+      "plateau": {
+        "plateau_day": "30",
+        "optimal_day": "all",
+        "best_mae": 18.999404907226562,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 28.689716339111328,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 27.410938262939453,
+            "delta_mae": -1.278778076171875
+          },
+          {
+            "personal_days": "7",
+            "mae": 25.843822479248047,
+            "delta_mae": -1.5671157836914062
+          },
+          {
+            "personal_days": "14",
+            "mae": 24.50156021118164,
+            "delta_mae": -1.3422622680664062
+          },
+          {
+            "personal_days": "30",
+            "mae": 24.45909309387207,
+            "delta_mae": -0.04246711730957031
+          },
+          {
+            "personal_days": "60",
+            "mae": 20.474315643310547,
+            "delta_mae": -3.9847774505615234
+          },
+          {
+            "personal_days": "all",
+            "mae": 18.999404907226562,
+            "delta_mae": -1.4749107360839844
+          }
+        ]
+      },
+      "n_points": 7,
+      "x_values": [
+        1.0,
+        3.0,
+        7.0,
+        14.0,
+        30.0,
+        60.0,
+        90.0
+      ]
+    },
+    {
+      "subject": "loop_154",
+      "display": "User 154",
+      "color": "#CC79A7",
+      "plateau": {
+        "plateau_day": "7",
+        "optimal_day": "all",
+        "best_mae": 28.579296112060547,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 36.9345588684082,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 33.36073303222656,
+            "delta_mae": -3.5738258361816406
+          },
+          {
+            "personal_days": "7",
+            "mae": 33.36073303222656,
+            "delta_mae": 0.0
+          },
+          {
+            "personal_days": "14",
+            "mae": 33.36073303222656,
+            "delta_mae": 0.0
+          },
+          {
+            "personal_days": "30",
+            "mae": 33.62309265136719,
+            "delta_mae": 0.262359619140625
+          },
+          {
+            "personal_days": "60",
+            "mae": 35.47718811035156,
+            "delta_mae": 1.854095458984375
+          },
+          {
+            "personal_days": "all",
+            "mae": 28.579296112060547,
+            "delta_mae": -6.897891998291016
+          }
+        ]
+      },
+      "n_points": 7,
+      "x_values": [
+        1.0,
+        3.0,
+        7.0,
+        14.0,
+        30.0,
+        60.0,
+        90.0
+      ]
+    },
+    {
+      "subject": "loop_556",
+      "display": "User 556",
+      "color": "#D55E00",
+      "plateau": {
+        "plateau_day": "all",
+        "optimal_day": "all",
+        "best_mae": 19.788970947265625,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 27.476272583007812,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 27.229536056518555,
+            "delta_mae": -0.2467365264892578
+          },
+          {
+            "personal_days": "7",
+            "mae": 26.87004852294922,
+            "delta_mae": -0.35948753356933594
+          },
+          {
+            "personal_days": "14",
+            "mae": 24.861757278442383,
+            "delta_mae": -2.008291244506836
+          },
+          {
+            "personal_days": "30",
+            "mae": 24.184967041015625,
+            "delta_mae": -0.6767902374267578
+          },
+          {
+            "personal_days": "60",
+            "mae": 20.698944091796875,
+            "delta_mae": -3.48602294921875
+          },
+          {
+            "personal_days": "all",
+            "mae": 19.788970947265625,
+            "delta_mae": -0.90997314453125
+          }
+        ]
+      },
+      "n_points": 7,
+      "x_values": [
+        1.0,
+        3.0,
+        7.0,
+        14.0,
+        30.0,
+        60.0,
+        90.0
+      ]
+    },
+    {
+      "subject": "loop_730",
+      "display": "User 730",
+      "color": "#009E73",
+      "plateau": {
+        "plateau_day": "all",
+        "optimal_day": "all",
+        "best_mae": 18.328964233398438,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 26.103395462036133,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 26.187223434448242,
+            "delta_mae": 0.08382797241210938
+          },
+          {
+            "personal_days": "7",
+            "mae": 28.822284698486328,
+            "delta_mae": 2.635061264038086
+          },
+          {
+            "personal_days": "14",
+            "mae": 25.14972496032715,
+            "delta_mae": -3.6725597381591797
+          },
+          {
+            "personal_days": "30",
+            "mae": 21.108478546142578,
+            "delta_mae": -4.04124641418457
+          },
+          {
+            "personal_days": "60",
+            "mae": 19.09661865234375,
+            "delta_mae": -2.011859893798828
+          },
+          {
+            "personal_days": "all",
+            "mae": 18.328964233398438,
+            "delta_mae": -0.7676544189453125
+          }
+        ]
+      },
+      "n_points": 7,
+      "x_values": [
+        1.0,
+        3.0,
+        7.0,
+        14.0,
+        30.0,
+        60.0,
+        90.0
+      ]
+    },
+    {
+      "subject": "loop_1017",
+      "display": "User 1017",
+      "color": "#E69F00",
+      "plateau": {
+        "plateau_day": "all",
+        "optimal_day": "all",
+        "best_mae": 19.376129150390625,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 43.56368637084961,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 31.691974639892578,
+            "delta_mae": -11.871711730957031
+          },
+          {
+            "personal_days": "7",
+            "mae": 28.976192474365234,
+            "delta_mae": -2.7157821655273438
+          },
+          {
+            "personal_days": "14",
+            "mae": 26.77471923828125,
+            "delta_mae": -2.2014732360839844
+          },
+          {
+            "personal_days": "30",
+            "mae": 24.790342330932617,
+            "delta_mae": -1.9843769073486328
+          },
+          {
+            "personal_days": "60",
+            "mae": 20.407041549682617,
+            "delta_mae": -4.38330078125
+          },
+          {
+            "personal_days": "all",
+            "mae": 19.376129150390625,
+            "delta_mae": -1.0309123992919922
+          }
+        ]
+      },
+      "n_points": 7,
+      "x_values": [
+        1.0,
+        3.0,
+        7.0,
+        14.0,
+        30.0,
+        60.0,
+        90.0
+      ]
+    },
+    {
+      "subject": "loop_1029",
+      "display": "User 1029",
+      "color": "#56B4E9",
+      "plateau": {
+        "plateau_day": "all",
+        "optimal_day": "all",
+        "best_mae": 23.316850662231445,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 38.79498291015625,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 31.748340606689453,
+            "delta_mae": -7.046642303466797
+          },
+          {
+            "personal_days": "7",
+            "mae": 30.81661033630371,
+            "delta_mae": -0.9317302703857422
+          },
+          {
+            "personal_days": "14",
+            "mae": 29.319366455078125,
+            "delta_mae": -1.497243881225586
+          },
+          {
+            "personal_days": "30",
+            "mae": 29.402475357055664,
+            "delta_mae": 0.08310890197753906
+          },
+          {
+            "personal_days": "60",
+            "mae": 27.278141021728516,
+            "delta_mae": -2.1243343353271484
+          },
+          {
+            "personal_days": "all",
+            "mae": 23.316850662231445,
+            "delta_mae": -3.9612903594970703
+          }
+        ]
+      },
+      "n_points": 7,
+      "x_values": [
+        1.0,
+        3.0,
+        7.0,
+        14.0,
+        30.0,
+        60.0,
+        90.0
+      ]
+    },
+    {
+      "subject": "loop_1082",
+      "display": "User 1082",
+      "color": "#000000",
+      "plateau": {
+        "plateau_day": "all",
+        "optimal_day": "30",
+        "best_mae": 22.05303192138672,
+        "steps": [
+          {
+            "personal_days": "1",
+            "mae": 24.277639389038086,
+            "delta_mae": null
+          },
+          {
+            "personal_days": "3",
+            "mae": 30.513755798339844,
+            "delta_mae": 6.236116409301758
+          },
+          {
+            "personal_days": "7",
+            "mae": 25.53038215637207,
+            "delta_mae": -4.983373641967773
+          },
+          {
+            "personal_days": "14",
+            "mae": 24.03479766845703,
+            "delta_mae": -1.495584487915039
+          },
+          {
+            "personal_days": "30",
+            "mae": 22.05303192138672,
+            "delta_mae": -1.9817657470703125
+          },
+          {
+            "personal_days": "all",
+            "mae": 22.691944122314453,
+            "delta_mae": 0.6389122009277344
+          }
+        ]
+      },
+      "n_points": 6,
+      "x_values": [
+        1.0,
+        3.0,
+        7.0,
+        14.0,
+        30.0,
+        90.0
+      ]
+    }
+  ],
+  "mode": "dummy_all",
+  "max_days": 60.0,
+  "chart_path": "docs\\figures\\personalization_nf\\NBEATSx_data_size_curves_combined.png"
+}

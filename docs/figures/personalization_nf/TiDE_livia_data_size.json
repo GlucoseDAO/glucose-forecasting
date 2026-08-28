@@ -1,0 +1,52 @@
+{
+  "subject": "livia",
+  "summary_rows": 6,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "14",
+    "optimal_day": "60",
+    "best_mae": 24.878477096557617,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 55.95248794555664,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 27.921279907226562,
+        "delta_mae": -28.031208038330078
+      },
+      {
+        "personal_days": "7",
+        "mae": 25.305757522583008,
+        "delta_mae": -2.6155223846435547
+      },
+      {
+        "personal_days": "14",
+        "mae": 25.297273635864258,
+        "delta_mae": -0.00848388671875
+      },
+      {
+        "personal_days": "30",
+        "mae": 25.64035987854004,
+        "delta_mae": 0.34308624267578125
+      },
+      {
+        "personal_days": "60",
+        "mae": 24.878477096557617,
+        "delta_mae": -0.7618827819824219
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_nf\\TiDE_livia_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    7.0,
+    14.0,
+    30.0,
+    60.0
+  ]
+}

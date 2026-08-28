@@ -1,0 +1,52 @@
+{
+  "subject": "loop_1017",
+  "summary_rows": 6,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "60",
+    "optimal_day": "60",
+    "best_mae": 24.624263763427734,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 72.84515380859375,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 26.493633270263672,
+        "delta_mae": -46.35152053833008
+      },
+      {
+        "personal_days": "7",
+        "mae": 26.98895835876465,
+        "delta_mae": 0.49532508850097656
+      },
+      {
+        "personal_days": "14",
+        "mae": 25.646713256835938,
+        "delta_mae": -1.342245101928711
+      },
+      {
+        "personal_days": "30",
+        "mae": 24.83506965637207,
+        "delta_mae": -0.8116436004638672
+      },
+      {
+        "personal_days": "60",
+        "mae": 24.624263763427734,
+        "delta_mae": -0.21080589294433594
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_nf\\TiDE_loop_1017_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    7.0,
+    14.0,
+    30.0,
+    60.0
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "subject": "loop_1029",
+  "summary_rows": 6,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "60",
+    "optimal_day": "60",
+    "best_mae": 40.1723747253418,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 59.56306838989258,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 53.73872375488281,
+        "delta_mae": -5.824344635009766
+      },
+      {
+        "personal_days": "7",
+        "mae": 51.60186004638672,
+        "delta_mae": -2.1368637084960938
+      },
+      {
+        "personal_days": "14",
+        "mae": 48.82560729980469,
+        "delta_mae": -2.7762527465820312
+      },
+      {
+        "personal_days": "30",
+        "mae": 46.217002868652344,
+        "delta_mae": -2.6086044311523438
+      },
+      {
+        "personal_days": "60",
+        "mae": 40.1723747253418,
+        "delta_mae": -6.044628143310547
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_nf\\LSTM_loop_1029_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    7.0,
+    14.0,
+    30.0,
+    60.0
+  ]
+}

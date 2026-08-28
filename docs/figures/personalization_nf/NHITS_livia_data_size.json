@@ -1,0 +1,52 @@
+{
+  "subject": "livia",
+  "summary_rows": 6,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "60",
+    "optimal_day": "60",
+    "best_mae": 20.61493682861328,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 33.49861145019531,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 27.101696014404297,
+        "delta_mae": -6.396915435791016
+      },
+      {
+        "personal_days": "7",
+        "mae": 25.17119026184082,
+        "delta_mae": -1.9305057525634766
+      },
+      {
+        "personal_days": "14",
+        "mae": 24.712839126586914,
+        "delta_mae": -0.45835113525390625
+      },
+      {
+        "personal_days": "30",
+        "mae": 24.042152404785156,
+        "delta_mae": -0.6706867218017578
+      },
+      {
+        "personal_days": "60",
+        "mae": 20.61493682861328,
+        "delta_mae": -3.427215576171875
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_nf\\NHITS_livia_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    7.0,
+    14.0,
+    30.0,
+    60.0
+  ]
+}

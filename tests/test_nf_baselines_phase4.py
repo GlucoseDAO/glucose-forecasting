@@ -166,3 +166,20 @@ def test_summarize_holdout_runs(tmp_path: Path) -> None:
     summary = pl.read_csv(out / "val_metrics_summary.csv")
     assert summary["model"].to_list() == ["NHITS", "TFT"]
     assert (out / "run_config.json").is_file()
+
+
+def test_evaluate_prepared_split_empty_returns_none() -> None:
+    from nf_baselines.evaluations.holdout import evaluate_prepared_split
+
+    empty = pl.DataFrame({"unique_id": [], "ds": [], "y": []})
+    assert (
+        evaluate_prepared_split(
+            None,
+            frame=empty,
+            profile_exogenous=(),
+            horizon=12,
+            input_size=128,
+            holdout_protocol="sugarone-compatible",
+        )
+        is None
+    )

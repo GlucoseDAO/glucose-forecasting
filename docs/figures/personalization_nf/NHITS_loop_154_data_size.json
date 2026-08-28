@@ -1,0 +1,52 @@
+{
+  "subject": "loop_154",
+  "summary_rows": 6,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "7",
+    "optimal_day": "3",
+    "best_mae": 33.75018310546875,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 39.51235580444336,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 33.75018310546875,
+        "delta_mae": -5.762172698974609
+      },
+      {
+        "personal_days": "7",
+        "mae": 33.75018310546875,
+        "delta_mae": 0.0
+      },
+      {
+        "personal_days": "14",
+        "mae": 33.75018310546875,
+        "delta_mae": 0.0
+      },
+      {
+        "personal_days": "30",
+        "mae": 34.50935363769531,
+        "delta_mae": 0.7591705322265625
+      },
+      {
+        "personal_days": "60",
+        "mae": 35.53685760498047,
+        "delta_mae": 1.0275039672851562
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_nf\\NHITS_loop_154_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    7.0,
+    14.0,
+    30.0,
+    60.0
+  ]
+}

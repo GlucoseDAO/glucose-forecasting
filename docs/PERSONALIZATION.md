@@ -113,3 +113,5 @@ uv run personal-study --report-only
 ```
 
 Results: [Personalization report](PERSONALIZATION_REPORT.md). Out of scope here: personal vs general data mix, GluMind personalization, SugarOne architecture changes.
+
+NeuralForecast counterpart (continue-fit, no LwF/LR search): `uv run personal-nf-study` — [PERSONALIZATION_NF_REPORT.md](PERSONALIZATION_NF_REPORT.md).

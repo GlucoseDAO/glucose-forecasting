@@ -1,0 +1,52 @@
+{
+  "subject": "loop_730",
+  "summary_rows": 6,
+  "mode": "max_days",
+  "max_days": 60.0,
+  "plateau": {
+    "plateau_day": "60",
+    "optimal_day": "60",
+    "best_mae": 17.977872848510742,
+    "steps": [
+      {
+        "personal_days": "1",
+        "mae": 41.51027297973633,
+        "delta_mae": null
+      },
+      {
+        "personal_days": "3",
+        "mae": 31.364721298217773,
+        "delta_mae": -10.145551681518555
+      },
+      {
+        "personal_days": "7",
+        "mae": 29.138233184814453,
+        "delta_mae": -2.2264881134033203
+      },
+      {
+        "personal_days": "14",
+        "mae": 26.523754119873047,
+        "delta_mae": -2.6144790649414062
+      },
+      {
+        "personal_days": "30",
+        "mae": 19.412094116210938,
+        "delta_mae": -7.111660003662109
+      },
+      {
+        "personal_days": "60",
+        "mae": 17.977872848510742,
+        "delta_mae": -1.4342212677001953
+      }
+    ]
+  },
+  "chart_path": "docs\\figures\\personalization_nf\\TFT_loop_730_data_size.png",
+  "x_values": [
+    1.0,
+    3.0,
+    7.0,
+    14.0,
+    30.0,
+    60.0
+  ]
+}
