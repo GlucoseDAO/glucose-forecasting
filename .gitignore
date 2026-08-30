@@ -233,5 +233,23 @@ temp_scripts/
 *.zip
 .DS_Store
 
+# LaTeX auxiliary/temp files (keep .tex, .md, .pdf, .bib, .sty)
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+*.run.xml
+*-blx.bib
+
 # Local agent workspace
 .claude

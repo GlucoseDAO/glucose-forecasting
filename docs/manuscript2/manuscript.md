@@ -10,7 +10,7 @@ We treat personalization as a *curve*, scored at 3, 7, 14, 30, 60, and all avail
 
 #### Attention models for CGM.
 
-Attention came to CGM forecasting with Gluformer, a probabilistic transformer with subject-level personalization (Sergazinov et al. 2023). Multimodal successors add non-glucose channels: AttenGluco fuses CGM with activity on AI-READI (Farahmand, Azghan, Chatrudi, Kim, et al. 2025), and GluMind combines parallel cross-attention over glucose, heart rate, and steps with multi-scale self-attention (Farahmand, Azghan, Chatrudi, Ansu-Baidoo, et al. 2025). Scaling the same recipe to large unlabeled corpora yields models that describe themselves as CGM foundation models—GluFormer (<span class="nocase">Lutsker et al.</span> 2026) (distinct from Gluformer above, despite the name), CGMformer (Lu et al. 2025), CGM-LSM (<span class="nocase">Luo et al.</span> 2025), CGM-JEPA (Muhammad et al. 2026) and GlucoFM (Li et al. 2026). Neither group reports a personal-history day-budget curve, which is the axis we score.
+Attention came to CGM forecasting with Gluformer, a probabilistic transformer with subject-level personalization (Sergazinov et al. 2023). Multimodal successors add non-glucose channels: AttenGluco fuses CGM with activity on AI-READI (Farahmand, Azghan, Chatrudi, Kim, et al. 2025), and GluMind combines parallel cross-attention over glucose, heart rate, and steps with multi-scale self-attention (Farahmand, Azghan, Chatrudi, Ansu-Baidoo, et al. 2025). Scaling the same recipe to large unlabeled corpora yields models that describe themselves as CGM foundation models—GluFormer (Lutsker et al. 2026) (distinct from Gluformer above, despite the name), CGMformer (Lu et al. 2025), CGM-LSM (<span class="nocase">Luo et al.</span> 2025), CGM-JEPA (Muhammad et al. 2026) and GlucoFM (Li et al. 2026). Neither group reports a personal-history day-budget curve, which is the axis we score.
 
 #### Our backbone.
 
@@ -18,7 +18,7 @@ SugarOne borrows many elements from GluMind’s transformer design: parallel dua
 
 #### Fine-tuning sensitivity.
 
-Whether adaptation helps at a given budget is unsettled beyond glucose: break-even against classical baselines ranges from 24 to 8,361 samples across 30 datasets (Tan Jerome and Simon 2026), and fine-tuned foundation models do not consistently beat smaller dedicated ones (Karaouli et al. 2025). In CGM, GlucoFM-Bench scores eight architectures on 15 datasets and 1,117 individuals under zero-, few- (5%) and full-shot protocols and finds adaptation non-monotone: TimesFM2.5 and Moirai2.0 degrade from few- to full-shot (18.75 → 19.47 and 19.48 → 20.30 mg/dL RMSE) (Lu et al. 2026).
+Whether adaptation helps at a given budget is unsettled beyond glucose: break-even against classical baselines ranges from 24 to 8,361 samples on 9 of 30 datasets (Tan Jerome and Simon 2026), and fine-tuned foundation models do not consistently beat smaller dedicated ones once their parameter and memory cost is counted (Karaouli et al. 2025). In CGM, GlucoFM-Bench scores eight architectures on 15 datasets and 1,117 individuals under zero-, few- (5%) and full-shot protocols and finds adaptation non-monotone: at a 12-hour context and 30-minute horizon, TimesFM2.5 and Moirai2.0 degrade from zero- to full-shot (18.75 → 19.47 and 19.48 → 20.30 mg/dL RMSE) (Lu et al. 2026).
 
 All of these studies vary the size of a pooled training set, drawn across many subjects. We vary a different quantity: the number of days of a single person’s own history.
 
@@ -38,7 +38,7 @@ The personal test also includes *Author1*: a personal Dexcom CGM recording colle
 
 From this joined table every model forecasts H=12 glucose values (60 min at 5-min sampling). The lead metric is MAE in mg/dL, alongside RMSE and MARD—the standard CGM accuracy measure. All models share this horizon.
 
-As a secondary experiment, we also trained a 120-minute forecasting variant (H=24) after Google released GlucoFM (Li et al. 2026), which reports 2-hour glucose prediction. GlucoFM appeared days before our submission; we did not have time to fine-tune the 120-minute models but evaluated them at the global (zero-shot) level for a direct comparison. On this horizon, our generic SugarOne already reaches MAE 17.99 mg/dL and SugarJEPA 16.32, versus GlucoFM’s reported 22.88. These numbers are preliminary—no personalization curves were run at H=24—but they suggest the architecture is competitive beyond the 60-minute horizon that is the focus of this paper.
+As a secondary experiment, we also trained a 120-minute forecasting variant (H=24) after Google released GlucoFM (Li et al. 2026), which reports 2-hour glucose prediction. We did not fine-tune the 120-minute models but evaluated them at the global (zero-shot) level. On this horizon, our generic SugarOne already reaches MAE 17.99 mg/dL and SugarJEPA 16.32, against GlucoFM’s 21.88. While our metrics look better, GlucoFM scores narrower meal-related segments and adds nutrition and subject covariates, so the comparison is not direct. These numbers are preliminary—no personalization curves were run at H=24—but they suggest the architecture is competitive beyond the 60-minute horizon that is the focus of this paper.
 
 Because the table mixes populations with and without insulin channels, we use two evaluations that must not be combined.
 
@@ -93,6 +93,11 @@ Every day budget starts fresh from the global checkpoint; we do not chain budget
 
 Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">1</a> shows zero-shot, then 3, 7, 14, 30, 60, and full history. We omit a 1-day point because SugarJEPA-288 already looks back one full day of CGM, and a 1-day training slice cannot supply enough context for a window. Models whose shorter lookback does allow a 1-day fine-tune appear in Appendix <a href="#app:oneday" data-reference-type="ref" data-reference="app:oneday">11</a>.
 
+<figure id="fig:curves" data-latex-placement="t">
+<img src="fig_personalization_curves.png" style="width:92.0%" />
+<figcaption>Mean personal-test MAE versus train-day budget on seven T1DM users (60-day means: <span class="math inline"><em>n</em> = 6</span>). Dotted line: 30-day SugarOne point. There is no 1-day budget: SugarJEPA-288 cannot form a window from one day of train.</figcaption>
+</figure>
+
 We call a personalization path *smooth* when it passes three checks on mean personal-test MAE across the seven users (60-day averages use n=6 because one user’s history is shorter):
 
 1.  **Non-harmful.** MAE at budget t stays at or below that model’s own zero-shot.
@@ -122,7 +127,7 @@ Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:globa
 | NBEATSx       | 11.81 | 19.10 | 8.05% |
 | TFT           | 12.69 | 20.36 | 8.47% |
 
-**Left:** Joined-corpus holdout (H\!=\!12, 60 min). NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit. SugarJEPA-864/2016 are omitted; they score a smaller population of long series. **Right:** H\!=\!24 global test (120 min), trained after the release of GlucoFM (Li et al. 2026) (reported MAE 22.88). Generic models, no fine-tuning. The 60 min rows show the first 12 steps of the H\!=\!24 forecast.
+**Left:** Joined-corpus holdout (H\!=\!12, 60 min). NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit. SugarJEPA-864/2016 are omitted; they score a smaller population of long series. **Right:** H\!=\!24 global test (120 min), trained after the release of GlucoFM (Li et al. 2026) (GlucoFM’s 21.88 is on narrower meal-related segments). Generic models, no fine-tuning. The 60 min rows show the first 12 steps of the H\!=\!24 forecast.
 
 </div>
 
@@ -133,7 +138,7 @@ Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:globa
 <div id="tab:global">
 
 <table>
-<caption><strong>Left:</strong> Joined-corpus holdout (<span class="math inline"><em>H</em> = 12</span>, 60 min). NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit. SugarJEPA-864/2016 are omitted; they score a smaller population of long series. <strong>Right:</strong> <span class="math inline"><em>H</em> = 24</span> global test (120 min), trained after the release of GlucoFM <span class="citation" data-cites="li2026glucofm">(Li et al. 2026)</span> (reported MAE 22.88). Generic models, no fine-tuning. The 60 min rows show the first 12 steps of the <span class="math inline"><em>H</em> = 24</span> forecast.</caption>
+<caption><strong>Left:</strong> Joined-corpus holdout (<span class="math inline"><em>H</em> = 12</span>, 60 min). NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit. SugarJEPA-864/2016 are omitted; they score a smaller population of long series. <strong>Right:</strong> <span class="math inline"><em>H</em> = 24</span> global test (120 min), trained after the release of GlucoFM <span class="citation" data-cites="li2026glucofm">(Li et al. 2026)</span> (GlucoFM’s 21.88 is on narrower meal-related segments). Generic models, no fine-tuning. The 60 min rows show the first 12 steps of the <span class="math inline"><em>H</em> = 24</span> forecast.</caption>
 <thead>
 <tr>
 <th style="text-align: left;"></th>
@@ -183,11 +188,6 @@ Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:globa
 ## Personalization paths
 
 Frozen SugarJEPA-288 has lower personal-test MAE than SugarOne fine-tuned for 30 days, for all seven T1DM users in this study (Table <a href="#tab:slice" data-reference-type="ref" data-reference="tab:slice">4</a>). That is one slice. Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">1</a> is the path.
-
-<figure id="fig:curves" data-latex-placement="t">
-<img src="fig_personalization_curves.png" style="width:92.0%" />
-<figcaption>Mean personal-test MAE versus train-day budget on seven T1DM users (60-day means: <span class="math inline"><em>n</em> = 6</span>). Dotted line: 30-day SugarOne point. There is no 1-day budget: SugarJEPA-288 cannot form a window from one day of train.</figcaption>
-</figure>
 
 SugarOne starts at 19.48 mg/dL. Mean MAE stays at or above that floor through 30 days (19.64) and only then falls (19.09 at 60 days; 18.67 at full history). Check 1 fails at 3–30 days. Checks 2–3 hold only after the 60-day mark.
 
@@ -245,7 +245,7 @@ The clearest single result is that frozen SugarJEPA-288, with no fine-tuning at 
 
 # Architecture
 
-<figure id="fig:arch" data-latex-placement="h">
+<figure id="fig:arch" data-latex-placement="H">
 <img src="sugar_jepa.png" style="width:92.0%" />
 <figcaption>SugarJEPA-288. One shared window of 288 steps (24 h) ends at forecast time. The JEPA encoder reads all 288 glucose steps (36 patches of 8) and projects them to a <span class="math inline">(<em>B</em>, 36, 32)</span> K/V stream; the SugarOne trunk embeds the last 128 steps of glucose, basal, bolus, and carbohydrates. Cross-attention lets the 128-step glucose queries attend to the shorter JEPA sequence. Personal fine-tunes freeze the encoder and update the SugarOne weights.</figcaption>
 </figure>
@@ -862,7 +862,7 @@ Mean personal zero-shot MAE: SugarOne 19.48; jepa-128-64 19.00; jepa-128 18.87; 
 
 # Other NeuralForecast models
 
-N-HiTS on the same six T1DM users with ≥60 train days has mean continue-fit Δ +2.24 at 30 days (harmful), +0.16 at 60 days, and -1.92 at full history—the same shape as NBEATSx (Challu et al. 2023). Its joined-corpus test MAE is 11.94 (RMSE 19.38, MARD 8.08%), close to NBEATSx. LSTM is worse at 30 days (Δ +6.00) and weaker globally (test MAE 17.37, RMSE 26.30, MARD 11.57%). TiDE’s 30-day mean Δ is -7.01 (helpful) but its global test MAE is 16.12 (RMSE 24.01, MARD 11.07%), well above the models in Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">3</a>. We left them off Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">1</a> so the harmful-path contrast is one curve (NBEATSx), not five.
+N-HiTS (Challu et al. 2023) on the same six T1DM users with ≥60 train days has mean continue-fit Δ +2.24 at 30 days (harmful), +0.16 at 60 days, and -1.92 at full history—the same shape as NBEATSx (Olivares et al. 2023). Its joined-corpus test MAE is 11.94 (RMSE 19.38, MARD 8.08%), close to NBEATSx. LSTM (Hochreiter and Schmidhuber 1997) is worse at 30 days (Δ +6.00) and weaker globally (test MAE 17.37, RMSE 26.30, MARD 11.57%). TiDE’s (Das et al. 2023) 30-day mean Δ is -7.01 (helpful) but its global test MAE is 16.12 (RMSE 24.01, MARD 11.07%), well above the models in Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">3</a>. We left them off Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">1</a> so the harmful-path contrast is one curve (NBEATSx), not five.
 
 # One-day fine-tune
 
@@ -872,7 +872,7 @@ SugarOne, jepa-128\*, and the NeuralForecast models can form a 128-step window f
 
 <div id="ref-aireadi2024" class="csl-entry">
 
-AI-READI Consortium. 2024. “AI-READI: Rethinking AI Data Collection, Preparation and Sharing in Diabetes Research and Beyond.” *Nature Metabolism* 6: 2210–12. <https://doi.org/10.1038/s42255-024-01165-x>.
+AI-READI Consortium. 2024. “AI-READI: Rethinking AI Data Collection, Preparation and Sharing in Diabetes Research and Beyond.” *Nature Metabolism* 6 (12): 2210–12. <https://doi.org/10.1038/s42255-024-01165-x>.
 
 </div>
 
@@ -894,6 +894,12 @@ Challu, Cristian, Kin G. Olivares, Boris N. Oreshkin, Federico Garza Ramirez, Ma
 
 </div>
 
+<div id="ref-das2023tide" class="csl-entry">
+
+Das, Abhimanyu, Weihao Kong, Andrew Leach, Shaan Mathur, Rajat Sen, and Rose Yu. 2023. “Long-Term Forecasting with TiDE: Time-Series Dense Encoder.” *arXiv Preprint arXiv:2304.08424*. <https://arxiv.org/abs/2304.08424>.
+
+</div>
+
 <div id="ref-farahmand2025glumind" class="csl-entry">
 
 Farahmand, Ebrahim, Reza Rahimi Azghan, Nooshin Taheri Chatrudi, Velarie Yaa Ansu-Baidoo, et al. 2025. “GluMind: Multimodal Parallel Attention and Knowledge Retention for Robust Cross-Population Blood Glucose Forecasting.” *arXiv Preprint arXiv:2509.18457*. <https://arxiv.org/abs/2509.18457>.
@@ -903,6 +909,12 @@ Farahmand, Ebrahim, Reza Rahimi Azghan, Nooshin Taheri Chatrudi, Velarie Yaa Ans
 <div id="ref-farahmand2025attengluco" class="csl-entry">
 
 Farahmand, Ebrahim, Reza Rahimi Azghan, Nooshin Taheri Chatrudi, Eric Kim, Gautham Krishna Gudur, and Edison Thomaz. 2025. “AttenGluco: Multimodal Transformer-Based Blood Glucose Forecasting on AI-READI Dataset.” *arXiv Preprint arXiv:2502.09919*. <https://arxiv.org/abs/2502.09919>.
+
+</div>
+
+<div id="ref-hochreiter1997lstm" class="csl-entry">
+
+Hochreiter, Sepp, and Jürgen Schmidhuber. 1997. “Long Short-Term Memory.” *Neural Computation* 9 (8): 1735–80. <https://doi.org/10.1162/neco.1997.9.8.1735>.
 
 </div>
 
@@ -944,13 +956,13 @@ Lu, Yurun, Dan Liu, Zhongming Liang, et al. 2025. “A Pretrained Transformer Mo
 
 <div id="ref-luo2025cgmlsm" class="csl-entry">
 
-<span class="nocase">Luo, Junjie, Abhimanyu Kumbara, Mansur Shomali, Guodong Gao, et al.</span> 2025. “A Large Sensor Foundation Model Pretrained on Continuous Glucose Monitor Data for Diabetes Management.” *Npj Health Systems* 2 (1). <https://doi.org/10.1038/s44401-025-00039-y>.
+<span class="nocase">Luo, Junjie, Abhimanyu Kumbara, Mansur Shomali, et al.</span> 2025. “A Large Sensor Foundation Model Pretrained on Continuous Glucose Monitor Data for Diabetes Management.” *Npj Health Systems* 2 (1). <https://doi.org/10.1038/s44401-025-00039-y>.
 
 </div>
 
 <div id="ref-lutsker2026gluformer" class="csl-entry">
 
-<span class="nocase">Lutsker, Guy, Anastasia Godneva, Jerry R. Greenfield, et al.</span> 2026. “A Foundation Model for Continuous Glucose Monitoring Data.” *Nature* 650 (8103): 978–86. <https://doi.org/10.1038/s41586-025-09925-9>.
+Lutsker, Guy, Gal Sapir, Smadar Shilo, et al. 2026. “A Foundation Model for Continuous Glucose Monitoring Data.” *Nature* 650 (8103): 978–86. <https://doi.org/10.1038/s41586-025-09925-9>.
 
 </div>
 
@@ -980,7 +992,7 @@ Rigamonti, Giorgia, Mirko Paolo Barbato, Davide Marelli, and Paolo Napoletano. 2
 
 <div id="ref-schmelzeisen2015delay" class="csl-entry">
 
-Schmelzeisen-Redeker, Günther, Arnd Staib, Michael Strasser, Ulrich Müller, and Michael Schoemaker. 2015. “Time Delay of CGM Sensors: Relevance, Causes, and Countermeasures.” *Journal of Diabetes Science and Technology* 9 (5): 1006–15. <https://doi.org/10.1177/1932296815590154>.
+Schmelzeisen-Redeker, Günther, Michael Schoemaker, Harald Kirchsteiger, Guido Freckmann, Lutz Heinemann, and Luigi del Re. 2015. “Time Delay of CGM Sensors: Relevance, Causes, and Countermeasures.” *Journal of Diabetes Science and Technology* 9 (5): 1006–15. <https://doi.org/10.1177/1932296815590154>.
 
 </div>
 
@@ -992,7 +1004,7 @@ Sergazinov, Renat, Mohammadreza Armandpour, and Irina Gaynanova. 2023. “Glufor
 
 <div id="ref-sergazinov2024glucobench" class="csl-entry">
 
-Sergazinov, Renat, Elizabeth Chun, Valeriya Rogovchenko, Nathaniel Fernandes, Nicholas Kasman, and Irina Gaynanova. 2024. “GlucoBench: Curated List of Continuous Glucose Monitoring Datasets with Prediction Benchmarks.” *arXiv Preprint arXiv:2410.05780*. <https://arxiv.org/abs/2410.05780>.
+Sergazinov, Renat, Elizabeth Chun, Valeriya Rogovchenko, Nathaniel Fernandes, Nicholas Kasman, and Irina Gaynanova. 2024. “GlucoBench: Curated List of Continuous Glucose Monitoring Datasets with Prediction Benchmarks.” *International Conference on Learning Representations*. <https://arxiv.org/abs/2410.05780>.
 
 </div>
 
