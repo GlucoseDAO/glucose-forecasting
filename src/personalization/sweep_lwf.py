@@ -54,7 +54,7 @@ LwfKind = Literal["decay", "const"]
 
 STATUS_PATH = DEFAULT_RUNS_ROOT / "personalization" / "lwf_indep_status.json"
 STATUS_MD_PATH = DEFAULT_RUNS_ROOT / "personalization" / "lwf_indep_status.md"
-DEFAULT_RECIPE = DEFAULT_RUNS_ROOT / "personalization" / "livia" / "best_recipe.json"
+DEFAULT_RECIPE = DEFAULT_RUNS_ROOT / "personalization" / "subject_p1" / "best_recipe.json"
 
 
 @dataclass(frozen=True)
@@ -79,14 +79,14 @@ class LwfPerson:
 
 PERSONS: tuple[LwfPerson, ...] = (
     LwfPerson(
-        name="livia",
-        csv=Path("data/input/personalization/prepared/livia_chronological.csv"),
-        independent_subject="livia",
-        independent_dir=DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "data_size",
-        decay_subject="livia_lwf_decay",
-        decay_dir=DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "lwf_decay_indep",
-        const_subject="livia_lwf_01",
-        const_dir=DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "lwf_const_0.1",
+        name="subject_p1",
+        csv=Path("data/input/personalization/prepared/subject_p1_chronological.csv"),
+        independent_subject="subject_p1",
+        independent_dir=DEFAULT_RUNS_ROOT / "personalization" / "subject_p1" / "sweeps" / "data_size",
+        decay_subject="subject_p1_lwf_decay",
+        decay_dir=DEFAULT_RUNS_ROOT / "personalization" / "subject_p1" / "sweeps" / "lwf_decay_indep",
+        const_subject="subject_p1_lwf_01",
+        const_dir=DEFAULT_RUNS_ROOT / "personalization" / "subject_p1" / "sweeps" / "lwf_const_0.1",
     ),
     LwfPerson(
         name="154",
@@ -301,9 +301,9 @@ def run_independent_lwf_sweep(
 @app.command()
 def main(
     subjects: str = typer.Option(
-        "livia,154",
+        "subject_p1,154",
         "--subjects",
-        help="Comma-separated: livia, 154.",
+        help="Comma-separated: subject_p1, 154.",
     ),
     kind: str = typer.Option(
         "both",
@@ -320,7 +320,7 @@ def main(
     skip_completed: bool = typer.Option(True, "--skip-completed/--no-skip-completed"),
     report_only: bool = typer.Option(False, "--report-only"),
 ) -> None:
-    """Overnight independent LwF: Livia then user 154. Resume-safe."""
+    """Overnight independent LwF: Subject P1 then user 154. Resume-safe."""
     init_cli_console()
     wanted = {s.strip().lower() for s in subjects.split(",") if s.strip()}
     selected = [p for p in PERSONS if p.name in wanted]

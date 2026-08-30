@@ -46,7 +46,7 @@ def test_publish_packages_valid_bundle_and_uses_one_atomic_upload(tmp_path: Path
 
     published = publish_inference_bundle(
         bundle_dir,
-        repo_id="GlucoseDAO/sugar-one",
+        repo_id="AnonymousOrg/sugar-one",
         private=True,
         revision="release",
         api=api,
@@ -55,15 +55,15 @@ def test_publish_packages_valid_bundle_and_uses_one_atomic_upload(tmp_path: Path
     assert published == _manifest()
     assert api.create_calls == [
         {
-            "repo_id": "GlucoseDAO/sugar-one",
+            "repo_id": "AnonymousOrg/sugar-one",
             "repo_type": "model",
             "private": True,
             "exist_ok": True,
         }
     ]
-    assert api.info_calls == [{"repo_id": "GlucoseDAO/sugar-one", "repo_type": "model"}]
+    assert api.info_calls == [{"repo_id": "AnonymousOrg/sugar-one", "repo_type": "model"}]
     assert len(api.upload_calls) == 1
-    assert api.upload_calls[0]["repo_id"] == "GlucoseDAO/sugar-one"
+    assert api.upload_calls[0]["repo_id"] == "AnonymousOrg/sugar-one"
     assert api.upload_calls[0]["repo_type"] == "model"
     assert api.upload_calls[0]["revision"] == "release"
     assert api.upload_calls[0]["commit_message"] == "Publish inference release sugar-one-2026-07"
@@ -84,7 +84,7 @@ def test_model_card_contains_contract_metadata(tmp_path: Path) -> None:
     package_dir = tmp_path / "package"
     write_inference_bundle(bundle_dir, manifest=_manifest(), model=_TinyModel())
 
-    package_bundle_for_hub(bundle_dir, package_dir, repo_id="GlucoseDAO/sugar-one")
+    package_bundle_for_hub(bundle_dir, package_dir, repo_id="AnonymousOrg/sugar-one")
     card = (package_dir / "README.md").read_text(encoding="utf-8")
 
     assert card.startswith("---\nlibrary_name: pytorch\n")
@@ -110,7 +110,7 @@ def test_download_validates_bundle_after_pinned_snapshot(tmp_path: Path) -> None
         return str(kwargs["local_dir"])
 
     manifest = download_inference_bundle(
-        "GlucoseDAO/sugar-one",
+        "AnonymousOrg/sugar-one",
         revision="a1b2c3d4",
         target_dir=target_dir,
         downloader=download_snapshot,
@@ -119,7 +119,7 @@ def test_download_validates_bundle_after_pinned_snapshot(tmp_path: Path) -> None
     assert manifest == _manifest()
     assert calls == [
         {
-            "repo_id": "GlucoseDAO/sugar-one",
+            "repo_id": "AnonymousOrg/sugar-one",
             "repo_type": "model",
             "revision": "a1b2c3d4",
             "local_dir": target_dir,
@@ -140,7 +140,7 @@ def test_download_rejects_checksum_tampering(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Checksum mismatch.*model.safetensors"):
         download_inference_bundle(
-            "GlucoseDAO/sugar-one",
+            "AnonymousOrg/sugar-one",
             revision="a1b2c3d4",
             target_dir=target_dir,
             downloader=download_tampered_snapshot,

@@ -112,7 +112,7 @@ def resolve_csv_path(csv_value: str | Path, project_root: Path) -> Path:
     Tries, in order:
     1. Absolute path as given (when absolute)
     2. ``project_root / csv_value`` (and legacy→new layout rewrites)
-    3. Basename under preferred local folders under ``data/input/`` and ``fixtures/livia_data/``
+    3. Basename under preferred local folders under ``data/input/`` and ``fixtures/demo_data/``
     4. Suffix starting at a ``data/`` component (other-machine absolutes), with rewrite
     5. Unique basename match under ``project_root / data``
     6. Relative CWD path (last resort)
@@ -131,7 +131,7 @@ def resolve_csv_path(csv_value: str | Path, project_root: Path) -> Path:
         project_root / "data" / "input" / "actual" / "with_complex_steps_processing" / name,
         project_root / "data" / "input" / "actual" / "type_1" / name,
         project_root / "data" / "input" / "personalization" / name,
-        project_root / "fixtures" / "livia_data" / name,
+        project_root / "fixtures" / "demo_data" / name,
         # Legacy pre-move locations (kept for transition / partial checkouts).
         project_root / "data" / "loop_and_ai_ready" / name,
         project_root / "data" / "actual" / "with_complex_steps_processing" / name,
@@ -183,7 +183,7 @@ def resolve_csv_path(csv_value: str | Path, project_root: Path) -> Path:
     typer.echo(f"Error: CSV not found: {csv_value}", err=True)
     typer.echo(
         "Hint: pass an explicit --train-csv / --test-csv / --csv under data/input/ "
-        "(see docs/DATA.md). Demo smoke tests should use fixtures/livia_data/ with --train-csv.",
+        "(see docs/DATA.md). Demo smoke tests should use fixtures/demo_data/ with --train-csv.",
         err=True,
     )
     raise typer.Exit(1)

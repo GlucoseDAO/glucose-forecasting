@@ -15,7 +15,7 @@ uv run glucose evaluate --help
 uv run glucose evaluate \
   --run-dir fixtures/checkpoints/glumind_1.0 \
   --model-type glumind \
-  --data fixtures/livia_data/livia_glumind_ready.csv \
+  --data fixtures/demo_data/demo_glumind_ready.csv \
   --test-split "" \
   --batch-size 4096 \
   --no-plot

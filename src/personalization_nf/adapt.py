@@ -17,7 +17,7 @@ from nf_baselines.evaluations.holdout import (
     evaluate_prepared_split,
     resolve_device,
 )
-from personalization.constants import DEFAULT_LIVIA_PREPARED_CSV
+from personalization.constants import DEFAULT_DEMO_PREPARED_CSV
 from personalization_nf.constants import (
     DEFAULT_FT_PATIENCE,
     DEFAULT_NF_HOLDOUT_ROOT,
@@ -327,12 +327,12 @@ def run_adapt(
 @app.command()
 def main(
     holdout_root: Path = typer.Option(DEFAULT_NF_HOLDOUT_ROOT, "--holdout-root"),
-    personal_csv: Path = typer.Option(DEFAULT_LIVIA_PREPARED_CSV, "--personal-csv"),
+    personal_csv: Path = typer.Option(DEFAULT_DEMO_PREPARED_CSV, "--personal-csv"),
     out_dir: Path = typer.Option(
-        DEFAULT_NF_PERSONALIZATION_ROOT / "livia" / "NHITS" / "days_all",
+        DEFAULT_NF_PERSONALIZATION_ROOT / "subject_p1" / "NHITS" / "days_all",
         "--out-dir",
     ),
-    subject: str = typer.Option("livia", "--subject"),
+    subject: str = typer.Option("subject_p1", "--subject"),
     models: Optional[str] = typer.Option(
         None, "--models", help="Comma-separated model names; default: all in holdout root."
     ),

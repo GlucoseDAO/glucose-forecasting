@@ -48,7 +48,7 @@ DAY_COLUMNS: Final[tuple[tuple[str, str], ...]] = (
 # Train spans from the same chronological CSVs as Milestone 8 (used when
 # split_meta.json is not on disk). User 1082 has no 60-day budget.
 FALLBACK_TRAIN_SPAN_DAYS: Final[dict[str, float]] = {
-    "livia": 344.6,
+    "subject_p1": 344.6,
     "loop_154": 213.6,
     "loop_556": 90.9,
     "loop_730": 84.6,
@@ -175,8 +175,8 @@ def _used_train_days(label: str, span: float | None) -> float | None:
 
 
 def _cohort_label(spec: Phase4Subject) -> str:
-    if spec.subject == "livia":
-        return "Livia"
+    if spec.subject == "subject_p1":
+        return "Subject P1"
     return "Loop holdout"
 
 
@@ -407,13 +407,13 @@ def _write_charts(
     _combined(
         "combined_all",
         f"{model_key}_data_size_curves_combined.png",
-        f"{model_key}: Livia + Loop holdouts (All = full train)",
+        f"{model_key}: Subject P1 + Loop holdouts (All = full train)",
         dummy_all=True,
     )
     _combined(
         "combined_60d",
         f"{model_key}_data_size_curves_combined_60d.png",
-        f"{model_key}: Livia + Loop holdouts (first 60 days)",
+        f"{model_key}: Subject P1 + Loop holdouts (first 60 days)",
         dummy_all=False,
     )
     return paths
@@ -560,7 +560,7 @@ def write_jepa_personalization_report(
                     "",
                     _full_train_table(series),
                     "",
-                    "### Livia and Loop quality holdouts",
+                    "### Subject P1 and Loop quality holdouts",
                     "",
                     _per_user_sections(
                         series,
@@ -573,7 +573,7 @@ def write_jepa_personalization_report(
                     "### Average MAE improvement by train budget",
                     "",
                     "Mean test-MAE reduction versus zero-shot on T1DM users with at least "
-                    "60 train days (Livia + Loop holdouts except User 1082 when the "
+                    "60 train days (Subject P1 + Loop holdouts except User 1082 when the "
                     "budget exceeds their span, and except users with no run at that "
                     "budget). Negative Δ is better than frozen global. Empty cells are "
                     "not filled with zeros.",
@@ -604,10 +604,10 @@ def write_jepa_personalization_report(
     coverage_lines = [
         "| Subject | Source | Study group | Notes |",
         "|---------|--------|-------------|-------|",
-        "| **Livia** | Personal CGM/pump export | T1DM | Longest history (~345 d train) |",
+        "| **Subject P1** | Personal CGM/pump export | T1DM | Longest history (~345 d train) |",
     ]
     for spec in original_cohort_subjects():
-        if spec.subject == "livia":
+        if spec.subject == "subject_p1":
             continue
         extra = "60-day budget ≈ full train; no 60-day cell" if spec.user_id == "1082" else ""
         coverage_lines.append(
@@ -667,7 +667,7 @@ def write_jepa_personalization_report(
             "\n".join(vs_lines),
             "",
             "The same “all 7” statement is **false** against SugarOne's *full* "
-            "fine-tune (Livia and User 1017: full SugarOne beats frozen JEPA-288). "
+            "fine-tune (Subject P1 and User 1017: full SugarOne beats frozen JEPA-288). "
             "30 days is the cutoff that holds for every user in this study.",
             "",
             "## 2. Subjects and data coverage",
@@ -711,7 +711,7 @@ def write_jepa_personalization_report(
             "",
             "LwF on SugarOne did not rescue short-history harm "
             "([PERSONALIZATION_REPORT.md](PERSONALIZATION_REPORT.md) §6.3–6.4). "
-            "This extract keeps `λ=0`. Learning rate is the frozen Livia recipe "
+            "This extract keeps `λ=0`. Learning rate is the frozen Subject P1 recipe "
             "(`2×10⁻⁴`) used for SugarOne day curves, with the JEPA param-group "
             "ratio inherited from the global run.",
             "",
@@ -726,7 +726,7 @@ def write_jepa_personalization_report(
             "",
             "```bash",
             "uv run personal-sweep-days --base-run-dir <sugar_jepa2_run> \\",
-            "  --personal-csv data/input/personalization/prepared/livia_chronological.csv",
+            "  --personal-csv data/input/personalization/prepared/subject_p1_chronological.csv",
             "```",
             "",
             "| Artifact | Path |",

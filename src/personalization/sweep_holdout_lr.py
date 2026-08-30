@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Sweep learning rate on Loop holdout users and compare to Livia optimum.
+"""Sweep learning rate on Loop holdout users and compare to Subject P1 optimum.
 
-After Livia Step-2 finds the best LR (currently 2e-4), run the same LR grid on
+After Subject P1 Step-2 finds the best LR (currently 2e-4), run the same LR grid on
 each holdout person to see whether the optimal LR transfers or diverges.
 
 Default grid: ``0.0001, 0.0002, 0.0004`` (plain fine-tune, fixed wd, sparse stride).
@@ -28,7 +28,7 @@ from personalization.constants import (
     DEFAULT_WEIGHT_DECAY,
     HOLDOUT_LR_DEFERRED_USERS,
     HOLDOUT_LR_PILOT_USERS,
-    LIVIA_REFERENCE_LR,
+    DEMO_REFERENCE_LR,
     LOOP_HOLDOUT_QUALITY_USERS,
 )
 from personalization.finetune import run_finetune
@@ -119,7 +119,7 @@ def _write_sweep_status(
     deferred_users: list[str],
     lr_values: list[float],
     all_rows: list[dict[str, Any]],
-    livia_reference_lr: float,
+    subject_p1_reference_lr: float,
 ) -> None:
     completed_by_user: dict[str, list[float]] = {}
     for row in all_rows:
@@ -129,7 +129,7 @@ def _write_sweep_status(
         completed_by_user.setdefault(uid, []).append(float(row["lr"]))
 
     status = {
-        "livia_reference_lr": livia_reference_lr,
+        "subject_p1_reference_lr": subject_p1_reference_lr,
         "lr_grid": lr_values,
         "pilot_users": pilot_users,
         "deferred_users": deferred_users,
@@ -147,7 +147,7 @@ def _write_sweep_status(
     lines = [
         "# Holdout LR sweep status",
         "",
-        f"**Livia reference LR:** {livia_reference_lr:g}",
+        f"**Subject P1 reference LR:** {subject_p1_reference_lr:g}",
         f"**LR grid:** `{lr_values}`",
         "",
         "## Pilot users (interim report)",
@@ -168,7 +168,7 @@ def _write_holdout_reports(
     *,
     all_rows: list[dict[str, Any]],
     out_dir: Path,
-    livia_reference_lr: float,
+    subject_p1_reference_lr: float,
     lr_values: list[float],
     lwf: float,
     weight_decay: float,
@@ -180,7 +180,7 @@ def _write_holdout_reports(
     summary_path = write_summary(all_rows, out_dir, name="summary")
     comparison = build_holdout_lr_comparison(
         all_rows,
-        livia_reference_lr=livia_reference_lr,
+        subject_p1_reference_lr=subject_p1_reference_lr,
     )
     comparison_path = out_dir / "lr_comparison.json"
     with comparison_path.open("w", encoding="utf-8") as f:
@@ -188,9 +188,9 @@ def _write_holdout_reports(
 
     notes_path = out_dir / "lr_divergence_notes.md"
     lines = [
-        "# Holdout LR sweep — divergence from Livia",
+        "# Holdout LR sweep — divergence from Subject P1",
         "",
-        f"Livia reference LR (Step 2): **{livia_reference_lr:g}**",
+        f"Subject P1 reference LR (Step 2): **{subject_p1_reference_lr:g}**",
         f"Holdout grid: `{lr_values}`",
         "",
         "## Per-user summary",
@@ -217,9 +217,9 @@ def _write_holdout_reports(
             "",
             "## Aggregate",
             "",
-            f"- Same as Livia: {n_same}/{len(comparison)}",
-            f"- Lower than Livia: {n_lower}/{len(comparison)}",
-            f"- Higher than Livia: {n_higher}/{len(comparison)}",
+            f"- Same as Subject P1: {n_same}/{len(comparison)}",
+            f"- Lower than Subject P1: {n_lower}/{len(comparison)}",
+            f"- Higher than Subject P1: {n_higher}/{len(comparison)}",
             "",
         ]
     )
@@ -236,7 +236,7 @@ def _write_holdout_reports(
                 "weight_decay": weight_decay,
                 "patience": patience,
                 "epochs": epochs,
-                "livia_reference_lr": livia_reference_lr,
+                "subject_p1_reference_lr": subject_p1_reference_lr,
                 "lr_divergence": entry["divergence"],
                 "ft_test_mae": entry["optimal_ft_test_mae"],
                 "run_dir": entry.get("run_dir"),
@@ -256,10 +256,10 @@ def _write_holdout_reports(
         deferred_users=deferred_users,
         lr_values=lr_values,
         all_rows=all_rows,
-        livia_reference_lr=livia_reference_lr,
+        subject_p1_reference_lr=subject_p1_reference_lr,
     )
     safe_echo(f"Wrote {out_dir / 'sweep_status.json'}")
-    safe_echo("\n--- LR divergence vs Livia ---")
+    safe_echo("\n--- LR divergence vs Subject P1 ---")
     for entry in comparison:
         safe_echo(f"  user {entry['user_id']}: {entry['note']}")
 
@@ -282,10 +282,10 @@ def main(
         DEFAULT_RUNS_ROOT / "personalization" / "holdout_lr_sweep",
         "--out-dir",
     ),
-    livia_reference_lr: float = typer.Option(
-        LIVIA_REFERENCE_LR,
-        "--livia-lr",
-        help="Livia optimal LR from Step-2 (reference for divergence notes).",
+    subject_p1_reference_lr: float = typer.Option(
+        DEMO_REFERENCE_LR,
+        "--subject_p1-lr",
+        help="Subject P1 optimal LR from Step-2 (reference for divergence notes).",
     ),
     lr_grid: Optional[str] = typer.Option(
         None,
@@ -318,7 +318,7 @@ def main(
     ),
     dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
-    """Fine-tune each holdout user across an LR grid; compare optimum to Livia."""
+    """Fine-tune each holdout user across an LR grid; compare optimum to Subject P1."""
     init_cli_console()
     out_dir.mkdir(parents=True, exist_ok=True)
     lr_values = _parse_lr_grid(lr_grid)
@@ -333,7 +333,7 @@ def main(
     pilot_users = list(HOLDOUT_LR_PILOT_USERS)
     deferred_users = list(HOLDOUT_LR_DEFERRED_USERS)
 
-    safe_echo(f"Livia reference LR: {livia_reference_lr:g}")
+    safe_echo(f"Subject P1 reference LR: {subject_p1_reference_lr:g}")
     safe_echo(f"Holdout LR grid: {lr_values}")
     safe_echo(f"Users: {user_list}")
     if set(user_list).issubset(set(pilot_users)):
@@ -352,7 +352,7 @@ def main(
         _write_holdout_reports(
             all_rows=all_rows,
             out_dir=out_dir,
-            livia_reference_lr=livia_reference_lr,
+            subject_p1_reference_lr=subject_p1_reference_lr,
             lr_values=lr_values,
             lwf=lwf,
             weight_decay=weight_decay,
@@ -429,7 +429,7 @@ def main(
             _write_holdout_reports(
                 all_rows=completed_rows,
                 out_dir=out_dir,
-                livia_reference_lr=livia_reference_lr,
+                subject_p1_reference_lr=subject_p1_reference_lr,
                 lr_values=lr_values,
                 lwf=lwf,
                 weight_decay=weight_decay,
@@ -514,7 +514,7 @@ def main(
     _write_holdout_reports(
         all_rows=all_rows,
         out_dir=out_dir,
-        livia_reference_lr=livia_reference_lr,
+        subject_p1_reference_lr=subject_p1_reference_lr,
         lr_values=lr_values,
         lwf=lwf,
         weight_decay=weight_decay,

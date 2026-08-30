@@ -1,6 +1,6 @@
 # Paper structure
 
-Follows `plan.md`. This is a section map, not prose. Target: EASRP 2026, **8 pages** main text (11pt A4). Appendix unlimited. Draft later from `template.tex`.
+Follows `plan.md`. This is a section map, not prose. Target: Anonymous Conference 2026, **8 pages** main text (11pt A4). Appendix unlimited. Draft later from `template.tex`.
 
 Working title (change when we have a better one):
 
@@ -10,7 +10,7 @@ Names in the paper: **SugarOne**, **SugarJEPA**, **CGM-JEPA**. Cite **GluMind**.
 
 Numbers in this outline are placeholders. Lock them from run CSVs / `docs/PERSONALIZATION_JEPA_REPORT.md` before drafting Results.
 
-Colleague JEPA draft: `docs/manuscript2/jepa_paper/` (`easrp2026.tex`, `sugar_jepa.png`, `references.bib`). **This folder is the source of truth for anything JEPA** (architecture, pretraining, how the encoder is attached, global vs personal training protocol, JEPA tables and wording). `docs/PERSONALIZATION_JEPA_REPORT.md` is only a CSV replay of MAE-by-days; it does not override the paper on protocol (including freeze). Salvage map is at the end of this file. We still do **not** take their thesis (patient-ID probe, encoder PCA as a result, “longer window is better”).
+JEPA draft: `docs/manuscript2/jepa_paper/` (`easrp2026.tex`, `sugar_jepa.png`, `references.bib`). **This folder is the source of truth for anything JEPA** (architecture, pretraining, how the encoder is attached, global vs personal training protocol, JEPA tables and wording). `docs/PERSONALIZATION_JEPA_REPORT.md` is only a CSV replay of MAE-by-days; it does not override the paper on protocol (including freeze). Salvage map is at the end of this file. We still do **not** take their thesis (patient-ID probe, encoder PCA as a result, “longer window is better”).
 
 ---
 

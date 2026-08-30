@@ -1,46 +1,46 @@
 {
-  "subject": "livia",
+  "subject": "subject_p1",
   "summary_rows": 6,
   "mode": "max_days",
   "max_days": 60.0,
   "plateau": {
-    "plateau_day": "60",
+    "plateau_day": "14",
     "optimal_day": "60",
-    "best_mae": 17.5425,
+    "best_mae": 16.902,
     "steps": [
       {
         "personal_days": "1",
-        "mae": 18.4234,
+        "mae": 19.142,
         "delta_mae": null
       },
       {
         "personal_days": "3",
-        "mae": 18.6036,
-        "delta_mae": 0.18019999999999925
+        "mae": 17.564,
+        "delta_mae": -1.5779999999999994
       },
       {
         "personal_days": "7",
-        "mae": 18.8792,
-        "delta_mae": 0.27560000000000073
+        "mae": 17.2964,
+        "delta_mae": -0.2676000000000016
       },
       {
         "personal_days": "14",
-        "mae": 18.4773,
-        "delta_mae": -0.40190000000000126
+        "mae": 17.26,
+        "delta_mae": -0.03639999999999688
       },
       {
         "personal_days": "30",
-        "mae": 18.0608,
-        "delta_mae": -0.4164999999999992
+        "mae": 17.3142,
+        "delta_mae": 0.05419999999999803
       },
       {
         "personal_days": "60",
-        "mae": 17.5425,
-        "delta_mae": -0.5183
+        "mae": 16.902,
+        "delta_mae": -0.41219999999999857
       }
     ]
   },
-  "chart_path": "docs\\figures\\personalization_jepa\\sugarone_livia_data_size.png",
+  "chart_path": "docs\\figures\\personalization_jepa\\jepa128-64_demo_data_size.png",
   "x_values": [
     1.0,
     3.0,

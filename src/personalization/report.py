@@ -13,7 +13,7 @@ from common.console import safe_echo
 from common.paths import DEFAULT_RUNS_ROOT
 from personalization.cohort import (
     COHORT_JOINED2_TEST,
-    LIVIA_CSV,
+    DEMO_CSV,
     PHASE4_SUBJECTS,
     Phase4Subject,
     display_name_for,
@@ -100,7 +100,7 @@ def collect_data_size_series(
         out_dir = summary.parent
         rows = _load_csv_rows(summary)
         if not rows:
-            recipe_path = root / "livia" / "best_recipe.json"
+            recipe_path = root / "subject_p1" / "best_recipe.json"
             recipe = load_best_recipe(recipe_path) if recipe_path.is_file() else {}
             rebuilt: list[dict[str, Any]] = []
             for label in ("1", "3", "7", "14", "30", "60", "all"):
@@ -158,12 +158,12 @@ def collect_method_series(
     return series
 
 
-def collect_livia_method_series(
+def collect_demo_method_series(
     root: Path,
 ) -> list[tuple[str, list[dict[str, Any]]]]:
-    livia = next(p for p in PERSONS if p.name == "livia")
+    subject_p1 = next(p for p in PERSONS if p.name == "subject_p1")
     return collect_method_series(
-        root, sweeps=livia.method_sweeps(), personal_csv=LIVIA_CSV
+        root, sweeps=subject_p1.method_sweeps(), personal_csv=DEMO_CSV
     )
 
 
@@ -241,7 +241,7 @@ def write_charts(
     _combined(
         "combined_all",
         "data_size_curves_combined.png",
-        "Livia + Loop holdouts (All = full train)",
+        "Subject P1 + Loop holdouts (All = full train)",
         original_names,
         dummy_all=True,
         show_zero_shot=True,
@@ -249,7 +249,7 @@ def write_charts(
     _combined(
         "combined_60d",
         "data_size_curves_combined_60d.png",
-        "Livia + Loop holdouts (first 60 days)",
+        "Subject P1 + Loop holdouts (first 60 days)",
         original_names,
         dummy_all=False,
         show_zero_shot=True,
@@ -315,10 +315,10 @@ def write_charts(
         _copy(png_lambda, root / f"{stem}_mae_lambda.png")
 
     _lwf_overlay(
-        collect_livia_method_series(root),
-        indep_key="livia",
-        stem="livia_lwf_indep",
-        title_person="Livia",
+        collect_demo_method_series(root),
+        indep_key="subject_p1",
+        stem="subject_p1_lwf_indep",
+        title_person="Subject P1",
     )
     _lwf_overlay(
         collect_user154_method_series(root),
@@ -509,7 +509,7 @@ def _phase_a_table(series: list[tuple[Phase4Subject, list[dict[str, Any]]]]) -> 
             delta = float(ft) - float(zs)
         span = all_row.get("train_span_days") or all_row.get("used_train_days")
         cohort = "joined2 test" if spec.cohort == COHORT_JOINED2_TEST else (
-            "Livia" if spec.cohort == "livia" else "Loop holdout"
+            "Subject P1" if spec.cohort == "subject_p1" else "Loop holdout"
         )
         lines.append(
             f"| {spec.display} | {cohort} | {spec.study_group} | {_fmt(span, 1)} | "
@@ -522,10 +522,10 @@ def _coverage_table() -> str:
     lines = [
         "| Subject | Source | Study group | Notes |",
         "|---------|--------|-------------|-------|",
-        "| **Livia** | Personal CGM/pump export | T1DM | Longest history (~345d train) |",
+        "| **Subject P1** | Personal CGM/pump export | T1DM | Longest history (~345d train) |",
     ]
     for spec in original_cohort_subjects():
-        if spec.cohort == "livia":
+        if spec.cohort == "subject_p1":
             continue
         extra = "60-day budget ≈ full train" if spec.user_id == "1082" else ""
         lines.append(
@@ -558,23 +558,23 @@ def _per_user_sections(
 
 
 def _lr_tables(root: Path) -> tuple[str, str]:
-    livia_board = _load_csv_rows(root / "livia" / "tune" / "leaderboard.csv")
-    livia_lines = [
+    subject_p1_board = _load_csv_rows(root / "subject_p1" / "tune" / "leaderboard.csv")
+    subject_p1_lines = [
         "| LR | Zero-shot MAE | Fine-tuned MAE | Fine-tuned Val MAE |",
         "|----|---------------|----------------|--------------------|",
     ]
-    if livia_board:
+    if subject_p1_board:
         ranked = sorted(
-            [r for r in livia_board if r.get("ft_test_mae") is not None],
+            [r for r in subject_p1_board if r.get("ft_test_mae") is not None],
             key=lambda r: float(r["ft_test_mae"]),
         )
         for row in ranked:
-            livia_lines.append(
+            subject_p1_lines.append(
                 f"| {row.get('lr')} | {_fmt(row.get('zs_test_mae'), 3)} | "
                 f"{_fmt(row.get('ft_test_mae'), 3)} | {_fmt(row.get('ft_val_mae'), 3)} |"
             )
     else:
-        livia_lines.append("| _pending_ | | | |")
+        subject_p1_lines.append("| _pending_ | | | |")
 
     holdout = _load_csv_rows(root / "holdout_lr_sweep" / "summary.csv")
     holdout_lines = [
@@ -599,7 +599,7 @@ def _lr_tables(root: Path) -> tuple[str, str]:
             )
     else:
         holdout_lines.append("| _pending_ | | | | |")
-    return "\n".join(livia_lines), "\n".join(holdout_lines)
+    return "\n".join(subject_p1_lines), "\n".join(holdout_lines)
 
 
 def render_report(
@@ -609,7 +609,7 @@ def render_report(
     status: dict[str, Any] | None = None,
 ) -> str:
     today = datetime.now().strftime("%Y-%m-%d")
-    livia_lr, holdout_lr = _lr_tables(root)
+    subject_p1_lr, holdout_lr = _lr_tables(root)
     done_subjects = [spec.display for spec, _rows in series]
     pending = []
     if status:
@@ -620,25 +620,25 @@ def render_report(
 
     original_sections = _per_user_sections(series, wanted=original_names)
     joined_sections = _per_user_sections(series, wanted=joined_names)
-    livia_methods = collect_livia_method_series(root)
+    subject_p1_methods = collect_demo_method_series(root)
     user154_methods = collect_user154_method_series(root)
-    livia_lwf = ""
-    if livia_methods:
+    subject_p1_lwf = ""
+    if subject_p1_methods:
         curr_figs = ""
-        if len(livia_methods) >= 2:
+        if len(subject_p1_methods) >= 2:
             curr_figs = (
-                "![Livia MAE overlay](figures/m8_interim/livia_lwf_indep_combined.png)\n\n"
-                "![Livia MAE vs lwf_lambda](figures/m8_interim/livia_lwf_indep_mae_lambda.png)\n\n"
-                "![Livia first 60 days](figures/m8_interim/livia_lwf_indep_combined_60d.png)\n"
+                "![Subject P1 MAE overlay](figures/m8_interim/subject_p1_lwf_indep_combined.png)\n\n"
+                "![Subject P1 MAE vs lwf_lambda](figures/m8_interim/subject_p1_lwf_indep_mae_lambda.png)\n\n"
+                "![Subject P1 first 60 days](figures/m8_interim/subject_p1_lwf_indep_combined_60d.png)\n"
             )
-        livia_lwf = (
-            "### 6.3 Independent LwF on Livia — can distillation rescue short/harmful fine-tunes?\n\n"
+        subject_p1_lwf = (
+            "### 6.3 Independent LwF on Subject P1 — can distillation rescue short/harmful fine-tunes?\n\n"
             + _lwf_protocol_tables()
             + "\n"
             + _lwf_methods_table(
-                livia_methods,
-                key_order=["livia", "livia_lwf_decay", "livia_lwf_01"],
-                empty_note="_No Livia independent LwF runs yet._\n",
+                subject_p1_methods,
+                key_order=["subject_p1", "subject_p1_lwf_decay", "subject_p1_lwf_01"],
+                empty_note="_No Subject P1 independent LwF runs yet._\n",
             )
             + "\n\n"
             + curr_figs
@@ -655,7 +655,7 @@ def render_report(
         user154_lwf = (
             "### 6.4 User 154 — same independent LwF protocol\n\n"
             "Phase 4 independent fine-tunes on this user are flat or slightly **worse** than zero-shot until full train. "
-            "Same teacher (`sugar_one_1.0`) and same two λ policies as Livia.\n\n"
+            "Same teacher (`sugar_one_1.0`) and same two λ policies as Subject P1.\n\n"
             + _lwf_methods_table(
                 user154_methods,
                 key_order=["loop_154", "loop_154_lwf_decay", "loop_154_lwf_01"],
@@ -704,7 +704,7 @@ This report is regenerated from on-disk runs. Re-run `uv run personal-study --re
 |----------|---------|
 | Best personalization method | **Plain fine-tune** (`lwf_lambda=0`) — ~10× faster than LwF, similar MAE |
 | Best train window stride | **Sparse stride=6** |
-| Best LR on Livia (full train) | **2×10⁻⁴** (Step 2; personal-scaler era) |
+| Best LR on Subject P1 (full train) | **2×10⁻⁴** (Step 2; personal-scaler era) |
 | Scaler protocol (this recalc) | **Base-run `scalers.json`** — fine-tune stays in the pretrained input scale |
 | Data-size recalc status | {status_line} |
 
@@ -714,7 +714,7 @@ This report is regenerated from on-disk runs. Re-run `uv run personal-study --re
 
 ## 2. Subjects and data coverage
 
-Two extra users were taken from **each AI-READY study group** in the `loop_ai_ready_joined2.csv` test split (largest test-split row count, then User ID). T1DM is not repeated here — Livia plus the six Loop quality holdouts already cover that group. Each CSV uses that user’s **full joined2 history**, then the same chronological split as the holdouts. AI-READY groups typically have ~10 days of CGM and no insulin/carb columns (zero-filled at train/eval).
+Two extra users were taken from **each AI-READY study group** in the `loop_ai_ready_joined2.csv` test split (largest test-split row count, then User ID). T1DM is not repeated here — Subject P1 plus the six Loop quality holdouts already cover that group. Each CSV uses that user’s **full joined2 history**, then the same chronological split as the holdouts. AI-READY groups typically have ~10 days of CGM and no insulin/carb columns (zero-filled at train/eval).
 
 {_coverage_table()}
 
@@ -738,23 +738,23 @@ Earlier data-size curves fitted MinMax scalers on **personal train**. With only 
 
 ---
 
-## 4. Step 2 — Learning rate on Livia (full personal train)
+## 4. Step 2 — Learning rate on Subject P1 (full personal train)
 
 These numbers are from the original Step-2 tune (not re-run in this Phase 4 recalc). Frozen recipe for days curves: **lr=2e-4**.
 
-{livia_lr}
+{subject_p1_lr}
 
-**Best recipe:** `data/output/runs/personalization/livia/best_recipe.json`
+**Best recipe:** `data/output/runs/personalization/subject_p1/best_recipe.json`
 
 ---
 
-## 5. Step 2b — Does Livia’s LR transfer? (pilot holdouts)
+## 5. Step 2b — Does Subject P1’s LR transfer? (pilot holdouts)
 
-Same LR grid on users **154, 556, 730** (full personal train). Livia reference = **2e-4**. These runs have not been re-executed with base scalers.
+Same LR grid on users **154, 556, 730** (full personal train). Subject P1 reference = **2e-4**. These runs have not been re-executed with base scalers.
 
 {holdout_lr}
 
-Deferred LR sweep users (plan): confirm with remaining holdouts if needed. Phase 4 days curves below all use the **frozen Livia recipe** (`lr=2e-4`), not per-user best LR.
+Deferred LR sweep users (plan): confirm with remaining holdouts if needed. Phase 4 days curves below all use the **frozen Subject P1 recipe** (`lr=2e-4`), not per-user best LR.
 
 ---
 
@@ -764,11 +764,11 @@ Fixed recipe: **lr=2e-4**, lwf=0, wd=3e-5, bf16, stride=6, **base-run scalers**.
 
 Per-user charts are **limited to 60 days**. Full-train (`all`) is in the tables with the real train span, and on combined charts whose last tick is a dummy **All**. Combined charts are split (holdouts vs joined2 AI-READY) so overlays stay readable.
 
-### 6.0 Phase A — full train, frozen Livia recipe
+### 6.0 Phase A — full train, frozen Subject P1 recipe
 
 {_phase_a_table(series)}
 
-### 6.1 Livia + Loop quality holdouts (60-day curves)
+### 6.1 Subject P1 + Loop quality holdouts (60-day curves)
 
 {original_sections}
 
@@ -780,7 +780,7 @@ Per-user charts are **limited to 60 days**. Full-train (`all`) is in the tables 
 
 {joined_combined if joined_combined else "_Joined2 combined charts appear after the first subject in this cohort finishes._\n"}
 
-{livia_lwf}
+{subject_p1_lwf}
 
 {user154_lwf}
 
@@ -790,10 +790,10 @@ Per-user charts are **limited to 60 days**. Full-train (`all`) is in the tables 
 
 | Step | Goal | Status |
 |------|------|--------|
-| 1 | Prepare chronological CSVs | Done (Livia + 6 holdouts + 8 joined2 AI-READY) |
-| 2 | LR search on Livia full train | Done — best LR 2e-4 |
+| 1 | Prepare chronological CSVs | Done (Subject P1 + 6 holdouts + 8 joined2 AI-READY) |
+| 2 | LR search on Subject P1 full train | Done — best LR 2e-4 |
 | 2b | LR transfer check on holdouts | Partial — 3/6 users (not part of this recalc) |
-| 3 | Data-size curve (Livia) | Done (base scalers) |
+| 3 | Data-size curve (Subject P1) | Done (base scalers) |
 | 4 | Holdout + joined2 test Phase A/B | Done — 15/15 subjects |
 | 5 | Aggregate + report | This file |
 
@@ -810,14 +810,14 @@ Per-user charts are **limited to 60 days**. Full-train (`all`) is in the tables 
 
 | Artifact | Path |
 |----------|------|
-| Livia best recipe | `data/output/runs/personalization/livia/best_recipe.json` |
+| Subject P1 best recipe | `data/output/runs/personalization/subject_p1/best_recipe.json` |
 | Phase 4 status | `data/output/runs/personalization/phase4_status.json` |
 | Holdout combined (dummy All) | `data/output/runs/personalization/data_size_curves_combined.png` |
 | Holdout combined (60 days) | `data/output/runs/personalization/data_size_curves_combined_60d.png` |
 | Joined2 combined (dummy All) | `data/output/runs/personalization/data_size_curves_combined_joined2.png` |
 | Joined2 combined (60 days) | `data/output/runs/personalization/data_size_curves_combined_joined2_60d.png` |
-| Livia independent LwF overlay | `data/output/runs/personalization/livia_lwf_indep_combined.png` |
-| Livia LwF MAE + λ panels | `data/output/runs/personalization/livia_lwf_indep_mae_lambda.png` |
+| Subject P1 independent LwF overlay | `data/output/runs/personalization/subject_p1_lwf_indep_combined.png` |
+| Subject P1 LwF MAE + λ panels | `data/output/runs/personalization/subject_p1_lwf_indep_mae_lambda.png` |
 | User 154 independent LwF overlay | `data/output/runs/personalization/loop_154_lwf_indep_combined.png` |
 | Independent LwF overnight status | `data/output/runs/personalization/lwf_indep_status.md` |
 | Research plan | `docs/PERSONALIZATION.md` |

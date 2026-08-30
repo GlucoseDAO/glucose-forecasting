@@ -17,26 +17,26 @@ MAE is reported in mg/dL. **Δ vs zero-shot** is fine-tuned MAE minus frozen-che
 |----------|---------|
 | Best personalization method | **Plain fine-tune** (`lwf_lambda=0`) — about 10× faster than LwF, similar MAE |
 | Best train window stride | **Sparse stride 6** (30 min between window starts; val/test stay stride 1) |
-| Best learning rate on Livia (full train) | **2×10⁻⁴** |
+| Best learning rate on Subject P1 (full train) | **2×10⁻⁴** |
 | Scaler protocol | Reuse the **base-run `scalers.json`**. Do not refit MinMax scalers on personal train. |
-| Coverage | Data-size curves for **15/15** subjects. Independent LwF on Livia and User 154: complete. |
+| Coverage | Data-size curves for **15/15** subjects. Independent LwF on Subject P1 and User 154: complete. |
 | Average MAE improvement vs train days | **0.26 / 0.71 / 1.16 mg/dL** at 30 / 60 / full history (n=6 T1DM with ≥60 train days) |
 
 **Locked recipe:** plain fine-tune, `weight_decay=3e-5`, `train_window_stride=6`, `precision=bf16`, chronological split (last 25% test / 15% of remainder val / rest train). A day budget only shortens **train**. Scalers come from the global checkpoint.
 
 Refitting scalers on 1–14 days of personal data shifts the input scale away from the pretrained model and made short fine-tunes look harmful. All tables and charts below use the corrected protocol.
 
-On T1DM users with long history, full-train fine-tuning typically improves MAE by about **0.5–2.1 mg/dL**. Gains usually appear after **30–60 days**. Averaged over the six T1DM users with at least 60 train days (Livia; Users 154, 556, 730, 1017, 1029), fine-tuning lowers test MAE by **0.26 mg/dL at 30 days**, **0.71 mg/dL at 60 days**, and **1.16 mg/dL** with full history (85–345 train days). One- to fourteen-day budgets are often flat or slightly worse than the frozen model. LwF distillation against the global teacher does **not** rescue those short, harmful fine-tunes. AI-READY users have ~6 days of CGM and no insulin/carb columns (zero-filled); effects there are small and mixed.
+On T1DM users with long history, full-train fine-tuning typically improves MAE by about **0.5–2.1 mg/dL**. Gains usually appear after **30–60 days**. Averaged over the six T1DM users with at least 60 train days (Subject P1; Users 154, 556, 730, 1017, 1029), fine-tuning lowers test MAE by **0.26 mg/dL at 30 days**, **0.71 mg/dL at 60 days**, and **1.16 mg/dL** with full history (85–345 train days). One- to fourteen-day budgets are often flat or slightly worse than the frozen model. LwF distillation against the global teacher does **not** rescue those short, harmful fine-tunes. AI-READY users have ~6 days of CGM and no insulin/carb columns (zero-filled); effects there are small and mixed.
 
 ---
 
 ## 2. Subjects and data coverage
 
-Two extra users were taken from **each AI-READY study group** in the `loop_ai_ready_joined2.csv` test split (largest test-split row count, then User ID). T1DM is not repeated in that cohort — Livia plus the six Loop quality holdouts already cover it. Each personal CSV uses that user’s **full joined2 history**, then the same chronological split as the holdouts.
+Two extra users were taken from **each AI-READY study group** in the `loop_ai_ready_joined2.csv` test split (largest test-split row count, then User ID). T1DM is not repeated in that cohort — Subject P1 plus the six Loop quality holdouts already cover it. Each personal CSV uses that user’s **full joined2 history**, then the same chronological split as the holdouts.
 
 | Subject | Source | Study group | Notes |
 |---------|--------|-------------|-------|
-| **Livia** | Personal CGM/pump export | T1DM | Longest history (~345 d train) |
+| **Subject P1** | Personal CGM/pump export | T1DM | Longest history (~345 d train) |
 | **User 154** | Loop quality holdout | T1DM | |
 | **User 556** | Loop quality holdout | T1DM | |
 | **User 730** | Loop quality holdout | T1DM | |
@@ -76,11 +76,11 @@ Earlier curves fitted MinMax scalers on **personal train**. With only 1–14 day
 
 ---
 
-## 4. Learning rate on Livia (full personal train)
+## 4. Learning rate on Subject P1 (full personal train)
 
-These numbers are from the original Livia LR search (not re-run under the base-scaler recalc). Frozen recipe for all later day curves: **lr = 2×10⁻⁴**.
+These numbers are from the original Subject P1 LR search (not re-run under the base-scaler recalc). Frozen recipe for all later day curves: **lr = 2×10⁻⁴**.
 
-Zero-shot MAE in this table (**19.324**) is from the earlier personal-scaler era. Later sections use the corrected protocol (Livia zero-shot **18.31**). Rank order of learning rates is still the one used in production.
+Zero-shot MAE in this table (**19.324**) is from the earlier personal-scaler era. Later sections use the corrected protocol (Subject P1 zero-shot **18.31**). Rank order of learning rates is still the one used in production.
 
 | LR | Zero-shot MAE | Fine-tuned MAE | Fine-tuned val MAE |
 |----|---------------|----------------|--------------------|
@@ -91,13 +91,13 @@ Zero-shot MAE in this table (**19.324**) is from the earlier personal-scaler era
 | 0.0008 | 19.324 | 17.776 | 17.065 |
 | 2.5e-05 | 19.324 | 17.904 | 17.089 |
 
-Recipe file: `data/output/runs/personalization/livia/best_recipe.json`.
+Recipe file: `data/output/runs/personalization/subject_p1/best_recipe.json`.
 
 ---
 
-## 5. Does Livia’s learning rate transfer? (pilot holdouts)
+## 5. Does Subject P1’s learning rate transfer? (pilot holdouts)
 
-Same LR grid on users **154, 556, 730** (full personal train). Livia reference = **2×10⁻⁴**. These runs have **not** been re-executed with base scalers.
+Same LR grid on users **154, 556, 730** (full personal train). Subject P1 reference = **2×10⁻⁴**. These runs have **not** been re-executed with base scalers.
 
 | User | LR 1e-4 | LR 2e-4 | LR 4e-4 | Best |
 |------|---------|---------|---------|------|
@@ -105,7 +105,7 @@ Same LR grid on users **154, 556, 730** (full personal train). Livia reference =
 | 556 | 17.197 | 17.093 | 17.094 | **0.0002** |
 | 730 | 16.622 | 16.665 | 16.754 | **0.0001** |
 
-Users 1017, 1029, and 1082 were deferred. All day-budget curves below use the **frozen Livia recipe** (`lr=2e-4`), not a per-user optimum.
+Users 1017, 1029, and 1082 were deferred. All day-budget curves below use the **frozen Subject P1 recipe** (`lr=2e-4`), not a per-user optimum.
 
 ---
 
@@ -115,11 +115,11 @@ Fixed recipe: **lr=2e-4**, λ=0, weight decay 3e-5, bf16, stride 6, **base-run s
 
 Per-user charts are limited to **60 days**. Full-train (`all`) is in the tables with the real train span, and on combined charts whose last tick is a dummy **All**. Combined charts are split (Loop holdouts vs joined2 AI-READY) so overlays stay readable.
 
-### 6.0 Full train, frozen Livia recipe
+### 6.0 Full train, frozen Subject P1 recipe
 
 | Subject | Cohort | Study group | Train span (d) | ZS MAE | FT MAE (all) | Δ vs ZS |
 |---------|--------|-------------|----------------|--------|--------------|---------|
-| Livia | Livia | T1DM | 344.6 | 18.31 | 16.98 | -1.33 |
+| Subject P1 | Subject P1 | T1DM | 344.6 | 18.31 | 16.98 | -1.33 |
 | User 154 | Loop holdout | T1DM | 213.6 | 24.61 | 24.10 | -0.52 |
 | User 556 | Loop holdout | T1DM | 90.9 | 18.10 | 17.14 | -0.96 |
 | User 730 | Loop holdout | T1DM | 84.6 | 18.06 | 16.57 | -1.49 |
@@ -137,9 +137,9 @@ Per-user charts are limited to **60 days**. Full-train (`all`) is in the tables 
 
 User 1082 is the T1DM exception: full train is only ~37 days, and fine-tuning is **worse** than zero-shot. Several AI-READY users also worsen; their train span is about a week and insulin/carb channels are empty.
 
-### 6.1 Livia and Loop quality holdouts (60-day curves)
+### 6.1 Subject P1 and Loop quality holdouts (60-day curves)
 
-#### Livia
+#### Subject P1
 
 | Days | Used train days | ZS MAE | FT MAE | Δ FT vs ZS |
 |------|-----------------|--------|--------|------------|
@@ -151,7 +151,7 @@ User 1082 is the T1DM exception: full train is only ~37 days, and fine-tuning is
 | 60 | 60.0 | 18.31 | 17.63 | -0.68 |
 | all (345d) | 344.6 | 18.31 | 16.98 | -1.33 |
 
-![Livia data-size curve (60 days)](figures/m8/livia_data_size.png)
+![Subject P1 data-size curve (60 days)](figures/m8/demo_data_size.png)
 
 #### User 154
 
@@ -242,7 +242,7 @@ User 1082 is the T1DM exception: full train is only ~37 days, and fine-tuning is
 
 #### Average MAE improvement by train budget
 
-Mean test-MAE reduction versus zero-shot on the six T1DM users with at least 60 train days (Livia; Users 154, 556, 730, 1017, 1029). User 1082 (~37 days, no 60-day budget) and AI-READY users (~6–9 days) are excluded. Mean improvement is −mean Δ.
+Mean test-MAE reduction versus zero-shot on the six T1DM users with at least 60 train days (Subject P1; Users 154, 556, 730, 1017, 1029). User 1082 (~37 days, no 60-day budget) and AI-READY users (~6–9 days) are excluded. Mean improvement is −mean Δ.
 
 | Train budget | Mean Δ vs ZS | Mean MAE improvement |
 |--------------|--------------|----------------------|
@@ -337,7 +337,7 @@ Mean test-MAE reduction versus zero-shot on the six T1DM users with at least 60 
 
 ![Joined2 test combined, first 60 days](figures/m8/data_size_curves_combined_joined2_60d.png)
 
-### 6.3 Independent LwF on Livia
+### 6.3 Independent LwF on Subject P1
 
 Question: a user arrives with **N days** of data. Should we fine-tune the global model on that slice, or keep the frozen checkpoint? Every day budget starts from `fixtures/checkpoints/sugar_one_1.0/`. The LwF teacher is that same checkpoint.
 
@@ -375,15 +375,15 @@ Test MAE (mg/dL). Negative Δ is better than the frozen global model.
 
 Distillation does not remove the short-history penalty. At 7 days, decay (λ=0.3) is **worse** than plain fine-tune. Full-train MAE is essentially identical across λ.
 
-![Livia MAE overlay](figures/m8/livia_lwf_indep_combined.png)
+![Subject P1 MAE overlay](figures/m8/subject_p1_lwf_indep_combined.png)
 
-![Livia MAE vs lwf_lambda](figures/m8/livia_lwf_indep_mae_lambda.png)
+![Subject P1 MAE vs lwf_lambda](figures/m8/subject_p1_lwf_indep_mae_lambda.png)
 
-![Livia first 60 days](figures/m8/livia_lwf_indep_combined_60d.png)
+![Subject P1 first 60 days](figures/m8/subject_p1_lwf_indep_combined_60d.png)
 
 ### 6.4 User 154 — same independent LwF protocol
 
-Independent fine-tunes on this user are flat or slightly **worse** than zero-shot until full train. Same teacher and the same two λ policies as Livia.
+Independent fine-tunes on this user are flat or slightly **worse** than zero-shot until full train. Same teacher and the same two λ policies as Subject P1.
 
 | Days | Independent MAE | Decay MAE | Const λ=0.1 MAE | Independent Δ | Decay Δ | Const Δ | λ independent | λ decay | λ const |
 |------|------|------|------|------|------|------|------|------|------|
@@ -409,10 +409,10 @@ LwF does not turn the short-history curve below zero-shot. Full-train improvemen
 
 | Step | Goal | Status |
 |------|------|--------|
-| 1 | Chronological CSVs | Done (Livia + 6 holdouts + 8 joined2 AI-READY) |
-| 2 | LR search on Livia full train | Done — best LR 2×10⁻⁴ |
+| 1 | Chronological CSVs | Done (Subject P1 + 6 holdouts + 8 joined2 AI-READY) |
+| 2 | LR search on Subject P1 full train | Done — best LR 2×10⁻⁴ |
 | 2b | LR transfer on holdouts | Partial — 3/6 users; not re-run with base scalers |
-| 3 | Data-size curve (Livia) | Done (base scalers) |
+| 3 | Data-size curve (Subject P1) | Done (base scalers) |
 | 4 | Holdout + joined2 day curves | Done — 15/15 subjects |
 | 5 | Aggregate report | This file |
 
@@ -423,7 +423,7 @@ LwF does not turn the short-history curve below zero-shot. Full-train improvemen
 1. Re-run the holdout LR grid with base-run scalers (currently personal-scaler era).
 2. Whether a production gate should skip fine-tuning when the day budget is short or when a user looks like 1082 / 154 (fine-tune worse than or equal to zero-shot until full history).
 
-Neither item changes the locked recipe: plain fine-tune, stride 6, base scalers, Livia lr=2×10⁻⁴.
+Neither item changes the locked recipe: plain fine-tune, stride 6, base scalers, Subject P1 lr=2×10⁻⁴.
 
 ---
 
@@ -439,14 +439,14 @@ uv run personal-study --report-only
 
 | Artifact | Path |
 |----------|------|
-| Livia best recipe | `data/output/runs/personalization/livia/best_recipe.json` |
+| Subject P1 best recipe | `data/output/runs/personalization/subject_p1/best_recipe.json` |
 | Study status | `data/output/runs/personalization/phase4_status.json` |
 | Holdout combined (dummy All) | `data/output/runs/personalization/data_size_curves_combined.png` |
 | Holdout combined (60 days) | `data/output/runs/personalization/data_size_curves_combined_60d.png` |
 | Joined2 combined (dummy All) | `data/output/runs/personalization/data_size_curves_combined_joined2.png` |
 | Joined2 combined (60 days) | `data/output/runs/personalization/data_size_curves_combined_joined2_60d.png` |
-| Livia independent LwF overlay | `data/output/runs/personalization/livia_lwf_indep_combined.png` |
-| Livia LwF MAE + λ panels | `data/output/runs/personalization/livia_lwf_indep_mae_lambda.png` |
+| Subject P1 independent LwF overlay | `data/output/runs/personalization/subject_p1_lwf_indep_combined.png` |
+| Subject P1 LwF MAE + λ panels | `data/output/runs/personalization/subject_p1_lwf_indep_mae_lambda.png` |
 | User 154 independent LwF overlay | `data/output/runs/personalization/loop_154_lwf_indep_combined.png` |
 | Independent LwF status | `data/output/runs/personalization/lwf_indep_status.md` |
 | Figures in this document | `docs/figures/m8/` |

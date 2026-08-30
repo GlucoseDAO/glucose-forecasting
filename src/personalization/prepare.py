@@ -2,7 +2,7 @@
 """Prepare personalization CSVs with chronological train/val/test splits.
 
 Subcommands:
-  livia         — assign chronological splits (default: Livia SugarOne fixture)
+  subject_p1         — assign chronological splits (default: Subject P1 SugarOne fixture)
   holdouts      — extract Loop quality holdout users and assign chronological splits
   joined2-test  — extract two joined2 test users per study group
 """
@@ -24,9 +24,9 @@ from personalization.constants import (
     COL_SPLIT,
     COL_TS,
     COL_USER,
-    DEFAULT_LIVIA_PREPARED_DIR,
-    DEFAULT_LIVIA_PREPARED_NAME,
-    DEFAULT_LIVIA_SOURCE_CSV,
+    DEFAULT_DEMO_PREPARED_DIR,
+    DEFAULT_DEMO_PREPARED_NAME,
+    DEFAULT_DEMO_SOURCE_CSV,
     DEFAULT_STUDY_GROUP,
     DEFAULT_TEST_FRACTION,
     DEFAULT_VAL_FRACTION_OF_REMAINDER,
@@ -154,20 +154,20 @@ def ensure_holdout_csv(
     return out_csv
 
 
-@app.command("livia")
-def prepare_livia(
+@app.command("demo-subject")
+def prepare_demo_subject(
     input: Path = typer.Option(
-        DEFAULT_LIVIA_SOURCE_CSV,
+        DEFAULT_DEMO_SOURCE_CSV,
         "--input",
-        help="Livia SugarOne CSV (default: fixtures/livia_data/livia_sugar_one_ready.csv).",
+        help="Subject P1 SugarOne CSV (default: fixtures/demo_data/demo_sugar_one_ready.csv).",
     ),
     out_dir: Path = typer.Option(
-        DEFAULT_LIVIA_PREPARED_DIR,
+        DEFAULT_DEMO_PREPARED_DIR,
         "--out-dir",
         help="Output directory for prepared CSV + split_meta.json.",
     ),
     out_name: str = typer.Option(
-        DEFAULT_LIVIA_PREPARED_NAME,
+        DEFAULT_DEMO_PREPARED_NAME,
         "--out-name",
         help="Output CSV filename.",
     ),
@@ -182,7 +182,7 @@ def prepare_livia(
     ),
     study_group: str = typer.Option(DEFAULT_STUDY_GROUP, "--study-group"),
 ) -> None:
-    """Assign chronological train/val/test on Livia personal data."""
+    """Assign chronological train/val/test on Subject P1 personal data."""
     if not input.exists():
         typer.echo(f"Error: input not found: {input}", err=True)
         raise typer.Exit(1)
@@ -196,7 +196,7 @@ def prepare_livia(
         study_group=study_group,
     )
     meta["source"] = str(input)
-    meta["subject"] = "livia"
+    meta["subject"] = "subject_p1"
     users = labeled[COL_USER].unique().to_list()
     meta["user_ids"] = [str(u) for u in users]
 

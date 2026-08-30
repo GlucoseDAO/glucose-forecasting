@@ -374,7 +374,7 @@ def main(
     ),
     personal_csv: Path = typer.Option(..., "--personal-csv"),
     out_dir: Path = typer.Option(
-        DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "data_size",
+        DEFAULT_RUNS_ROOT / "personalization" / "subject_p1" / "sweeps" / "data_size",
         "--out-dir",
     ),
     recipe_json: Path = typer.Option(
@@ -401,7 +401,7 @@ def main(
         "--seed-all-from",
         help="Copy this finished run as days=all (use Step-2 best tune run).",
     ),
-    subject: str = typer.Option("livia", "--subject"),
+    subject: str = typer.Option("subject_p1", "--subject"),
     skip_completed: bool = typer.Option(
         True,
         "--skip-completed/--no-skip-completed",

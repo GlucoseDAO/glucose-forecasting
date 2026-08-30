@@ -41,7 +41,7 @@ uv run glucose evaluate --help   # platform evaluation CLI
 Fast smoke test:
 ```bash
 uv run glucose evaluate --run-dir fixtures/checkpoints/glumind_1.0 --model-type glumind \
-  --data fixtures/livia_data/livia_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
+  --data fixtures/demo_data/demo_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
 ```
 
 ## Manuscript writing
@@ -57,7 +57,7 @@ The manuscript lives in `docs/manuscript/`. This is a scratch workspace for draf
 
 ### Files
 
-- `docs/manuscript/manuscript.tex` — LaTeX source (EASRP 2026 template, 8-page main text limit)
+- `docs/manuscript/manuscript.tex` — LaTeX source (Anonymous Conference 2026 template, 8-page main text limit)
 - `docs/manuscript/manuscript.md` — Human-readable Markdown version (auto-generated)
 - `docs/manuscript/references.bib` — BibTeX references (`plainnat` style)
 - `docs/manuscript/easrp2026.sty` — Style file placeholder (replace with official when available)
@@ -80,14 +80,14 @@ The manuscript lives in `docs/manuscript/`. This is a scratch workspace for draf
 - Verify all claims against actual run data in `docs/` reports and `data/output/`
 - Use exact numbers from `*_metrics_overall.csv` / `*_metrics_by_study_group.csv` files
 - Cross-reference `docs/presentation/PRESENTATION_NOTES.md` for fact-checked claims and known discrepancies
-- The abstract PDF is at `docs/presentation/RoBioinfo2026_Abstract_Zaharia_et_al .pdf`
+- The abstract PDF is at `docs/presentation/conference_abstract.pdf`
 - Papers for context are downloaded to `data/cache/for_manuscript/` (gitignored)
 - The 8-page limit applies to main text only; references and appendix are unlimited
 
 ### Related repositories (add to workspace for full manuscript context)
 
-- [glucose_data_processing](https://github.com/GlucoseDAO/glucose_data_processing) — CGM preprocessing pipeline (9 device formats, 50+ datasets)
-- [sugar-sugar](https://github.com/GlucoseDAO/sugar-sugar) — Human benchmarking web app (Sugar-Sugar study, ethics ref A 2026-0064)
-- [cgm_format](https://github.com/GlucoseDAO/cgm_format) — Individual CGM sensor format parsing
+- [glucose_data_processing](https://anonymous.4open.science/r/glucose-data-processing) — CGM preprocessing pipeline (9 device formats, 50+ datasets)
+- [sugar-sugar](https://anonymous.4open.science/r/sugar-sugar) — Human benchmarking web app (Sugar-Sugar study, ethics ref [REDACTED])
+- [cgm_format](https://anonymous.4open.science/r/cgm-format) — Individual CGM sensor format parsing
 
 For full architecture details, checkpoint format, CLI reference, data expectations, and more, see `AGENTS.md`.

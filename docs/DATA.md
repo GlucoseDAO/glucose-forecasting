@@ -2,7 +2,7 @@
 
 This repository trains and evaluates forecasting models. It does **not** produce the ML-ready CSVs from raw CGM exports. That work lives in the companion preprocessing repo:
 
-**[GlucoseDAO/glucose_data_processing](https://github.com/GlucoseDAO/glucose_data_processing)**
+**[AnonymousOrg/glucose_data_processing](https://anonymous.4open.science/r/glucose-data-processing)**
 
 Use that repo to download/convert public datasets, resample to 5-minute grids, interpolate small gaps, and emit ML-ready CSVs. Then copy (or symlink) those outputs into this repo under `data/input/` before training.
 
@@ -48,7 +48,7 @@ data/
 | `data/input/` | Preferred place for local ML-ready CSVs (gitignored except `.gitignore`). |
 | `data/output/runs/` | Default root for generated training and evaluation artifacts (`common.paths.DEFAULT_RUNS_ROOT`). |
 | `data/output/marked_runs/` | Curated / annotated historical runs (reference, not a write target). |
-| `fixtures/livia_data/` | Small demo CSVs shipped in-repo for smoke tests (Livia). |
+| `fixtures/demo_data/` | Small demo CSVs shipped in-repo for smoke tests (Subject P1). |
 | `fixtures/checkpoints/` | Bundled reviewer checkpoints (`glumind_1.0`, `sugar_one_1.0`, `sugar_jepa_dev`). |
 
 Do **not** use top-level `runs/` or `marked_runs/` as destinations.
@@ -57,7 +57,7 @@ Historical docs and some older metadata may still mention flat folders such as:
 
 - `data/loop_and_ai_ready/` — same logical role as `data/input/loop_and_ai_ready/`
 - `data/actual/with_complex_steps_processing/` — same as under `data/input/actual/…`
-- `test_data/` — now `fixtures/livia_data/`
+- `test_data/` — now `fixtures/demo_data/`
 - `test_model_glumind/` — now `fixtures/checkpoints/glumind_1.0/`
 - `test_model_sugar_one/` — now `fixtures/checkpoints/sugar_one_1.0/`
 - `sugar_jepa_dev/` — now `fixtures/checkpoints/sugar_jepa_dev/`
@@ -103,8 +103,8 @@ These are one-off / reusable prep utilities (not part of the installable product
 
 | File | Use |
 |------|-----|
-| `fixtures/livia_data/livia_glumind_ready.csv` | GluMind-shaped personal CGM (~140k rows); no `Recommended Split` |
-| `fixtures/livia_data/livia_sugar_one_ready.csv` | Same subject with pump covariates for SugarOne |
+| `fixtures/demo_data/demo_glumind_ready.csv` | GluMind-shaped personal CGM (~140k rows); no `Recommended Split` |
+| `fixtures/demo_data/demo_sugar_one_ready.csv` | Same subject with pump covariates for SugarOne |
 | `fixtures/checkpoints/glumind_1.0/` | Bundled GluMind checkpoint + `scalers.json` |
 | `fixtures/checkpoints/sugar_one_1.0/` | Bundled SugarOne checkpoint + `scalers.json` |
 | `fixtures/checkpoints/sugar_jepa_dev/` | Bundled SugarJEPA dev checkpoint |
@@ -113,4 +113,4 @@ See [How_to_run_checkpoint.md](How_to_run_checkpoint.md) for reviewer smoke-test
 
 ## Licensing note
 
-AI-READI and some Loop/JAEB exports require registration and cannot be redistributed. Only share derived artifacts that your data agreements allow. Public demo CSVs under `fixtures/livia_data/` are intentionally small personal/demo traces for CI and reviewers.
+AI-READI and some Loop/JAEB exports require registration and cannot be redistributed. Only share derived artifacts that your data agreements allow. Public demo CSVs under `fixtures/demo_data/` are intentionally small personal/demo traces for CI and reviewers.

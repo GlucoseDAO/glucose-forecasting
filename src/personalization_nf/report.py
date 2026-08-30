@@ -180,8 +180,8 @@ def _full_train_table(series: list[tuple[Phase4Subject, list[dict[str, Any]]]]) 
         span = all_row.get("train_span_days") or all_row.get("used_train_days")
         if spec.cohort == COHORT_JOINED2_TEST:
             cohort = "joined2 test"
-        elif spec.cohort == "livia":
-            cohort = "Livia"
+        elif spec.cohort == "subject_p1":
+            cohort = "Subject P1"
         else:
             cohort = "Loop holdout"
         lines.append(
@@ -195,10 +195,10 @@ def _coverage_table() -> str:
     lines = [
         "| Subject | Source | Study group | Notes |",
         "|---------|--------|-------------|-------|",
-        "| **Livia** | Personal CGM/pump export | T1DM | Longest history (~345 d train) |",
+        "| **Subject P1** | Personal CGM/pump export | T1DM | Longest history (~345 d train) |",
     ]
     for spec in original_cohort_subjects():
-        if spec.cohort == "livia":
+        if spec.cohort == "subject_p1":
             continue
         extra = "60-day budget ≈ full train" if spec.user_id == "1082" else ""
         lines.append(
@@ -312,7 +312,7 @@ def _write_charts(
     _combined(
         "combined_all",
         f"{model_key}_data_size_curves_combined.png",
-        f"{model_key}: Livia + Loop holdouts (All = full train)",
+        f"{model_key}: Subject P1 + Loop holdouts (All = full train)",
         original_names,
         dummy_all=True,
         show_zero_shot=True,
@@ -320,7 +320,7 @@ def _write_charts(
     _combined(
         "combined_60d",
         f"{model_key}_data_size_curves_combined_60d.png",
-        f"{model_key}: Livia + Loop holdouts (first 60 days)",
+        f"{model_key}: Subject P1 + Loop holdouts (first 60 days)",
         original_names,
         dummy_all=False,
         show_zero_shot=True,
@@ -447,7 +447,7 @@ def write_personalization_nf_report(
                     "",
                     _full_train_table(series),
                     "",
-                    "### Livia and Loop quality holdouts",
+                    "### Subject P1 and Loop quality holdouts",
                     "",
                     _per_user_sections(
                         series,
@@ -461,7 +461,7 @@ def write_personalization_nf_report(
                     "### Average MAE improvement by train budget",
                     "",
                     "Mean test-MAE reduction versus zero-shot on T1DM users with at least "
-                    "60 train days (Livia + Loop holdouts except User 1082 when the "
+                    "60 train days (Subject P1 + Loop holdouts except User 1082 when the "
                     "budget exceeds their span). Negative Δ is better than frozen global.",
                     "",
                     "\n".join(mean_table_lines),

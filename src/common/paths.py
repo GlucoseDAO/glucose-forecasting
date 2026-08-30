@@ -19,13 +19,13 @@ DEFAULT_PERSONALIZATION_DATA_ROOT: Path = DEFAULT_INPUT_ROOT / "personalization"
 
 # Tracked demo CSVs and reviewer checkpoints (not gitignored; unlike ``data/``).
 DEFAULT_FIXTURES_ROOT: Path = Path("fixtures")
-DEFAULT_LIVIA_DATA: Path = DEFAULT_FIXTURES_ROOT / "livia_data"
+DEFAULT_DEMO_DATA: Path = DEFAULT_FIXTURES_ROOT / "demo_data"
 DEFAULT_CHECKPOINTS_ROOT: Path = DEFAULT_FIXTURES_ROOT / "checkpoints"
 DEFAULT_GLUMIND_CHECKPOINT: Path = DEFAULT_CHECKPOINTS_ROOT / "glumind_1.0"
 DEFAULT_SUGAR_ONE_CHECKPOINT: Path = DEFAULT_CHECKPOINTS_ROOT / "sugar_one_1.0"
 DEFAULT_SUGAR_JEPA_CHECKPOINT: Path = DEFAULT_CHECKPOINTS_ROOT / "sugar_jepa_dev"
-LIVIA_GLUMIND_CSV: Path = DEFAULT_LIVIA_DATA / "livia_glumind_ready.csv"
-LIVIA_SUGAR_ONE_CSV: Path = DEFAULT_LIVIA_DATA / "livia_sugar_one_ready.csv"
+DEMO_GLUMIND_CSV: Path = DEFAULT_DEMO_DATA / "demo_glumind_ready.csv"
+DEMO_SUGAR_ONE_CSV: Path = DEFAULT_DEMO_DATA / "demo_sugar_one_ready.csv"
 
 # Legacy relative prefixes rewritten to the current layout (metadata, registries, CLIs).
 _LEGACY_PREFIX_REWRITES: tuple[tuple[str, str], ...] = (
@@ -38,7 +38,7 @@ _LEGACY_PREFIX_REWRITES: tuple[tuple[str, str], ...] = (
 
 # Exact top-level fixture folders (match the name or name/).
 _LEGACY_DIR_REWRITES: tuple[tuple[str, str], ...] = (
-    ("test_data", "fixtures/livia_data"),
+    ("test_data", "fixtures/demo_data"),
     ("test_model_glumind", "fixtures/checkpoints/glumind_1.0"),
     ("test_model_sugar_one", "fixtures/checkpoints/sugar_one_1.0"),
     ("sugar_jepa_dev", "fixtures/checkpoints/sugar_jepa_dev"),

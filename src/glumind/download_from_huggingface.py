@@ -7,14 +7,14 @@ directory that is compatible with ``glucose evaluate --run-dir``.
 
 Example:
   uv run download-glumind-hf \\
-      --repo-id GlucoseDao/glumind-global-h12 \\
+      --repo-id AnonymousOrg/glumind-global-h12 \\
       --output-dir test_model
 
 Then evaluate with:
   uv run glucose evaluate \\
       --run-dir test_model \\
       --model-type glumind \\
-      --data fixtures/livia_data/livia_glumind_ready.csv \\
+      --data fixtures/demo_data/demo_glumind_ready.csv \\
       --test-split "" --no-plot
 """
 from __future__ import annotations
@@ -41,7 +41,7 @@ def main(
     repo_id: str = typer.Option(
         ...,
         "--repo-id",
-        help="Hugging Face repository ID (e.g. GlucoseDao/glumind-global-h12).",
+        help="Hugging Face repository ID (e.g. AnonymousOrg/glumind-global-h12).",
     ),
     output_dir: Path = typer.Option(
         ...,
@@ -110,7 +110,7 @@ def main(
         f"  uv run glucose evaluate \\\n"
         f"      --run-dir {output_dir} \\\n"
         f"      --model-type glumind \\\n"
-        f"      --data fixtures/livia_data/livia_glumind_ready.csv \\\n"
+        f"      --data fixtures/demo_data/demo_glumind_ready.csv \\\n"
         f"      --test-split \"\" --no-plot"
     )
 

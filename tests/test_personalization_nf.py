@@ -127,15 +127,15 @@ def test_days_table_and_full_train_table() -> None:
     assert "0.50" in table
     assert "-1.00" in table
     spec = Phase4Subject(
-        user_id="livia",
-        subject="livia",
-        csv=Path("data/input/personalization/prepared/livia_chronological.csv"),
-        cohort="livia",
+        user_id="subject_p1",
+        subject="subject_p1",
+        csv=Path("data/input/personalization/prepared/subject_p1_chronological.csv"),
+        cohort="subject_p1",
         study_group="T1DM",
-        display="Livia",
+        display="Subject P1",
     )
     full = _full_train_table([(spec, rows)])
-    assert "Livia" in full
+    assert "Subject P1" in full
     assert "-1.00" in full
 
 

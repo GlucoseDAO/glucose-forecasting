@@ -1,8 +1,8 @@
 {
   "subjects": [
     {
-      "subject": "livia",
-      "display": "Livia",
+      "subject": "subject_p1",
+      "display": "Subject P1",
       "color": "#0072B2",
       "plateau": {
         "plateau_day": "30",

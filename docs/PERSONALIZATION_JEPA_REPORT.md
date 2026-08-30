@@ -32,7 +32,7 @@ Frozen SugarJEPA-288 has lower personal-test MAE than SugarOne fine-tuned for 30
 
 | User | JEPA-288 zero-shot | SugarOne @ 30 d | Margin (mg/dL) |
 |------|--------------------|-----------------|----------------|
-| Livia | 17.64 | 18.06 | 0.42 |
+| Subject P1 | 17.64 | 18.06 | 0.42 |
 | User 154 | 23.13 | 24.84 | 1.70 |
 | User 556 | 17.22 | 17.65 | 0.43 |
 | User 730 | 16.02 | 18.23 | 2.21 |
@@ -40,7 +40,7 @@ Frozen SugarJEPA-288 has lower personal-test MAE than SugarOne fine-tuned for 30
 | User 1029 | 20.30 | 22.81 | 2.51 |
 | User 1082 | 15.17 | 17.60 | 2.43 |
 
-The same “all 7” statement is **false** against SugarOne's *full* fine-tune (Livia and User 1017: full SugarOne beats frozen JEPA-288). 30 days is the cutoff that holds for every user in this study.
+The same “all 7” statement is **false** against SugarOne's *full* fine-tune (Subject P1 and User 1017: full SugarOne beats frozen JEPA-288). 30 days is the cutoff that holds for every user in this study.
 
 ## 2. Subjects and data coverage
 
@@ -48,7 +48,7 @@ Same 7 T1DM people as the SugarOne holdout cohort in [PERSONALIZATION_REPORT.md]
 
 | Subject | Source | Study group | Notes |
 |---------|--------|-------------|-------|
-| **Livia** | Personal CGM/pump export | T1DM | Longest history (~345 d train) |
+| **Subject P1** | Personal CGM/pump export | T1DM | Longest history (~345 d train) |
 | **User 154** | Loop quality holdout | T1DM |  |
 | **User 556** | Loop quality holdout | T1DM |  |
 | **User 730** | Loop quality holdout | T1DM |  |
@@ -74,7 +74,7 @@ A training window needs `lookback + horizon` contiguous rows. At `jepa_window=28
 
 ### 3.3 No LwF arm, no new LR grid
 
-LwF on SugarOne did not rescue short-history harm ([PERSONALIZATION_REPORT.md](PERSONALIZATION_REPORT.md) §6.3–6.4). This extract keeps `λ=0`. Learning rate is the frozen Livia recipe (`2×10⁻⁴`) used for SugarOne day curves, with the JEPA param-group ratio inherited from the global run.
+LwF on SugarOne did not rescue short-history harm ([PERSONALIZATION_REPORT.md](PERSONALIZATION_REPORT.md) §6.3–6.4). This extract keeps `λ=0`. Learning rate is the frozen Subject P1 recipe (`2×10⁻⁴`) used for SugarOne day curves, with the JEPA param-group ratio inherited from the global run.
 
 ## SugarOne
 
@@ -84,7 +84,7 @@ Encoder window **128 (10.7 h backbone)**. No JEPA branch. Same 7 T1DM people as 
 
 | Subject | Cohort | Study group | Train span (d) | ZS MAE | FT MAE (all) | Δ vs ZS |
 |---------|--------|-------------|----------------|--------|--------------|---------|
-| Livia | Livia | T1DM | 344.6 | 18.31 | 16.98 | -1.33 |
+| Subject P1 | Subject P1 | T1DM | 344.6 | 18.31 | 16.98 | -1.33 |
 | User 154 | Loop holdout | T1DM | 213.6 | 24.61 | 24.12 | -0.50 |
 | User 556 | Loop holdout | T1DM | 90.9 | 18.10 | 17.39 | -0.71 |
 | User 730 | Loop holdout | T1DM | 84.6 | 18.06 | 16.50 | -1.56 |
@@ -92,9 +92,9 @@ Encoder window **128 (10.7 h backbone)**. No JEPA branch. Same 7 T1DM people as 
 | User 1029 | Loop holdout | T1DM | 136.0 | 22.62 | 20.94 | -1.68 |
 | User 1082 | Loop holdout | T1DM | 37.4 | 17.00 | 17.79 | 0.80 |
 
-### Livia and Loop quality holdouts
+### Subject P1 and Loop quality holdouts
 
-#### Livia
+#### Subject P1
 
 | Days | Used train days | ZS MAE | FT MAE | Δ FT vs ZS |
 |------|-----------------|--------|--------|------------|
@@ -106,7 +106,7 @@ Encoder window **128 (10.7 h backbone)**. No JEPA branch. Same 7 T1DM people as 
 | 60 | 60.0 | 18.31 | 17.54 | -0.76 |
 | all (345d) | 344.6 | 18.31 | 16.98 | -1.33 |
 
-![Livia sugarone data-size curve](figures/personalization_jepa/sugarone_livia_data_size.png)
+![Subject P1 sugarone data-size curve](figures/personalization_jepa/sugarone_demo_data_size.png)
 
 
 #### User 154
@@ -206,7 +206,7 @@ Encoder window **128 (10.7 h backbone)**. No JEPA branch. Same 7 T1DM people as 
 
 ### Average MAE improvement by train budget
 
-Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Livia + Loop holdouts except User 1082 when the budget exceeds their span, and except users with no run at that budget). Negative Δ is better than frozen global. Empty cells are not filled with zeros.
+Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Subject P1 + Loop holdouts except User 1082 when the budget exceeds their span, and except users with no run at that budget). Negative Δ is better than frozen global. Empty cells are not filled with zeros.
 
 | Train budget | Mean Δ vs ZS | Mean MAE improvement | n |
 |--------------|--------------|----------------------|---|
@@ -222,7 +222,7 @@ Encoder window **128 (10.7 h)**. Embed dim **64**. Matched SugarOne lookback; 64
 
 | Subject | Cohort | Study group | Train span (d) | ZS MAE | FT MAE (all) | Δ vs ZS |
 |---------|--------|-------------|----------------|--------|--------------|---------|
-| Livia | Livia | T1DM | 344.6 | 18.05 | 16.76 | -1.30 |
+| Subject P1 | Subject P1 | T1DM | 344.6 | 18.05 | 16.76 | -1.30 |
 | User 154 | Loop holdout | T1DM | 213.6 | 25.40 | 23.64 | -1.76 |
 | User 556 | Loop holdout | T1DM | 90.9 | 17.52 | 16.92 | -0.60 |
 | User 730 | Loop holdout | T1DM | 84.6 | 16.35 | 16.06 | -0.29 |
@@ -230,9 +230,9 @@ Encoder window **128 (10.7 h)**. Embed dim **64**. Matched SugarOne lookback; 64
 | User 1029 | Loop holdout | T1DM | 136.0 | 20.93 | 19.90 | -1.03 |
 | User 1082 | Loop holdout | T1DM | 37.4 | 16.54 | 16.65 | 0.11 |
 
-### Livia and Loop quality holdouts
+### Subject P1 and Loop quality holdouts
 
-#### Livia
+#### Subject P1
 
 | Days | Used train days | ZS MAE | FT MAE | Δ FT vs ZS |
 |------|-----------------|--------|--------|------------|
@@ -244,7 +244,7 @@ Encoder window **128 (10.7 h)**. Embed dim **64**. Matched SugarOne lookback; 64
 | 60 | 60.0 | 18.05 | 16.90 | -1.15 |
 | all (345d) | 344.6 | 18.05 | 16.76 | -1.30 |
 
-![Livia jepa128-64 data-size curve](figures/personalization_jepa/jepa128-64_livia_data_size.png)
+![Subject P1 jepa128-64 data-size curve](figures/personalization_jepa/jepa128-64_demo_data_size.png)
 
 
 #### User 154
@@ -344,7 +344,7 @@ Encoder window **128 (10.7 h)**. Embed dim **64**. Matched SugarOne lookback; 64
 
 ### Average MAE improvement by train budget
 
-Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Livia + Loop holdouts except User 1082 when the budget exceeds their span, and except users with no run at that budget). Negative Δ is better than frozen global. Empty cells are not filled with zeros.
+Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Subject P1 + Loop holdouts except User 1082 when the budget exceeds their span, and except users with no run at that budget). Negative Δ is better than frozen global. Empty cells are not filled with zeros.
 
 | Train budget | Mean Δ vs ZS | Mean MAE improvement | n |
 |--------------|--------------|----------------------|---|
@@ -360,7 +360,7 @@ Encoder window **128 (10.7 h)**. Embed dim **96**. Matched SugarOne lookback; 96
 
 | Subject | Cohort | Study group | Train span (d) | ZS MAE | FT MAE (all) | Δ vs ZS |
 |---------|--------|-------------|----------------|--------|--------------|---------|
-| Livia | Livia | T1DM | 344.6 | 17.67 | 16.69 | -0.98 |
+| Subject P1 | Subject P1 | T1DM | 344.6 | 17.67 | 16.69 | -0.98 |
 | User 154 | Loop holdout | T1DM | 213.6 | 25.48 | 23.90 | -1.58 |
 | User 556 | Loop holdout | T1DM | 90.9 | 17.46 | 17.01 | -0.46 |
 | User 730 | Loop holdout | T1DM | 84.6 | 16.36 | 16.14 | -0.23 |
@@ -368,9 +368,9 @@ Encoder window **128 (10.7 h)**. Embed dim **96**. Matched SugarOne lookback; 96
 | User 1029 | Loop holdout | T1DM | 136.0 | 20.60 | 20.01 | -0.59 |
 | User 1082 | Loop holdout | T1DM | 37.4 | 16.57 | 16.66 | 0.09 |
 
-### Livia and Loop quality holdouts
+### Subject P1 and Loop quality holdouts
 
-#### Livia
+#### Subject P1
 
 | Days | Used train days | ZS MAE | FT MAE | Δ FT vs ZS |
 |------|-----------------|--------|--------|------------|
@@ -382,7 +382,7 @@ Encoder window **128 (10.7 h)**. Embed dim **96**. Matched SugarOne lookback; 96
 | 60 | 60.0 | 17.67 | 16.95 | -0.72 |
 | all (345d) | 344.6 | 17.67 | 16.69 | -0.98 |
 
-![Livia jepa128 data-size curve](figures/personalization_jepa/jepa128_livia_data_size.png)
+![Subject P1 jepa128 data-size curve](figures/personalization_jepa/jepa128_demo_data_size.png)
 
 
 #### User 154
@@ -482,7 +482,7 @@ Encoder window **128 (10.7 h)**. Embed dim **96**. Matched SugarOne lookback; 96
 
 ### Average MAE improvement by train budget
 
-Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Livia + Loop holdouts except User 1082 when the budget exceeds their span, and except users with no run at that budget). Negative Δ is better than frozen global. Empty cells are not filled with zeros.
+Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Subject P1 + Loop holdouts except User 1082 when the budget exceeds their span, and except users with no run at that budget). Negative Δ is better than frozen global. Empty cells are not filled with zeros.
 
 | Train budget | Mean Δ vs ZS | Mean MAE improvement | n |
 |--------------|--------------|----------------------|---|
@@ -498,7 +498,7 @@ Encoder window **288 (1 d)**. Embed dim **96**. Hero encoder. 1-day train cannot
 
 | Subject | Cohort | Study group | Train span (d) | ZS MAE | FT MAE (all) | Δ vs ZS |
 |---------|--------|-------------|----------------|--------|--------------|---------|
-| Livia | Livia | T1DM | 344.6 | 17.64 | 16.53 | -1.11 |
+| Subject P1 | Subject P1 | T1DM | 344.6 | 17.64 | 16.53 | -1.11 |
 | User 154 | Loop holdout | T1DM | 213.6 | 23.13 | 22.66 | -0.47 |
 | User 556 | Loop holdout | T1DM | 90.9 | 17.22 | 16.65 | -0.57 |
 | User 730 | Loop holdout | T1DM | 84.6 | 16.02 | 15.62 | -0.40 |
@@ -506,9 +506,9 @@ Encoder window **288 (1 d)**. Embed dim **96**. Hero encoder. 1-day train cannot
 | User 1029 | Loop holdout | T1DM | 136.0 | 20.30 | 19.55 | -0.74 |
 | User 1082 | Loop holdout | T1DM | 37.4 | 15.17 | 15.19 | 0.03 |
 
-### Livia and Loop quality holdouts
+### Subject P1 and Loop quality holdouts
 
-#### Livia
+#### Subject P1
 
 | Days | Used train days | ZS MAE | FT MAE | Δ FT vs ZS |
 |------|-----------------|--------|--------|------------|
@@ -519,7 +519,7 @@ Encoder window **288 (1 d)**. Embed dim **96**. Hero encoder. 1-day train cannot
 | 60 | 60.0 | 17.64 | 16.83 | -0.81 |
 | all (345d) | 344.6 | 17.64 | 16.53 | -1.11 |
 
-![Livia jepa288 data-size curve](figures/personalization_jepa/jepa288_livia_data_size.png)
+![Subject P1 jepa288 data-size curve](figures/personalization_jepa/jepa288_demo_data_size.png)
 
 
 #### User 154
@@ -613,7 +613,7 @@ Encoder window **288 (1 d)**. Embed dim **96**. Hero encoder. 1-day train cannot
 
 ### Average MAE improvement by train budget
 
-Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Livia + Loop holdouts except User 1082 when the budget exceeds their span, and except users with no run at that budget). Negative Δ is better than frozen global. Empty cells are not filled with zeros.
+Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Subject P1 + Loop holdouts except User 1082 when the budget exceeds their span, and except users with no run at that budget). Negative Δ is better than frozen global. Empty cells are not filled with zeros.
 
 | Train budget | Mean Δ vs ZS | Mean MAE improvement | n |
 |--------------|--------------|----------------------|---|
@@ -629,7 +629,7 @@ Encoder window **864 (3 d)**. Embed dim **96**. Sparse day budgets; some users o
 
 | Subject | Cohort | Study group | Train span (d) | ZS MAE | FT MAE (all) | Δ vs ZS |
 |---------|--------|-------------|----------------|--------|--------------|---------|
-| Livia | Livia | T1DM | 344.6 | 17.97 | 16.69 | -1.28 |
+| Subject P1 | Subject P1 | T1DM | 344.6 | 17.97 | 16.69 | -1.28 |
 | User 154 | Loop holdout | T1DM | 213.6 | 22.74 | 22.58 | -0.16 |
 | User 556 | Loop holdout | T1DM | 90.9 | 16.46 | 16.00 | -0.46 |
 | User 730 | Loop holdout | T1DM | 84.6 | 16.17 | 15.83 | -0.34 |
@@ -637,9 +637,9 @@ Encoder window **864 (3 d)**. Embed dim **96**. Sparse day budgets; some users o
 | User 1029 | Loop holdout | T1DM | 136.0 | 19.37 | 19.45 | 0.08 |
 | User 1082 | Loop holdout | T1DM | 37.4 | 14.78 | 14.97 | 0.19 |
 
-### Livia and Loop quality holdouts
+### Subject P1 and Loop quality holdouts
 
-#### Livia
+#### Subject P1
 
 | Days | Used train days | ZS MAE | FT MAE | Δ FT vs ZS |
 |------|-----------------|--------|--------|------------|
@@ -649,7 +649,7 @@ Encoder window **864 (3 d)**. Embed dim **96**. Sparse day budgets; some users o
 | 60 | 60.0 | 17.97 | 17.42 | -0.55 |
 | all (345d) | 344.6 | 17.97 | 16.69 | -1.28 |
 
-![Livia jepa864 data-size curve](figures/personalization_jepa/jepa864_livia_data_size.png)
+![Subject P1 jepa864 data-size curve](figures/personalization_jepa/jepa864_demo_data_size.png)
 
 
 #### User 154
@@ -725,7 +725,7 @@ Encoder window **864 (3 d)**. Embed dim **96**. Sparse day budgets; some users o
 
 ### Average MAE improvement by train budget
 
-Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Livia + Loop holdouts except User 1082 when the budget exceeds their span, and except users with no run at that budget). Negative Δ is better than frozen global. Empty cells are not filled with zeros.
+Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Subject P1 + Loop holdouts except User 1082 when the budget exceeds their span, and except users with no run at that budget). Negative Δ is better than frozen global. Empty cells are not filled with zeros.
 
 | Train budget | Mean Δ vs ZS | Mean MAE improvement | n |
 |--------------|--------------|----------------------|---|
@@ -741,15 +741,15 @@ Encoder window **2016 (7 d)**. Embed dim **96**. 5/7 subjects. Full fine-tune ca
 
 | Subject | Cohort | Study group | Train span (d) | ZS MAE | FT MAE (all) | Δ vs ZS |
 |---------|--------|-------------|----------------|--------|--------------|---------|
-| Livia | Livia | T1DM | 344.6 | 18.61 | 17.79 | -0.82 |
+| Subject P1 | Subject P1 | T1DM | 344.6 | 18.61 | 17.79 | -0.82 |
 | User 154 | Loop holdout | T1DM | 213.6 | 21.93 | 27.28 | 5.35 |
 | User 556 | Loop holdout | T1DM | 90.9 | 15.30 | 15.49 | 0.19 |
 | User 730 | Loop holdout | T1DM | 84.6 | 14.73 | 15.39 | 0.66 |
 | User 1029 | Loop holdout | T1DM | 136.0 | 24.22 | 22.91 | -1.31 |
 
-### Livia and Loop quality holdouts
+### Subject P1 and Loop quality holdouts
 
-#### Livia
+#### Subject P1
 
 | Days | Used train days | ZS MAE | FT MAE | Δ FT vs ZS |
 |------|-----------------|--------|--------|------------|
@@ -758,7 +758,7 @@ Encoder window **2016 (7 d)**. Embed dim **96**. 5/7 subjects. Full fine-tune ca
 | 60 | 60.0 | 18.61 | 17.46 | -1.15 |
 | all (345d) | 344.6 | 18.61 | 17.79 | -0.82 |
 
-![Livia jepa2016 data-size curve](figures/personalization_jepa/jepa2016_livia_data_size.png)
+![Subject P1 jepa2016 data-size curve](figures/personalization_jepa/jepa2016_demo_data_size.png)
 
 
 #### User 154
@@ -805,7 +805,7 @@ Encoder window **2016 (7 d)**. Embed dim **96**. 5/7 subjects. Full fine-tune ca
 
 ### Average MAE improvement by train budget
 
-Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Livia + Loop holdouts except User 1082 when the budget exceeds their span, and except users with no run at that budget). Negative Δ is better than frozen global. Empty cells are not filled with zeros.
+Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Subject P1 + Loop holdouts except User 1082 when the budget exceeds their span, and except users with no run at that budget). Negative Δ is better than frozen global. Empty cells are not filled with zeros.
 
 | Train budget | Mean Δ vs ZS | Mean MAE improvement | n |
 |--------------|--------------|----------------------|---|
@@ -823,7 +823,7 @@ Fine-tune a SugarJEPA2 checkpoint on one person (same recipe as SugarOne):
 
 ```bash
 uv run personal-sweep-days --base-run-dir <sugar_jepa2_run> \
-  --personal-csv data/input/personalization/prepared/livia_chronological.csv
+  --personal-csv data/input/personalization/prepared/subject_p1_chronological.csv
 ```
 
 | Artifact | Path |

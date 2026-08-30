@@ -10,7 +10,7 @@ Example:
   uv run src/glumind/upload_to_huggingface.py \\
       --model-dir data/output/marked_runs/glumind/ai_ready_plus_type1/glumind_global_h12_20260226_032703 \\
       --repo-name glumind-global-h12 \\
-      --org GlucoseDao \\
+      --org AnonymousOrg \\
       --token hf_xxx
 """
 from __future__ import annotations
@@ -119,7 +119,7 @@ def _build_model_card(model_dir: Path, repo_id: str) -> str:
         "uv run glucose evaluate \\",
         "    --run-dir test_model \\",
         "    --model-type glumind \\",
-        "    --data fixtures/livia_data/livia_glumind_ready.csv \\",
+        "    --data fixtures/demo_data/demo_glumind_ready.csv \\",
         "    --test-split \"\" --no-plot",
         "```",
         "",

@@ -7,7 +7,7 @@ A path may be either:
 
 Containers are expanded to the best run per model family, ranked by MAE
 (prefer ``val_metrics_overall.csv``, else ``test_metrics_overall.csv``) —
-same ranking signal Anton used via registry ``validation_metric``.
+same ranking signal used via registry ``validation_metric``.
 """
 from __future__ import annotations
 

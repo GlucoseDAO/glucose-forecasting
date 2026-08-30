@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Resumable SugarOne personalization study (data-size curves + report).
 
-Runs the frozen Livia recipe with base-run scalers for Livia, Loop quality
+Runs the frozen Subject P1 recipe with base-run scalers for Subject P1, Loop quality
 holdouts, and two joined2 test users per study group. Safe to Ctrl+C and
 re-invoke: completed base-scaler day budgets are skipped; partial runs resume
 from ``last_checkpoint.pt``. The interim report is rewritten after every
@@ -37,7 +37,7 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 STATUS_PATH = DEFAULT_RUNS_ROOT / "personalization" / "phase4_status.json"
 STATUS_MD_PATH = DEFAULT_RUNS_ROOT / "personalization" / "phase4_status.md"
-DEFAULT_RECIPE = DEFAULT_RUNS_ROOT / "personalization" / "livia" / "best_recipe.json"
+DEFAULT_RECIPE = DEFAULT_RUNS_ROOT / "personalization" / "subject_p1" / "best_recipe.json"
 DEFAULT_ROOT = DEFAULT_RUNS_ROOT / "personalization"
 
 
@@ -253,7 +253,7 @@ def main(
     subjects: Optional[str] = typer.Option(
         None,
         "--subjects",
-        help="Comma-separated subjects, user ids, or cohort (livia, joined2_test, quality_holdout).",
+        help="Comma-separated subjects, user ids, or cohort (subject_p1, joined2_test, quality_holdout).",
     ),
 ) -> None:
     """Recalculate data-size curves with base scalers; resume-safe overnight runner."""

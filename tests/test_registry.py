@@ -266,8 +266,8 @@ def test_rewrite_legacy_relpath_runs_and_datasets() -> None:
     assert rewrite_legacy_relpath("data/output/runs/glumind/x") == Path(
         "data/output/runs/glumind/x"
     )
-    assert rewrite_legacy_relpath("test_data/livia_glumind_ready.csv") == Path(
-        "fixtures/livia_data/livia_glumind_ready.csv"
+    assert rewrite_legacy_relpath("test_data/demo_glumind_ready.csv") == Path(
+        "fixtures/demo_data/demo_glumind_ready.csv"
     )
     assert rewrite_legacy_relpath("test_model_glumind") == Path(
         "fixtures/checkpoints/glumind_1.0"
@@ -299,10 +299,10 @@ def test_resolve_project_path_rewrites_legacy_fixture_dirs(tmp_path: Path) -> No
     assert resolved == target
 
 
-def test_resolve_csv_path_basename_under_fixtures_livia(tmp_path: Path) -> None:
+def test_resolve_csv_path_basename_under_fixtures_demo(tmp_path: Path) -> None:
     project_root = tmp_path / "root"
-    target = project_root / "fixtures" / "livia_data" / "livia_glumind_ready.csv"
+    target = project_root / "fixtures" / "demo_data" / "demo_glumind_ready.csv"
     target.parent.mkdir(parents=True)
     target.write_text("a,b\n1,2\n")
-    resolved = resolve_csv_path("livia_glumind_ready.csv", project_root)
+    resolved = resolve_csv_path("demo_glumind_ready.csv", project_root)
     assert resolved == target

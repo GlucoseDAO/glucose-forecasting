@@ -7,5 +7,5 @@ JEPA implementation should be laso explained. It was taken from this project (ht
 In brife bseline models from neuroforcaster should be mentioned and there results.
 Main focus should be done on finetuning reports and there comparison. There are three of them: SugarOne (docs\PERSONALIZATION_REPORT.md), JEPA (temp_docs\jepa_mae_by_days.csv) and baseline neuroforcaster (docs\PERSONALIZATION_NF_REPORT.md) models.
 Paper should be writen in such way that every section should lead to final conclusion. There should not be orfant parts that did not lead to anything. It is better to make text smaller then put redundent information. Overall text size shuold be around 8 pages.
-Also data pipeline should be described from https://github.com/GlucoseDAO/glucose_data_processing project or (D:\dev\glucose_data_processing) on local this machine.
+Also data pipeline should be described from https://anonymous.4open.science/r/glucose-data-processing project or .
 Dataset data\input\loop_and_ai_ready\loop_ai_ready_joined2.csv should be explained.

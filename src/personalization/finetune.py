@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fine-tune the production SugarOne checkpoint on one person's data.
 
-Default path: ``fixtures/checkpoints/sugar_one_1.0`` + prepared Livia CSV,
+Default path: ``fixtures/checkpoints/sugar_one_1.0`` + prepared Subject P1 CSV,
 plain fine-tune (``lwf_lambda=0``), sparse train windows (stride 6).
 Optional LwF keeps a frozen copy of the global model as teacher.
 """
@@ -40,7 +40,7 @@ from common.model_spec import get_family_spec
 from personalization.constants import (
     DEFAULT_BASE_RUN_DIR,
     DEFAULT_FT_PATIENCE,
-    DEFAULT_LIVIA_PREPARED_CSV,
+    DEFAULT_DEMO_PREPARED_CSV,
     DEFAULT_PERSONAL_LWF_LAMBDA,
     DEFAULT_PROGRESS_LOG_INTERVAL_S,
     DEFAULT_SEED,
@@ -69,7 +69,7 @@ from sugar_one.train_sugar_one import (
 app = typer.Typer(
     add_completion=False,
     pretty_exceptions_enable=False,
-    help="Fine-tune SugarOne on one person's CGM/pump data (default: Livia + sugar_one_1.0).",
+    help="Fine-tune SugarOne on one person's CGM/pump data (default: Subject P1 + sugar_one_1.0).",
 )
 
 
@@ -809,9 +809,9 @@ def main(
         "--base-run-dir",
     ),
     personal_csv: Path = typer.Option(
-        DEFAULT_LIVIA_PREPARED_CSV,
+        DEFAULT_DEMO_PREPARED_CSV,
         "--personal-csv",
-        help="Chronological personal CSV (default: prepared Livia).",
+        help="Chronological personal CSV (default: prepared Subject P1).",
     ),
     out_dir: Path = typer.Option(DEFAULT_RUNS_ROOT / "personalization", "--out-dir"),
     run_name: Optional[str] = typer.Option(None, "--run-name"),

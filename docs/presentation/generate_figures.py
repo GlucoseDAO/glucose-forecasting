@@ -1,4 +1,4 @@
-"""Generate publication-quality figures for RoBioinfo2026 presentation."""
+"""Generate publication-quality figures for AnonymousConference presentation."""
 from __future__ import annotations
 
 import re

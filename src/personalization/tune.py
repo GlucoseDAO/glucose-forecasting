@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """TOML-driven SugarOne personalization tuner with a leaderboard.
 
-Default config: src/personalization/tune.toml (Livia + sugar_one_1.0, stride 6).
+Default config: src/personalization/tune.toml (Subject P1 + sugar_one_1.0, stride 6).
 
 Examples:
   uv run personal-tune

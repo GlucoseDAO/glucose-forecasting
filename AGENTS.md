@@ -37,11 +37,11 @@ Examples:
 
 - Product code lives under `src/` as direct packages (`common`, `glumind`, `sugar_one`, `neuralforecast`, …). There is **no** `scripts/` tree and **no** nested `src/glucose_forecasting/` wrapper.
 - Datasets live under `data/input/` (`actual/`, `loop_and_ai_ready/`, `personalization/`).
-- Tracked demo CSVs and reviewer checkpoints live under `fixtures/` (`livia_data/`, `checkpoints/`). Do not put them under gitignored `data/`.
+- Tracked demo CSVs and reviewer checkpoints live under `fixtures/` (`demo_data/`, `checkpoints/`). Do not put them under gitignored `data/`.
 - Default run root is `data/output/runs/` (`common.paths.DEFAULT_RUNS_ROOT`); curated runs under `data/output/marked_runs/`.
 - Top-level Typer app: `uv run glucose` (`src/cli.py`) — `info` + `evaluate` + `neuralforecast` + `release` (logic under `src/common/evaluation/`, `src/nf_baselines/`, `src/common/release/`). No `glucose train` for custom PyTorch; use experiment CLIs. NF holdout: `glucose neuralforecast train`. Release bundles: `glucose release check|publish|pull`.
 - Implement adoption work **one phase at a time**; verify with `uv run pytest -q` and the demo `glucose evaluate` smoke before the next phase.
-- Details: `temp_docs/ANTON_PR_COMPARISON_AND_REQUIREMENTS.md`.
+- Details: `temp_docs/PR_COMPARISON_AND_REQUIREMENTS.md`.
 
 ## Project overview
 
@@ -78,7 +78,7 @@ Installed console commands (defined in `pyproject.toml` `[project.scripts]`, all
 - `train-glumind` → `src/glumind/train_glumind.py:main` (argparse CLI)
 - `tune-sugar-one` → `src/sugar_one/tune_sugar_one.py:app` (TOML-driven random hyperparameter search)
 - `download-glumind-hf` → `src/glumind/download_from_huggingface.py:app`
-- `personal-prepare` / `personal-finetune` / `personal-tune` → `src/personalization/` (SugarOne + Livia defaults; see `docs/PERSONALIZATION.md`)
+- `personal-prepare` / `personal-finetune` / `personal-tune` → `src/personalization/` (SugarOne + Subject P1 defaults; see `docs/PERSONALIZATION.md`)
 - `personal-nf-study` / `personal-nf-adapt` → `src/personalization_nf/` (NeuralForecast continue-fit; see `docs/PERSONALIZATION_NF_REPORT.md`)
 - `manuscript` → `src/manuscript/cli.py:app` (LaTeX → Markdown + PDF: `template`, `manuscript`)
 
@@ -100,9 +100,9 @@ Full flag reference: **[docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)**. Worked 
 Fast smoke test after code changes (no GPU, no full dataset needed):
 ```bash
 uv run glucose evaluate --run-dir fixtures/checkpoints/glumind_1.0 --model-type glumind \
-  --data fixtures/livia_data/livia_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
+  --data fixtures/demo_data/demo_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
 ```
-This uses the bundled reviewer checkpoint (`fixtures/checkpoints/glumind_1.0/`), its **`scalers.json`**, and demo CSV (`fixtures/livia_data/livia_glumind_ready.csv`, ~140k rows, no `Recommended Split` column — always pass `--test-split ""` for it). For SugarOne against the same demo file, add `--zero-cov` since it has no insulin/carb columns. See README.md and `docs/CLI_REFERENCE.md`.
+This uses the bundled reviewer checkpoint (`fixtures/checkpoints/glumind_1.0/`), its **`scalers.json`**, and demo CSV (`fixtures/demo_data/demo_glumind_ready.csv`, ~140k rows, no `Recommended Split` column — always pass `--test-split ""` for it). For SugarOne against the same demo file, add `--zero-cov` since it has no insulin/carb columns. See README.md and `docs/CLI_REFERENCE.md`.
 
 ## Architecture
 
@@ -178,7 +178,7 @@ The manuscript lives in `docs/manuscript/`. This is a scratch workspace for draf
 
 ### Files
 
-- `docs/manuscript/manuscript.tex` — LaTeX source (EASRP 2026 template, 8-page main text limit)
+- `docs/manuscript/manuscript.tex` — LaTeX source (Anonymous Conference 2026 template, 8-page main text limit)
 - `docs/manuscript/manuscript.md` — Human-readable Markdown version (auto-generated)
 - `docs/manuscript/references.bib` — BibTeX references (`plainnat` style)
 - `docs/manuscript/easrp2026.sty` — Style file placeholder (replace with official when available)
@@ -202,12 +202,12 @@ The manuscript lives in `docs/manuscript/`. This is a scratch workspace for draf
 - Verify all claims against actual run data in `docs/` reports and `data/output/`
 - Use exact numbers from `*_metrics_overall.csv` / `*_metrics_by_study_group.csv` files
 - Cross-reference `docs/presentation/PRESENTATION_NOTES.md` for fact-checked claims and known discrepancies
-- The abstract PDF is at `docs/presentation/RoBioinfo2026_Abstract_Zaharia_et_al .pdf`
+- The abstract PDF is at `docs/presentation/conference_abstract.pdf`
 - Papers for context are downloaded to `data/cache/for_manuscript/` (gitignored)
 - The 8-page limit applies to main text only; references and appendix are unlimited
 
 ### Related repositories (add to workspace for full manuscript context)
 
-- [glucose_data_processing](https://github.com/GlucoseDAO/glucose_data_processing) — CGM preprocessing pipeline (9 device formats, 50+ datasets)
-- [sugar-sugar](https://github.com/GlucoseDAO/sugar-sugar) — Human benchmarking web app (Sugar-Sugar study, ethics ref A 2026-0064)
-- [cgm_format](https://github.com/GlucoseDAO/cgm_format) — Individual CGM sensor format parsing
+- [glucose_data_processing](https://anonymous.4open.science/r/glucose-data-processing) — CGM preprocessing pipeline (9 device formats, 50+ datasets)
+- [sugar-sugar](https://anonymous.4open.science/r/sugar-sugar) — Human benchmarking web app (Sugar-Sugar study, ethics ref [REDACTED])
+- [cgm_format](https://anonymous.4open.science/r/cgm-format) — Individual CGM sensor format parsing

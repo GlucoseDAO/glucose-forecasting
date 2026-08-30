@@ -7,16 +7,16 @@ from typing import Final
 from common.paths import (
     DEFAULT_PERSONALIZATION_DATA_ROOT,
     DEFAULT_SUGAR_ONE_CHECKPOINT,
-    LIVIA_SUGAR_ONE_CSV,
+    DEMO_SUGAR_ONE_CSV,
 )
 
-# Production personalization: global SugarOne checkpoint + Livia demo CSV.
+# Production personalization: global SugarOne checkpoint + Subject P1 demo CSV.
 DEFAULT_BASE_RUN_DIR: Final[str] = DEFAULT_SUGAR_ONE_CHECKPOINT.as_posix()
-DEFAULT_LIVIA_SOURCE_CSV: Final[Path] = LIVIA_SUGAR_ONE_CSV
-DEFAULT_LIVIA_PREPARED_DIR: Final[Path] = DEFAULT_PERSONALIZATION_DATA_ROOT / "prepared"
-DEFAULT_LIVIA_PREPARED_NAME: Final[str] = "livia_chronological.csv"
-DEFAULT_LIVIA_PREPARED_CSV: Final[Path] = (
-    DEFAULT_LIVIA_PREPARED_DIR / DEFAULT_LIVIA_PREPARED_NAME
+DEFAULT_DEMO_SOURCE_CSV: Final[Path] = DEMO_SUGAR_ONE_CSV
+DEFAULT_DEMO_PREPARED_DIR: Final[Path] = DEFAULT_PERSONALIZATION_DATA_ROOT / "prepared"
+DEFAULT_DEMO_PREPARED_NAME: Final[str] = "subject_p1_chronological.csv"
+DEFAULT_DEMO_PREPARED_CSV: Final[Path] = (
+    DEFAULT_DEMO_PREPARED_DIR / DEFAULT_DEMO_PREPARED_NAME
 )
 
 # Quality Loop users present in loop.csv but excluded from loop_ai_ready_joined2.csv
@@ -31,7 +31,7 @@ LOOP_HOLDOUT_QUALITY_USERS: Final[tuple[str, ...]] = (
 )
 
 # Extra Loop User IDs from joined2 test. Empty: T1DM is already covered by
-# Livia + LOOP_HOLDOUT_QUALITY_USERS, so loop_467 / loop_745 are not run.
+# Subject P1 + LOOP_HOLDOUT_QUALITY_USERS, so loop_467 / loop_745 are not run.
 LOOP_TEST_EXTRA_USERS: Final[tuple[str, ...]] = ()
 
 # Loop numeric User IDs used in personalization (quality holdouts only).
@@ -79,9 +79,9 @@ def decaying_lwf_lambda(
     return round(max(table.values()) * max(0.0, 1.0 - day_budget / span), 4)
 
 
-# Step 2: LR grid for holdout transfer check (Livia best was 2e-4).
+# Step 2: LR grid for holdout transfer check (Subject P1 best was 2e-4).
 DEFAULT_HOLDOUT_LR_GRID: Final[tuple[float, ...]] = (0.0001, 0.0002, 0.0004)
-LIVIA_REFERENCE_LR: Final[float] = 0.0002
+DEMO_REFERENCE_LR: Final[float] = 0.0002
 
 # Step 2: LR multipliers relative to base model ``tuning_meta.json`` lr (sugar_one_1.0: 4e-4).
 DEFAULT_LR_MULTIPLIERS: Final[tuple[float, ...]] = (0.5, 1.0, 2.0)

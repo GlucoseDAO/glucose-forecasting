@@ -9,7 +9,7 @@ Prefer the platform CLI for all custom PyTorch families (GluMind, GluMind-Uni, S
 uv run glucose evaluate \
   --run-dir fixtures/checkpoints/sugar_one_1.0 \
   --model-type sugar_one \
-  --data fixtures/livia_data/livia_sugar_one_ready.csv \
+  --data fixtures/demo_data/demo_sugar_one_ready.csv \
   --test-split "" \
   --batch-size 256 \
   --no-plot
@@ -18,7 +18,7 @@ uv run glucose evaluate \
 uv run glucose evaluate \
   --run-dir fixtures/checkpoints/glumind_1.0 \
   --model-type glumind \
-  --data fixtures/livia_data/livia_glumind_ready.csv \
+  --data fixtures/demo_data/demo_glumind_ready.csv \
   --test-split "" \
   --batch-size 4096 \
   --no-plot
@@ -26,10 +26,10 @@ uv run glucose evaluate \
 
 Both `fixtures/checkpoints/*` folders include **`scalers.json`**. You do not need `--train-data` for these smokes.
 
-**Livia notes**
+**Subject P1 notes**
 
 - No `Recommended Split` column → always pass `--test-split ""`.
-- Using GluMind CSV with SugarOne → add `--zero-cov`, or switch to `livia_sugar_one_ready.csv`.
+- Using GluMind CSV with SugarOne → add `--zero-cov`, or switch to `demo_sugar_one_ready.csv`.
 - Numbers are a sanity check on personal type-1 data, not a headline benchmark.
 
 ## Useful `glucose evaluate` flags

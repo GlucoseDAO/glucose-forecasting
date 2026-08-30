@@ -166,10 +166,10 @@ def should_skip_day_budget(day_budget: int | None, train_span_days: float | None
 def build_holdout_lr_comparison(
     rows: list[dict[str, Any]],
     *,
-    livia_reference_lr: float,
+    subject_p1_reference_lr: float,
     metric_key: str = "ft_test_mae",
 ) -> list[dict[str, Any]]:
-    """Per-user optimal LR vs Livia reference; notes on divergence."""
+    """Per-user optimal LR vs Subject P1 reference; notes on divergence."""
     by_user: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         if row.get("status") != "ok":
@@ -186,20 +186,20 @@ def build_holdout_lr_comparison(
         if best is None:
             continue
         optimal_lr = float(best["lr"])
-        ratio = optimal_lr / livia_reference_lr if livia_reference_lr > 0 else None
-        if optimal_lr == livia_reference_lr:
+        ratio = optimal_lr / subject_p1_reference_lr if subject_p1_reference_lr > 0 else None
+        if optimal_lr == subject_p1_reference_lr:
             divergence = "same"
-            note = f"Optimal LR matches Livia ({livia_reference_lr:g})."
-        elif optimal_lr < livia_reference_lr:
+            note = f"Optimal LR matches Subject P1 ({subject_p1_reference_lr:g})."
+        elif optimal_lr < subject_p1_reference_lr:
             divergence = "lower"
             note = (
-                f"Optimal LR {optimal_lr:g} is below Livia ({livia_reference_lr:g}); "
+                f"Optimal LR {optimal_lr:g} is below Subject P1 ({subject_p1_reference_lr:g}); "
                 f"ratio={ratio:g} — slower/ more conservative fine-tune preferred."
             )
         else:
             divergence = "higher"
             note = (
-                f"Optimal LR {optimal_lr:g} is above Livia ({livia_reference_lr:g}); "
+                f"Optimal LR {optimal_lr:g} is above Subject P1 ({subject_p1_reference_lr:g}); "
                 f"ratio={ratio:g} — faster adaptation preferred."
             )
 
@@ -208,11 +208,11 @@ def build_holdout_lr_comparison(
             for r in user_rows
             if r.get("lr") is not None and r.get(metric_key) is not None
         }
-        livia_mae_at_ref = grid_maes.get(livia_reference_lr)
+        subject_p1_mae_at_ref = grid_maes.get(subject_p1_reference_lr)
         optimal_mae = float(best[metric_key])
-        mae_delta_vs_livia_lr = (
-            optimal_mae - livia_mae_at_ref
-            if livia_mae_at_ref is not None
+        mae_delta_vs_demo_lr = (
+            optimal_mae - subject_p1_mae_at_ref
+            if subject_p1_mae_at_ref is not None
             else None
         )
 
@@ -220,12 +220,12 @@ def build_holdout_lr_comparison(
             {
                 "user_id": uid,
                 "subject": best.get("subject"),
-                "livia_reference_lr": livia_reference_lr,
+                "subject_p1_reference_lr": subject_p1_reference_lr,
                 "optimal_lr": optimal_lr,
                 "optimal_ft_test_mae": optimal_mae,
-                "livia_lr_ft_test_mae": livia_mae_at_ref,
-                "mae_delta_optimal_minus_livia_lr": mae_delta_vs_livia_lr,
-                "lr_ratio_vs_livia": ratio,
+                "subject_p1_lr_ft_test_mae": subject_p1_mae_at_ref,
+                "mae_delta_optimal_minus_demo_lr": mae_delta_vs_demo_lr,
+                "lr_ratio_vs_demo": ratio,
                 "divergence": divergence,
                 "note": note,
                 "lr_grid_maes": grid_maes,

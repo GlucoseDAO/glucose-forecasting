@@ -24,12 +24,12 @@ PlotMode = Literal["max_days", "dummy_all"]
 
 # Distinct colors for combined multi-subject chart (Wong + extras).
 SUBJECT_COLORS: dict[str, str] = {
-    "livia": "#0072B2",
-    "livia_indep": "#0072B2",
-    "livia_curr_plain": "#E69F00",
-    "livia_curr_lwf": "#009E73",
-    "livia_lwf_decay": "#E69F00",
-    "livia_lwf_01": "#009E73",
+    "subject_p1": "#0072B2",
+    "subject_p1_indep": "#0072B2",
+    "subject_p1_curr_plain": "#E69F00",
+    "subject_p1_curr_lwf": "#009E73",
+    "subject_p1_lwf_decay": "#E69F00",
+    "subject_p1_lwf_01": "#009E73",
     "loop_154": "#CC79A7",
     "loop_154_indep": "#CC79A7",
     "loop_154_lwf_decay": "#E69F00",
@@ -377,7 +377,7 @@ def plot_curriculum_mae_and_lambda(
     series: list[tuple[str, list[dict[str, Any]]]],
     *,
     out_png: Path,
-    title: str = "Livia curricula: test MAE and LwF lambda",
+    title: str = "Subject P1 curricula: test MAE and LwF lambda",
 ) -> dict[str, Any]:
     """Two-panel chart: fine-tuned test MAE (top) and lwf_lambda at each step (bottom)."""
     if not series:
@@ -481,11 +481,11 @@ def _plot_single_from_csv(
 @app.command("single")
 def main_single(
     summary_csv: Path = typer.Option(
-        DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "data_size" / "summary.csv",
+        DEFAULT_RUNS_ROOT / "personalization" / "subject_p1" / "sweeps" / "data_size" / "summary.csv",
         "--summary-csv",
     ),
     out_png: Path = typer.Option(
-        DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "data_size" / "data_size_curve.png",
+        DEFAULT_RUNS_ROOT / "personalization" / "subject_p1" / "sweeps" / "data_size" / "data_size_curve.png",
         "--out-png",
     ),
     title: str = typer.Option(
@@ -583,10 +583,10 @@ def _default(
     if ctx.invoked_subcommand is not None:
         return
     csv_path = summary_csv or (
-        DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "data_size" / "summary.csv"
+        DEFAULT_RUNS_ROOT / "personalization" / "subject_p1" / "sweeps" / "data_size" / "summary.csv"
     )
     png_path = out_png or (
-        DEFAULT_RUNS_ROOT / "personalization" / "livia" / "sweeps" / "data_size" / "data_size_curve.png"
+        DEFAULT_RUNS_ROOT / "personalization" / "subject_p1" / "sweeps" / "data_size" / "data_size_curve.png"
     )
     plot_title = title or "Personal train days vs test MAE"
     mode: PlotMode = "dummy_all" if dummy_all else "max_days"

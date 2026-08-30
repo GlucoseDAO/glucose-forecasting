@@ -55,7 +55,7 @@ Same 15-person cohort as the SugarOne study. Each personal CSV already has the c
 
 | Subject | Source | Study group | Notes |
 |---------|--------|-------------|-------|
-| **Livia** | Personal CGM/pump export | T1DM | Longest history (~345 d train) |
+| **Subject P1** | Personal CGM/pump export | T1DM | Longest history (~345 d train) |
 | **User 154** | Loop quality holdout | T1DM |  |
 | **User 556** | Loop quality holdout | T1DM |  |
 | **User 730** | Loop quality holdout | T1DM |  |
@@ -91,7 +91,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/NBEATSx_20260811T160552
 
 | Subject | Cohort | Study group | Train span (d) | ZS MAE | FT MAE (all) | Δ vs ZS |
 |---------|--------|-------------|----------------|--------|--------------|---------|
-| Livia | Livia | T1DM | 344.6 | 22.09 | 19.00 | -3.09 |
+| Subject P1 | Subject P1 | T1DM | 344.6 | 22.09 | 19.00 | -3.09 |
 | User 154 | Loop holdout | T1DM | 213.6 | 29.85 | 28.58 | -1.27 |
 | User 556 | Loop holdout | T1DM | 90.9 | 21.83 | 19.79 | -2.04 |
 | User 730 | Loop holdout | T1DM | 84.6 | 19.88 | 18.33 | -1.55 |
@@ -107,9 +107,9 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/NBEATSx_20260811T160552
 | 1413 (Insulin-T2DM) | joined2 test | Insulin-T2DM | 9.1 | 13.35 | 16.74 | 3.39 |
 | 1036 (Insulin-T2DM) | joined2 test | Insulin-T2DM | 6.3 | 17.14 | 21.74 | 4.60 |
 
-### Livia and Loop quality holdouts
+### Subject P1 and Loop quality holdouts
 
-#### Livia
+#### Subject P1
 
 | Days | Used train days | ZS MAE | FT MAE | Δ FT vs ZS |
 |------|-----------------|--------|--------|------------|
@@ -121,7 +121,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/NBEATSx_20260811T160552
 | 60 | 60.0 | 22.09 | 20.47 | -1.61 |
 | all (345d) | 344.6 | 22.09 | 19.00 | -3.09 |
 
-![Livia NBEATSx data-size curve](figures/personalization_nf/NBEATSx_livia_data_size.png)
+![Subject P1 NBEATSx data-size curve](figures/personalization_nf/NBEATSx_demo_data_size.png)
 
 
 #### User 154
@@ -223,7 +223,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/NBEATSx_20260811T160552
 
 ### Average MAE improvement by train budget
 
-Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Livia + Loop holdouts except User 1082 when the budget exceeds their span). Negative Δ is better than frozen global.
+Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Subject P1 + Loop holdouts except User 1082 when the budget exceeds their span). Negative Δ is better than frozen global.
 
 | Train budget | Mean Δ vs ZS | Mean MAE improvement | n |
 |--------------|--------------|----------------------|---|
@@ -330,7 +330,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/NHITS_20260811T160526Z`
 
 | Subject | Cohort | Study group | Train span (d) | ZS MAE | FT MAE (all) | Δ vs ZS |
 |---------|--------|-------------|----------------|--------|--------------|---------|
-| Livia | Livia | T1DM | 344.6 | 22.06 | 19.15 | -2.91 |
+| Subject P1 | Subject P1 | T1DM | 344.6 | 22.06 | 19.15 | -2.91 |
 | User 154 | Loop holdout | T1DM | 213.6 | 29.52 | 28.65 | -0.87 |
 | User 556 | Loop holdout | T1DM | 90.9 | 21.53 | 19.84 | -1.70 |
 | User 730 | Loop holdout | T1DM | 84.6 | 20.16 | 18.50 | -1.66 |
@@ -346,9 +346,9 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/NHITS_20260811T160526Z`
 | 1413 (Insulin-T2DM) | joined2 test | Insulin-T2DM | 9.1 | 13.70 | 13.43 | -0.27 |
 | 1036 (Insulin-T2DM) | joined2 test | Insulin-T2DM | 6.3 | 17.07 | 20.31 | 3.24 |
 
-### Livia and Loop quality holdouts
+### Subject P1 and Loop quality holdouts
 
-#### Livia
+#### Subject P1
 
 | Days | Used train days | ZS MAE | FT MAE | Δ FT vs ZS |
 |------|-----------------|--------|--------|------------|
@@ -360,7 +360,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/NHITS_20260811T160526Z`
 | 60 | 60.0 | 22.06 | 20.61 | -1.45 |
 | all (345d) | 344.6 | 22.06 | 19.15 | -2.91 |
 
-![Livia NHITS data-size curve](figures/personalization_nf/NHITS_livia_data_size.png)
+![Subject P1 NHITS data-size curve](figures/personalization_nf/NHITS_demo_data_size.png)
 
 
 #### User 154
@@ -462,7 +462,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/NHITS_20260811T160526Z`
 
 ### Average MAE improvement by train budget
 
-Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Livia + Loop holdouts except User 1082 when the budget exceeds their span). Negative Δ is better than frozen global.
+Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Subject P1 + Loop holdouts except User 1082 when the budget exceeds their span). Negative Δ is better than frozen global.
 
 | Train budget | Mean Δ vs ZS | Mean MAE improvement | n |
 |--------------|--------------|----------------------|---|
@@ -569,7 +569,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/TFT_20260811T160708Z`. 
 
 | Subject | Cohort | Study group | Train span (d) | ZS MAE | FT MAE (all) | Δ vs ZS |
 |---------|--------|-------------|----------------|--------|--------------|---------|
-| Livia | Livia | T1DM | 344.6 | 24.16 | 18.61 | -5.56 |
+| Subject P1 | Subject P1 | T1DM | 344.6 | 24.16 | 18.61 | -5.56 |
 | User 154 | Loop holdout | T1DM | 213.6 | 29.28 | 25.21 | -4.07 |
 | User 556 | Loop holdout | T1DM | 90.9 | 21.85 | 17.81 | -4.04 |
 | User 730 | Loop holdout | T1DM | 84.6 | 23.10 | 17.42 | -5.68 |
@@ -585,9 +585,9 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/TFT_20260811T160708Z`. 
 | 1413 (Insulin-T2DM) | joined2 test | Insulin-T2DM | 9.1 | 17.39 | 16.90 | -0.49 |
 | 1036 (Insulin-T2DM) | joined2 test | Insulin-T2DM | 6.3 | 19.31 | 21.50 | 2.18 |
 
-### Livia and Loop quality holdouts
+### Subject P1 and Loop quality holdouts
 
-#### Livia
+#### Subject P1
 
 | Days | Used train days | ZS MAE | FT MAE | Δ FT vs ZS |
 |------|-----------------|--------|--------|------------|
@@ -599,7 +599,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/TFT_20260811T160708Z`. 
 | 60 | 60.0 | 24.16 | 18.58 | -5.58 |
 | all (345d) | 344.6 | 24.16 | 18.61 | -5.56 |
 
-![Livia TFT data-size curve](figures/personalization_nf/TFT_livia_data_size.png)
+![Subject P1 TFT data-size curve](figures/personalization_nf/TFT_demo_data_size.png)
 
 
 #### User 154
@@ -701,7 +701,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/TFT_20260811T160708Z`. 
 
 ### Average MAE improvement by train budget
 
-Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Livia + Loop holdouts except User 1082 when the budget exceeds their span). Negative Δ is better than frozen global.
+Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Subject P1 + Loop holdouts except User 1082 when the budget exceeds their span). Negative Δ is better than frozen global.
 
 | Train budget | Mean Δ vs ZS | Mean MAE improvement | n |
 |--------------|--------------|----------------------|---|
@@ -808,7 +808,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/TiDE_20260811T160931Z`.
 
 | Subject | Cohort | Study group | Train span (d) | ZS MAE | FT MAE (all) | Δ vs ZS |
 |---------|--------|-------------|----------------|--------|--------------|---------|
-| Livia | Livia | T1DM | 344.6 | 33.28 | 24.45 | -8.83 |
+| Subject P1 | Subject P1 | T1DM | 344.6 | 33.28 | 24.45 | -8.83 |
 | User 154 | Loop holdout | T1DM | 213.6 | 39.19 | 31.97 | -7.22 |
 | User 556 | Loop holdout | T1DM | 90.9 | 31.32 | 24.60 | -6.72 |
 | User 730 | Loop holdout | T1DM | 84.6 | 29.23 | 22.98 | -6.25 |
@@ -824,9 +824,9 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/TiDE_20260811T160931Z`.
 | 1413 (Insulin-T2DM) | joined2 test | Insulin-T2DM | 9.1 | 21.05 | 15.38 | -5.67 |
 | 1036 (Insulin-T2DM) | joined2 test | Insulin-T2DM | 6.3 | 26.37 | 20.04 | -6.33 |
 
-### Livia and Loop quality holdouts
+### Subject P1 and Loop quality holdouts
 
-#### Livia
+#### Subject P1
 
 | Days | Used train days | ZS MAE | FT MAE | Δ FT vs ZS |
 |------|-----------------|--------|--------|------------|
@@ -838,7 +838,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/TiDE_20260811T160931Z`.
 | 60 | 60.0 | 33.28 | 24.88 | -8.41 |
 | all (345d) | 344.6 | 33.28 | 24.45 | -8.83 |
 
-![Livia TiDE data-size curve](figures/personalization_nf/TiDE_livia_data_size.png)
+![Subject P1 TiDE data-size curve](figures/personalization_nf/TiDE_demo_data_size.png)
 
 
 #### User 154
@@ -940,7 +940,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/TiDE_20260811T160931Z`.
 
 ### Average MAE improvement by train budget
 
-Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Livia + Loop holdouts except User 1082 when the budget exceeds their span). Negative Δ is better than frozen global.
+Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Subject P1 + Loop holdouts except User 1082 when the budget exceeds their span). Negative Δ is better than frozen global.
 
 | Train budget | Mean Δ vs ZS | Mean MAE improvement | n |
 |--------------|--------------|----------------------|---|
@@ -1047,7 +1047,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/LSTM_20260811T160617Z`.
 
 | Subject | Cohort | Study group | Train span (d) | ZS MAE | FT MAE (all) | Δ vs ZS |
 |---------|--------|-------------|----------------|--------|--------------|---------|
-| Livia | Livia | T1DM | 344.6 | 36.09 | 30.52 | -5.57 |
+| Subject P1 | Subject P1 | T1DM | 344.6 | 36.09 | 30.52 | -5.57 |
 | User 154 | Loop holdout | T1DM | 213.6 | 43.16 | 42.40 | -0.76 |
 | User 556 | Loop holdout | T1DM | 90.9 | 33.21 | 30.73 | -2.48 |
 | User 730 | Loop holdout | T1DM | 84.6 | 33.10 | 31.45 | -1.65 |
@@ -1063,9 +1063,9 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/LSTM_20260811T160617Z`.
 | 1413 (Insulin-T2DM) | joined2 test | Insulin-T2DM | 9.1 | 23.25 | 28.03 | 4.78 |
 | 1036 (Insulin-T2DM) | joined2 test | Insulin-T2DM | 6.3 | 28.51 | 40.93 | 12.42 |
 
-### Livia and Loop quality holdouts
+### Subject P1 and Loop quality holdouts
 
-#### Livia
+#### Subject P1
 
 | Days | Used train days | ZS MAE | FT MAE | Δ FT vs ZS |
 |------|-----------------|--------|--------|------------|
@@ -1077,7 +1077,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/LSTM_20260811T160617Z`.
 | 60 | 60.0 | 36.09 | 33.48 | -2.61 |
 | all (345d) | 344.6 | 36.09 | 30.52 | -5.57 |
 
-![Livia LSTM data-size curve](figures/personalization_nf/LSTM_livia_data_size.png)
+![Subject P1 LSTM data-size curve](figures/personalization_nf/LSTM_demo_data_size.png)
 
 
 #### User 154
@@ -1179,7 +1179,7 @@ Global holdout run: `data/output/runs/nf_holdout/__ALL__/LSTM_20260811T160617Z`.
 
 ### Average MAE improvement by train budget
 
-Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Livia + Loop holdouts except User 1082 when the budget exceeds their span). Negative Δ is better than frozen global.
+Mean test-MAE reduction versus zero-shot on T1DM users with at least 60 train days (Subject P1 + Loop holdouts except User 1082 when the budget exceeds their span). Negative Δ is better than frozen global.
 
 | Train budget | Mean Δ vs ZS | Mean MAE improvement | n |
 |--------------|--------------|----------------------|---|

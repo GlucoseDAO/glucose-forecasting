@@ -1,4 +1,4 @@
-[andrii@atomica ~]$ uv run python scripts/GluMind/train_glumind.py \
+[user@machine ~]$ uv run python scripts/GluMind/train_glumind.py \
 >   --csv data/actual/with_complex_steps_processing/ai_ready_plus_type1_v1_val_in_val_and_test.csv \
 >   --split_scheme classic \
 >   --mode global \

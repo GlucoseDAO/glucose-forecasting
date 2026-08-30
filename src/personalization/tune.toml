@@ -1,6 +1,6 @@
-# Personalization fine-tune — Livia + SugarOne (production defaults).
+# Personalization fine-tune — Subject P1 + SugarOne (production defaults).
 # Run:
-#   uv run personal-prepare livia
+#   uv run personal-prepare subject_p1
 #   uv run personal-tune
 #   uv run personal-tune --dry-run
 #   uv run personal-tune --list
@@ -11,11 +11,11 @@
 
 [paths]
 base_run_dir = "fixtures/checkpoints/sugar_one_1.0"
-personal_csv = "data/input/personalization/prepared/livia_chronological.csv"
-output_dir = "data/output/runs/personalization/livia/tune"
+personal_csv = "data/input/personalization/prepared/subject_p1_chronological.csv"
+output_dir = "data/output/runs/personalization/subject_p1/tune"
 
 [defaults]
-subject = "livia"
+subject = "subject_p1"
 lwf_lambda = 0.0
 lr = 0.0004
 weight_decay = 0.00003

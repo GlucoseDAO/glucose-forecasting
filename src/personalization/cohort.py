@@ -1,4 +1,4 @@
-"""Phase 4 personalization cohort: Livia, Loop holdouts, joined2 test users."""
+"""Phase 4 personalization cohort: Subject P1, Loop holdouts, joined2 test users."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,18 +10,18 @@ import polars as pl
 from common.data.loading import STUDY_GROUP_ORDER, normalize_study_group_label
 from personalization.constants import LOOP_HOLDOUT_QUALITY_USERS
 
-LIVIA_CSV: Final[Path] = Path("data/input/personalization/prepared/livia_chronological.csv")
+DEMO_CSV: Final[Path] = Path("data/input/personalization/prepared/subject_p1_chronological.csv")
 HOLDOUT_CSV_DIR: Final[Path] = Path("data/input/personalization/holdouts")
 JOINED2_CSV_DIR: Final[Path] = Path("data/input/personalization/joined2_test")
 JOINED2_CSV: Final[Path] = Path("data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv")
 
-COHORT_LIVIA: Final[str] = "livia"
+COHORT_SUBJECT_P1: Final[str] = "subject_p1"
 COHORT_QUALITY_HOLDOUT: Final[str] = "quality_holdout"
 COHORT_JOINED2_TEST: Final[str] = "joined2_test"
 
 # Two users per AI-READY study group from joined2 Recommended Split == test.
 # Rule: largest test-split row count, then User ID ascending. Frozen so reruns
-# stay comparable if the CSV later gains rows. T1DM is omitted here — Livia plus
+# stay comparable if the CSV later gains rows. T1DM is omitted here — Subject P1 plus
 # the six Loop quality holdouts already cover that group.
 JOINED2_TEST_USERS: Final[tuple[tuple[str, str], ...]] = (
     ("ai_ready_1030", "Healthy"),
@@ -70,12 +70,12 @@ def _joined2_subject(user_id: str, study_group: str) -> Phase4Subject:
 
 PHASE4_SUBJECTS: tuple[Phase4Subject, ...] = (
     Phase4Subject(
-        user_id="livia",
-        subject="livia",
-        csv=LIVIA_CSV,
-        cohort=COHORT_LIVIA,
+        user_id="subject_p1",
+        subject="subject_p1",
+        csv=DEMO_CSV,
+        cohort=COHORT_SUBJECT_P1,
         study_group="T1DM",
-        display="Livia",
+        display="Subject P1",
     ),
     *(_holdout_subject(uid) for uid in LOOP_HOLDOUT_QUALITY_USERS),
     *(_joined2_subject(uid, group) for uid, group in JOINED2_TEST_USERS),
@@ -86,11 +86,11 @@ SUBJECT_BY_USER: dict[str, Phase4Subject] = {spec.user_id: spec for spec in PHAS
 
 
 EXTRA_DISPLAY: dict[str, str] = {
-    "livia_indep": "Independent (λ=0)",
-    "livia_curr_plain": "Plain curriculum (legacy chain)",
-    "livia_curr_lwf": "LwF decay curriculum (legacy chain)",
-    "livia_lwf_decay": "LwF decay (from global)",
-    "livia_lwf_01": "LwF λ=0.1 (from global)",
+    "subject_p1_indep": "Independent (λ=0)",
+    "subject_p1_curr_plain": "Plain curriculum (legacy chain)",
+    "subject_p1_curr_lwf": "LwF decay curriculum (legacy chain)",
+    "subject_p1_lwf_decay": "LwF decay (from global)",
+    "subject_p1_lwf_01": "LwF λ=0.1 (from global)",
     "loop_154_indep": "154 independent (λ=0)",
     "loop_154_lwf_decay": "154 LwF decay (from global)",
     "loop_154_lwf_01": "154 LwF λ=0.1 (from global)",
@@ -108,7 +108,7 @@ def original_cohort_subjects() -> tuple[Phase4Subject, ...]:
     return tuple(
         s
         for s in PHASE4_SUBJECTS
-        if s.cohort in {COHORT_LIVIA, COHORT_QUALITY_HOLDOUT}
+        if s.cohort in {COHORT_SUBJECT_P1, COHORT_QUALITY_HOLDOUT}
     )
 
 

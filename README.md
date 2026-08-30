@@ -9,10 +9,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/GlucoseDAO/glucose-forecasting"><img alt="Python 3.12+" src="https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white"></a>
+  <a href="https://anonymous.4open.science/r/glucose-forecasting"><img alt="Python 3.12+" src="https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white"></a>
   <a href="https://pytorch.org/"><img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-2.9%2B-EE4C2C?logo=pytorch&logoColor=white"></a>
   <a href="https://github.com/astral-sh/uv"><img alt="uv" src="https://img.shields.io/badge/managed%20with-uv-DE5FE9"></a>
-  <a href="https://github.com/orgs/GlucoseDAO/repositories"><img alt="GlucoseDAO" src="https://img.shields.io/badge/GlucoseDAO-open%20ecosystem-16A085"></a>
+  <a href="https://anonymous.4open.science/r/glucose-forecasting"><img alt="AnonymousOrg" src="https://img.shields.io/badge/AnonymousOrg-open%20ecosystem-16A085"></a>
 </p>
 
 This repository is both a **research platform** and a **reproducible model playground**:
@@ -21,7 +21,7 @@ This repository is both a **research platform** and a **reproducible model playg
 - train multimodal transformers on CGM, pump, meal, and wearable signals;
 - compare SugarOne and GluMind with TFT, NHITS, xLSTM, and other baselines;
 - evaluate across Type 1 diabetes, Type 2 diabetes, pre-diabetes, and healthy cohorts;
-- connect directly to the [GlucoseDAO data pipeline](https://github.com/GlucoseDAO/glucose_data_processing), which catalogs **50+ public glucose datasets** and converts supported sources into ML-ready time series.
+- connect directly to the [AnonymousOrg data pipeline](https://anonymous.4open.science/r/glucose-data-processing), which catalogs **50+ public glucose datasets** and converts supported sources into ML-ready time series.
 
 > **Current flagship result:** SugarOne reaches **12.40 mg/dL MAE** and **9.91% MARD** over **1.67 million held-out forecast windows** from the joined Loop + AI-READI benchmark.
 
@@ -34,13 +34,13 @@ This repository is both a **research platform** and a **reproducible model playg
 No external dataset or training run is required:
 
 ```bash
-git clone https://github.com/GlucoseDAO/glucose-forecasting.git
+git clone https://anonymous.4open.science/r/glucose-forecasting.git
 cd glucose-forecasting
 uv sync
 uv run glucose evaluate \
   --run-dir fixtures/checkpoints/sugar_one_1.0 \
   --model-type sugar_one \
-  --data fixtures/livia_data/livia_sugar_one_ready.csv \
+  --data fixtures/demo_data/demo_sugar_one_ready.csv \
   --test-split "" \
   --batch-size 256 \
   --no-plot
@@ -52,7 +52,7 @@ GluMind demo (wearable-shaped CSV, no pump columns):
 uv run glucose evaluate \
   --run-dir fixtures/checkpoints/glumind_1.0 \
   --model-type glumind \
-  --data fixtures/livia_data/livia_glumind_ready.csv \
+  --data fixtures/demo_data/demo_glumind_ready.csv \
   --test-split "" \
   --batch-size 4096 \
   --no-plot
@@ -280,9 +280,9 @@ _This earlier wearable benchmark uses “Sugar I” as the presentation name for
 
 ---
 
-## Part of the GlucoseDAO ecosystem
+## Part of the AnonymousOrg ecosystem
 
-Glucose forecasting is only useful when real-world CGM data can reach the model. This project is one part of the broader [GlucoseDAO open-source ecosystem](https://github.com/orgs/GlucoseDAO/repositories):
+Glucose forecasting is only useful when real-world CGM data can reach the model. This project is one part of the broader [AnonymousOrg open-source ecosystem](https://anonymous.4open.science/r/glucose-forecasting):
 
 ```mermaid
 flowchart LR
@@ -297,10 +297,10 @@ flowchart LR
     style F fill:#e8f7ee,stroke:#16834b,stroke-width:2px
 ```
 
-- **[glucose_data_processing](https://github.com/GlucoseDAO/glucose_data_processing)** — catalogs 50+ public glucose datasets; converters for Loop, HUPA, T1D-UOM, UCHTT1DM, AI-READI, Dexcom, Libre, Medtronic, and more.
-- **[cgm_format](https://github.com/GlucoseDAO/cgm_format)** — common CGM exports → unified format.
-- **[gluRPC](https://github.com/GlucoseDAO/gluRPC)** — glucose prediction gRPC service.
-- **[sugar-sugar](https://github.com/GlucoseDAO/sugar-sugar)** — human vs model forecasting game.
+- **[glucose_data_processing](https://anonymous.4open.science/r/glucose-data-processing)** — catalogs 50+ public glucose datasets; converters for Loop, HUPA, T1D-UOM, UCHTT1DM, AI-READI, Dexcom, Libre, Medtronic, and more.
+- **[cgm_format](https://anonymous.4open.science/r/cgm-format)** — common CGM exports → unified format.
+- **[gluRPC](https://anonymous.4open.science/r/gluRPC)** — glucose prediction gRPC service.
+- **[sugar-sugar](https://anonymous.4open.science/r/sugar-sugar)** — human vs model forecasting game.
 
 Together: **find data → prepare it → train models → serve predictions → explore human forecasting**.
 
@@ -310,7 +310,7 @@ This repo does **not** ship the large datasets. Prepare ML-ready CSVs in the com
 
 ```bash
 cd ..
-git clone https://github.com/GlucoseDAO/glucose_data_processing.git
+git clone https://anonymous.4open.science/r/glucose-data-processing.git
 cd glucose_data_processing
 uv sync
 
@@ -333,9 +333,9 @@ uv run glucose neuralforecast train \
 | `loop_ai_ready_joined2.csv` | Full Loop + AI-READI benchmark (~12M rows) |
 | `loop_ai_ready_joined2_dev.csv` | Smaller subset for development |
 
-**No dataset yet?** Start with `fixtures/livia_data/` and `fixtures/checkpoints/sugar_one_1.0/` / `fixtures/checkpoints/glumind_1.0/`.
+**No dataset yet?** Start with `fixtures/demo_data/` and `fixtures/checkpoints/sugar_one_1.0/` / `fixtures/checkpoints/glumind_1.0/`.
 
-Details: [docs/DATA.md](docs/DATA.md). Preprocessing options live in [glucose_data_processing](https://github.com/GlucoseDAO/glucose_data_processing).
+Details: [docs/DATA.md](docs/DATA.md). Preprocessing options live in [glucose_data_processing](https://anonymous.4open.science/r/glucose-data-processing).
 
 ### Expected dataset columns
 
@@ -367,7 +367,7 @@ Details: [docs/DATA.md](docs/DATA.md). Preprocessing options live in [glucose_da
 │   ├── nf_baselines/          # NeuralForecast holdout + legacy tuner
 │   └── personalization/       # SugarOne personal fine-tune (`personal-*`)
 ├── fixtures/
-│   ├── livia_data/            # demo CSVs (Livia)
+│   ├── demo_data/            # demo CSVs (Subject P1)
 │   └── checkpoints/           # shipped reviewer weights + scalers.json
 │       ├── glumind_1.0/
 │       ├── sugar_one_1.0/
@@ -414,7 +414,7 @@ model.eval()
 | `no evaluation data found` | CSV has no `Recommended Split` — pass `--test-split ""` to score all rows |
 | `no precomputed metrics and no --data` | Pass `--data your.csv` to run live inference |
 | Wrong scaling vs training metrics | Prefer run-dir `scalers.json`; avoid `--refit-scalers` unless intentional |
-| SugarOne on GluMind-only CSV | Pass `--zero-cov` or use `fixtures/livia_data/livia_sugar_one_ready.csv` |
+| SugarOne on GluMind-only CSV | Pass `--zero-cov` or use `fixtures/demo_data/demo_sugar_one_ready.csv` |
 | Need flag help | `uv run glucose evaluate --help` or any `--help` |
 
 ---
@@ -424,11 +424,11 @@ model.eval()
 | Doc | Contents |
 |-----|----------|
 | **[CLI Reference](docs/CLI_REFERENCE.md)** | Platform + experiment CLI flags |
-| [Personalization](docs/PERSONALIZATION.md) | SugarOne + Livia fine-tune (`personal-*`) |
+| [Personalization](docs/PERSONALIZATION.md) | SugarOne + Subject P1 fine-tune (`personal-*`) |
 | [Personalization report](docs/PERSONALIZATION_REPORT.md) | Personalization study results |
 | [Data guide](docs/DATA.md) | Preprocessing link, `data/input/` layout, joins |
 | [How to run a checkpoint](docs/How_to_run_checkpoint.md) | Reviewer smoke eval |
-| [Presentation](docs/presentation/PRESENTATION_NOTES.md) | RoBioinfo figures + talk notes |
+| [Presentation](docs/presentation/PRESENTATION_NOTES.md) | Conference figures + talk notes |
 | [GluMind vs SugarOne](docs/GLUMIND_VS_SUGARONE_COMPARISON.md) | Cross-model + ablation analysis |
 | [T1DM ablation](docs/T1DM_COVARIATE_ABLATION_REPORT.md) | Basal/bolus/carb contributions |
 | [SugarJEPA vs SugarOne](docs/SUGAR_JEPA_VS_SUGAR_ONE_DEV_COMPARISON.md) | JEPA development comparison |

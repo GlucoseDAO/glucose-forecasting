@@ -3,8 +3,8 @@
 \usepackage{graphicx}
 \usepackage{easrp2026}
 
-\easrpauthor{Oleh Kovalyshyn, Yevhenii Zasko, Volodymyr Sydorskyi, Livia Zaharia}
-\easrpaffiliation{Kyiv School of Economics, Kyiv, Ukraine}
+\easrpauthor{Anonymous Author F, Anonymous Author G, Anonymous Author H, Anonymous Author A}
+\easrpaffiliation{Anonymous Institution}
 
 \easrptitle{Fine-tuning paths for 60-minute glucose forecasts:\\
 a JEPA feature on a transformer backbone\footnote{Code:
@@ -21,24 +21,20 @@ a JEPA feature on a transformer backbone\footnote{Code:
 Continuous glucose monitors (CGM) are worn by tens of millions of people with
 diabetes and increasingly by wellness users who may wear a sensor only once a
 year. Available personal history therefore spans years of uninterrupted
-recording down to a single 10--14 day wear. Fine-tuning a population model to
+recording down to a single 10--14~day wear. Fine-tuning a population model to
 one person is usually reported at two endpoints---zero-shot and full
 history---but on short histories fine-tuning can raise error. The practical
 question is: how many days make adaptation safe?
 
 We score personalization as a curve at 3, 7, 14, 30, 60, and full-history day
-budgets. \textbf{SugarOne} is a compact multi-input transformer on commodity
-CGM and insulin-record covariates. \textbf{SugarJEPA-288} adds a frozen
-CGM-JEPA embedding~\citep{muhammad2026cgmjepa} as a fourth stream. Frozen
-SugarJEPA-288 (mean personal-test MAE 18.13~mg/dL) already beats SugarOne
-fine-tuned for 30 days (19.64) for all seven type~1 diabetes (T1DM) users in
-the study. Its own fine-tune path stays at or below the zero-shot floor from
-3 days onward, while SugarOne and NBEATSx need 60+ days before adaptation
-helps. Self-supervised representations reduce the minimum safe
-personalization window from months to days.
-
-The study is small (\(n=7\) T1DM). Smoothness is an empirical check, not a
-guarantee.
+budgets. SugarJEPA-288---a compact multi-input transformer augmented with a
+frozen CGM-JEPA self-supervised embedding~\citep{muhammad2026cgmjepa} as a
+fourth stream---already beats SugarOne fine-tuned for 30~days, for all seven
+type~1 diabetes mellitus (T1DM) users in the study. Its own fine-tune path
+stays at or below the zero-shot floor from 3~days onward, while SugarOne and
+NBEATSx need 60+ days before adaptation helps. Self-supervised
+representations reduce the minimum safe personalization window from months to
+days.
 \end{abstract}
 
 \section{Introduction}

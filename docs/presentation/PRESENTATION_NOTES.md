@@ -1,6 +1,6 @@
-# RoBioinfo 2026 Presentation — Restructuring Guide
+# Anonymous Conference Presentation — Restructuring Guide
 
-Presentation assets for the RoBioinfo 2026 talk (HTML + figures + abstract PDF). Figures regenerate with:
+Presentation assets for the Anonymous Conference talk (HTML + figures + abstract PDF). Figures regenerate with:
 
 ```bash
 uv run python docs/presentation/generate_figures.py
@@ -13,7 +13,7 @@ uv run python docs/presentation/generate_figures.py
 - **Secondary:** A small number of ML/AI people
 - **Implication:** Lead with biology and clinical relevance, minimize ML jargon, explain every metric
 
-## What changed vs. the Timisoara version
+## What changed vs. the [Anonymous Location] version
 
 ### Slides REMOVED or heavily condensed
 | Old slide | Why removed/condensed |
@@ -45,7 +45,7 @@ uv run python docs/presentation/generate_figures.py
 | Results T1DM (slide 9) | Added honest note about RMSE gap — scientists respect transparency |
 | Architecture diagram (slide 6) | Kept the general schema figure, added key innovation callout |
 
-## Reusing visuals from the Timisoara presentation
+## Reusing visuals from the [Anonymous Location] presentation
 
 The original presentation has several excellent custom figures. Reuse them in the new structure:
 
@@ -91,13 +91,13 @@ A: Yes — the model has a narrow task (12-step regression) vs. LLMs that must r
 A: The architecture is modular. Replace the 3-channel input (glucose, HR, steps) with your own channels. The cross-attention mechanism generalizes to any set of irregularly sampled time series.
 
 **Q: What about privacy concerns with health data?**
-A: AI-READI is a public dataset with proper consent. Sugar-Sugar has ethics approval from UMR Rostock. Model weights are on HuggingFace — inference can run locally without sending data to any server.
+A: AI-READI is a public dataset with proper consent. Sugar-Sugar has ethics approval from Anonymous Institution. Model weights are on HuggingFace — inference can run locally without sending data to any server.
 
 ---
 
 ## FACT-CHECK: Issues found by auditing the codebase
 
-### ERRORS in the original Timisoara presentation
+### ERRORS in the original [Anonymous Location] presentation
 
 | Claim | What the code/data actually says | Severity |
 |---|---|---|
@@ -113,8 +113,8 @@ A: AI-READI is a public dataset with proper consent. Sugar-Sugar has ethics appr
 | RMSE **17.62** (AI-READI) | **17.73** (val_metrics from AI Ready Only run) | Same issue — 0.6% difference. |
 | NHITS MAE **19.88** / RMSE **31.81** | Our NHITS runs: MAE **20.60** / RMSE **34.45** | Abstract appears to cite the original GluMind paper's NHITS numbers, not our own runs. Our NHITS is actually worse, which makes Sugar I look even better. The new presentation uses our actual run numbers. |
 | MARD **8.25%** (AI-READI) | Matches val_metrics: **8.2476%** | Correct (rounded). |
-| **896 participants** across 4 cohorts | Not verifiable from codebase. Training windows: 4.45M train / 977K val / 984K test. | The 896 number comes from the AI-READI consortium documentation, not from our code. Livia should verify against the AI-READI paper. |
-| **53 public CGM datasets** | Not found anywhere in the repo. No catalogue file exists. | This number may come from a separate dataset survey not in this repo. Livia needs to provide the source or we should remove this claim. |
+| **896 participants** across 4 cohorts | Not verifiable from codebase. Training windows: 4.45M train / 977K val / 984K test. | The 896 number comes from the AI-READI consortium documentation, not from our code. Subject P1 should verify against the AI-READI paper. |
+| **53 public CGM datasets** | Not found anywhere in the repo. No catalogue file exists. | This number may come from a separate dataset survey not in this repo. Subject P1 needs to provide the source or we should remove this claim. |
 
 ### NAMING: "Sugar I" vs "GluMind"
 

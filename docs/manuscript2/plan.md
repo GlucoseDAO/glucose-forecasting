@@ -2,7 +2,7 @@
 
 This is a writing plan, not yet a section outline. The previous `docs/manuscript/` draft tried to be several papers at once. This plan keeps one theme and makes every section serve it.
 
-Venue constraint: EASRP 2026 template, **8 pages of main text**, references and appendix unlimited. Prefer a shorter paper over leftover sections.
+Venue constraint: Anonymous Conference 2026 template, **8 pages of main text**, references and appendix unlimited. Prefer a shorter paper over leftover sections.
 
 ---
 
@@ -94,7 +94,7 @@ Nothing else is a contribution.
 ### In (needed for the theme)
 
 - **Task.** Horizon 12 steps = 60 minutes at 5-minute sampling. Metrics: MAE (lead), RMSE, MARD.
-- **Data pipeline, short.** Raw CGM/pump → [glucose_data_processing](https://github.com/GlucoseDAO/glucose_data_processing) → `loop_ai_ready_joined2.csv`. Name sources, study groups, and **which split is “the test.”**
+- **Data pipeline, short.** Raw CGM/pump → [glucose_data_processing](https://anonymous.4open.science/r/glucose-data-processing) → `loop_ai_ready_joined2.csv`. Name sources, study groups, and **which split is “the test.”**
 - **SugarOne, specified (unpublished).** Not a footnote. One Methods subsection plus a tiny GluMind-vs-SugarOne difference table:
   - **Kept:** GluMind parallel cross-attention (glucose queries, each auxiliary as keys/values) and multi-scale self-attention.
   - **Covariates:** heart rate + steps → basal rate, bolus, carbohydrates (what a commodity CGM + insulin record has).
@@ -216,7 +216,7 @@ Public names: **SugarOne**, **SugarJEPA**, **CGM-JEPA**. Cite **GluMind** as the
 | NeuralForecast on the main figure | **NBEATSx** (harmful through 30 d) **and** **TFT** (helps from 30 d; harmful at 3--14 d). Not all five. |
 | Personal cohort | **7 T1DM users** with JEPA curves. AI-READY short wear = limitation only. |
 | 1-day fine-tune | **Drop from the main figure for every model.** `jepa-288` needs a 1-day lookback, so a 1-day train budget cannot yield a window. Curves: zero-shot, then 3 / 7 / 14 / 30 / 60 / full. |
-| Venue | **EASRP 2026**, anonymous, 8-page A4 main text. |
+| Venue | **Anonymous Conference 2026**, anonymous, 8-page A4 main text. |
 | SugarOne publication | **None.** Introduce it in Methods as GluMind blocks + different covariates, mixing, hyperparameters, and dataset. Not a second thesis. |
 | Patient-ID probe | **Skip.** |
 | JEPA source of truth | **`docs/manuscript2/jepa_paper/`.** Personalization JEPA report is CSV MAE only; it does not override freeze/protocol. |

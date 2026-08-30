@@ -52,20 +52,20 @@ moves both param groups together rather than silently changing their balance; `-
 overrides with an absolute value. In the sweep CLIs both settings ride in the recipe /
 params dict alongside `lwf_lambda` and `lr`.
 
-## Demo: Livia + SugarOne
+## Demo: Subject P1 + SugarOne
 
 Tracked fixtures — no gitignored `data/input/` export required:
 
 ```bash
-uv run personal-prepare livia
+uv run personal-prepare subject_p1
 uv run personal-tune --dry-run
 uv run personal-tune
 ```
 
 Defaults:
 
-- Input: `fixtures/livia_data/livia_sugar_one_ready.csv`
-- Prepared CSV: `data/input/personalization/prepared/livia_chronological.csv`
+- Input: `fixtures/demo_data/demo_sugar_one_ready.csv`
+- Prepared CSV: `data/input/personalization/prepared/subject_p1_chronological.csv`
 - Checkpoint: `fixtures/checkpoints/sugar_one_1.0`
 - Tuner config: `src/personalization/tune.toml` (LR grid `1e-4`, `2e-4`, `4e-4`)
 
@@ -75,18 +75,18 @@ Single run after prepare:
 uv run personal-finetune --device cuda
 ```
 
-`personal-prepare livia` drops any existing `Recommended Split` and assigns the chronological split above.
+`personal-prepare subject_p1` drops any existing `Recommended Split` and assigns the chronological split above.
 
 ## Commands
 
 | Command | Role |
 |---------|------|
-| `personal-prepare` | Chronological CSVs (`livia`, `holdouts`, `joined2-test`) |
-| `personal-finetune` | One fine-tune (defaults: Livia + `sugar_one_1.0`, stride 6) |
+| `personal-prepare` | Chronological CSVs (`subject_p1`, `holdouts`, `joined2-test`) |
+| `personal-finetune` | One fine-tune (defaults: Subject P1 + `sugar_one_1.0`, stride 6) |
 | `personal-tune` | TOML grid + `leaderboard.csv` |
 | `personal-sweep-days` | Train-days vs test MAE |
 | `personal-plot` | Data-size charts |
-| `personal-sweep-lr` | Holdout LR transfer vs Livia |
+| `personal-sweep-lr` | Holdout LR transfer vs Subject P1 |
 | `personal-sweep-lwf` | Independent LwF vs plain fine-tune |
 | `personal-study` | Cohort data-size curves + personalization report |
 

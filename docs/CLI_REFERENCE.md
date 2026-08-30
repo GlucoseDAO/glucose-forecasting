@@ -38,7 +38,7 @@ uv run glucose evaluate --help
 uv run glucose evaluate                    # defaults from src/glucose_evaluate.yaml
 uv run glucose evaluate \
   --run-dir fixtures/checkpoints/glumind_1.0 --model-type glumind \
-  --data fixtures/livia_data/livia_glumind_ready.csv --test-split "" \
+  --data fixtures/demo_data/demo_glumind_ready.csv --test-split "" \
   --batch-size 4096 --no-plot
 ```
 
@@ -121,15 +121,15 @@ uv run python src/glumind/upload_to_huggingface.py --help
 
 ### Personalization (`personal-*`)
 
-SugarOne only (glucose + insulin + carbs). Defaults: Livia fixture + `fixtures/checkpoints/sugar_one_1.0`, train window stride **6**. Full writeup: [PERSONALIZATION.md](PERSONALIZATION.md).
+SugarOne only (glucose + insulin + carbs). Defaults: Subject P1 fixture + `fixtures/checkpoints/sugar_one_1.0`, train window stride **6**. Full writeup: [PERSONALIZATION.md](PERSONALIZATION.md).
 
 ```bash
-uv run personal-prepare livia
+uv run personal-prepare subject_p1
 uv run personal-tune --dry-run
 uv run personal-finetune --help
 ```
 
-The fixture CSV has an empty `Recommended Split`; `personal-prepare livia` assigns chronological train/val/test. Then `personal-tune` / `personal-finetune` read `data/input/personalization/prepared/livia_chronological.csv`.
+The fixture CSV has an empty `Recommended Split`; `personal-prepare subject_p1` assigns chronological train/val/test. Then `personal-tune` / `personal-finetune` read `data/input/personalization/prepared/subject_p1_chronological.csv`.
 
 ### NeuralForecast personalization (`personal-nf-*`)
 
@@ -213,7 +213,7 @@ Typer apps with the same training modes as GluMind (`global`, `per_group`, `coho
 
 ## Expected dataset columns
 
-Produce CSVs with [glucose_data_processing](https://github.com/GlucoseDAO/glucose_data_processing), then place under `data/input/` (see [DATA.md](DATA.md)).
+Produce CSVs with [glucose_data_processing](https://anonymous.4open.science/r/glucose-data-processing), then place under `data/input/` (see [DATA.md](DATA.md)).
 
 **GluMind / AI-READI-style:**  
 `sequence_id`, `User ID`, `Timestamp (YYYY-MM-DDThh:mm:ss)`, `Recommended Split`, `Study Group`, `Event Type`, `Glucose Value (mg/dL)`, `Heart Rate`, `Step Count`
@@ -261,12 +261,12 @@ model.eval()
 uv run glucose --help
 uv run glucose info
 uv run glucose evaluate --run-dir fixtures/checkpoints/glumind_1.0 --model-type glumind \
-  --data fixtures/livia_data/livia_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
+  --data fixtures/demo_data/demo_glumind_ready.csv --test-split "" --batch-size 4096 --no-plot
 uv run pytest -q
 ```
 
 ## Notes
 
 - In `trainval_test_as_val` mode, held-out test metrics are intentionally disabled.
-- Demo Livia CSVs often lack `Recommended Split` — always pass `--test-split ""` for them.
+- Demo Subject P1 CSVs often lack `Recommended Split` — always pass `--test-split ""` for them.
 - Prefer `scalers.json` from the run dir over `--refit-scalers` when comparing to training-domain metrics.

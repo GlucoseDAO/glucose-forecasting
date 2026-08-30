@@ -1,5 +1,5 @@
 {
-  "subject": "livia",
+  "subject": "subject_p1",
   "summary_rows": 3,
   "mode": "max_days",
   "max_days": 60.0,
@@ -25,7 +25,7 @@
       }
     ]
   },
-  "chart_path": "docs\\figures\\personalization_jepa\\jepa2016_livia_data_size.png",
+  "chart_path": "docs\\figures\\personalization_jepa\\jepa2016_demo_data_size.png",
   "x_values": [
     14.0,
     30.0,

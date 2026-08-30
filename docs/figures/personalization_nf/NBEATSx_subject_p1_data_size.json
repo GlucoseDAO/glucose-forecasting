@@ -1,5 +1,5 @@
 {
-  "subject": "livia",
+  "subject": "subject_p1",
   "summary_rows": 6,
   "mode": "max_days",
   "max_days": 60.0,
@@ -40,7 +40,7 @@
       }
     ]
   },
-  "chart_path": "docs\\figures\\personalization_nf\\NBEATSx_livia_data_size.png",
+  "chart_path": "docs\\figures\\personalization_nf\\NBEATSx_demo_data_size.png",
   "x_values": [
     1.0,
     3.0,

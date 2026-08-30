@@ -84,7 +84,7 @@
     }
   },
   "provenance": {
-    "csv": "D:\\dev\\glucose-forecasting\\data\\loop_and_ai_ready\\loop_ai_ready_joined2.csv",
+    "csv": "data/input/loop_and_ai_ready/loop_ai_ready_joined2.csv",
     "source": "migrate_scalers",
     "split_scheme": "classic",
     "unique_id": "sequence_id",

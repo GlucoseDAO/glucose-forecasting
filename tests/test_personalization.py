@@ -140,7 +140,7 @@ def _prepare_person(tmp_path: Path, *, n_rows: int = 300) -> Path:
     prepared_dir = tmp_path / "prepared"
     prep = runner.invoke(
         prepare_app,
-        ["livia", "--input", str(raw), "--out-dir", str(prepared_dir), "--out-name", "p.csv"],
+        ["demo-subject", "--input", str(raw), "--out-dir", str(prepared_dir), "--out-name", "p.csv"],
     )
     assert prep.exit_code == 0, prep.output
     return prepared_dir / "p.csv"
@@ -182,13 +182,13 @@ def test_chronological_split_and_day_limit() -> None:
     assert train.height < labeled.filter(pl.col("Recommended Split") == "train").height
 
 
-def test_prepare_livia_cli(tmp_path: Path) -> None:
+def test_prepare_demo_subject_cli(tmp_path: Path) -> None:
     raw = tmp_path / "raw_person.csv"
     _write_continuous_person_csv(raw, n_rows=200)
     out_dir = tmp_path / "prepared"
     result = runner.invoke(
         prepare_app,
-        ["livia", "--input", str(raw), "--out-dir", str(out_dir), "--out-name", "person.csv"],
+        ["demo-subject", "--input", str(raw), "--out-dir", str(out_dir), "--out-name", "person.csv"],
     )
     assert result.exit_code == 0, result.output
     assert (out_dir / "person.csv").exists()
@@ -200,7 +200,7 @@ def test_window_stride_reduces_train_windows(tmp_path: Path) -> None:
     prepared_dir = tmp_path / "prepared"
     prep = runner.invoke(
         prepare_app,
-        ["livia", "--input", str(raw), "--out-dir", str(prepared_dir), "--out-name", "p.csv"],
+        ["demo-subject", "--input", str(raw), "--out-dir", str(prepared_dir), "--out-name", "p.csv"],
     )
     assert prep.exit_code == 0, prep.output
     from personalization.finetune import _load_split_frames
@@ -349,7 +349,7 @@ def test_finetune_lwf_zero_smoke(tmp_path: Path) -> None:
     prepared_dir = tmp_path / "prepared"
     runner.invoke(
         prepare_app,
-        ["livia", "--input", str(raw), "--out-dir", str(prepared_dir), "--out-name", "p.csv"],
+        ["demo-subject", "--input", str(raw), "--out-dir", str(prepared_dir), "--out-name", "p.csv"],
     )
     run_dir, results = run_finetune(
         base_run_dir=base,
@@ -392,7 +392,7 @@ def test_sweep_utils_pick_best(tmp_path: Path) -> None:
     assert path.exists()
 
 
-def test_holdout_lr_comparison_vs_livia() -> None:
+def test_holdout_lr_comparison_vs_demo() -> None:
     rows = [
         {"status": "ok", "user_id": "154", "subject": "loop_154", "lr": 0.0001, "ft_test_mae": 14.0},
         {"status": "ok", "user_id": "154", "subject": "loop_154", "lr": 0.0002, "ft_test_mae": 13.5},
@@ -401,7 +401,7 @@ def test_holdout_lr_comparison_vs_livia() -> None:
         {"status": "ok", "user_id": "556", "subject": "loop_556", "lr": 0.0002, "ft_test_mae": 12.2},
         {"status": "ok", "user_id": "556", "subject": "loop_556", "lr": 0.0004, "ft_test_mae": 11.5},
     ]
-    comparison = build_holdout_lr_comparison(rows, livia_reference_lr=0.0002)
+    comparison = build_holdout_lr_comparison(rows, subject_p1_reference_lr=0.0002)
     assert len(comparison) == 2
     by_user = {c["user_id"]: c for c in comparison}
     assert by_user["154"]["optimal_lr"] == 0.0002
@@ -449,7 +449,7 @@ def test_build_run_combos_grid() -> None:
 
 
 def test_personalization_tune_grid_lr_only() -> None:
-    """Default TOML sweeps LR only; lwf=0, wd 3e-5, stride 6, SugarOne + Livia."""
+    """Default TOML sweeps LR only; lwf=0, wd 3e-5, stride 6, SugarOne + Subject P1."""
     import tomllib
 
     cfg = tomllib.loads(Path("src/personalization/tune.toml").read_text(encoding="utf-8"))
@@ -460,7 +460,7 @@ def test_personalization_tune_grid_lr_only() -> None:
     assert cfg["defaults"]["lwf_lambda"] == 0.0
     assert cfg["defaults"]["train_window_stride"] == 6
     assert cfg["paths"]["base_run_dir"] == "fixtures/checkpoints/sugar_one_1.0"
-    assert cfg["paths"]["personal_csv"].endswith("livia_chronological.csv")
+    assert cfg["paths"]["personal_csv"].endswith("subject_p1_chronological.csv")
     lrs = {c["lr"] for c in combos}
     assert lrs == {0.0001, 0.0002, 0.0004}
     assert all(c["lwf_lambda"] == 0.0 for c in combos)
@@ -671,27 +671,27 @@ def test_holdout_constants() -> None:
     assert set(HOLDOUT_LR_PILOT_USERS) & set(HOLDOUT_LR_DEFERRED_USERS) == set()
 
 
-def test_product_defaults_livia_sugar_one() -> None:
-    from common.paths import DEFAULT_SUGAR_ONE_CHECKPOINT, LIVIA_SUGAR_ONE_CSV
+def test_product_defaults_demo_sugar_one() -> None:
+    from common.paths import DEFAULT_SUGAR_ONE_CHECKPOINT, DEMO_SUGAR_ONE_CSV
     from personalization.constants import (
         DEFAULT_BASE_RUN_DIR,
-        DEFAULT_LIVIA_PREPARED_CSV,
-        DEFAULT_LIVIA_SOURCE_CSV,
+        DEFAULT_DEMO_PREPARED_CSV,
+        DEFAULT_DEMO_SOURCE_CSV,
         DEFAULT_PERSONAL_LWF_LAMBDA,
         DEFAULT_TRAIN_WINDOW_STRIDE,
     )
 
     assert Path(DEFAULT_BASE_RUN_DIR) == DEFAULT_SUGAR_ONE_CHECKPOINT
-    assert DEFAULT_LIVIA_SOURCE_CSV == LIVIA_SUGAR_ONE_CSV
-    assert DEFAULT_LIVIA_SOURCE_CSV.as_posix().replace("\\", "/").endswith(
-        "fixtures/livia_data/livia_sugar_one_ready.csv"
+    assert DEFAULT_DEMO_SOURCE_CSV == DEMO_SUGAR_ONE_CSV
+    assert DEFAULT_DEMO_SOURCE_CSV.as_posix().replace("\\", "/").endswith(
+        "fixtures/demo_data/demo_sugar_one_ready.csv"
     )
-    assert DEFAULT_LIVIA_PREPARED_CSV.as_posix().replace("\\", "/").endswith(
-        "data/input/personalization/prepared/livia_chronological.csv"
+    assert DEFAULT_DEMO_PREPARED_CSV.as_posix().replace("\\", "/").endswith(
+        "data/input/personalization/prepared/subject_p1_chronological.csv"
     )
     assert DEFAULT_TRAIN_WINDOW_STRIDE == 6
     assert DEFAULT_PERSONAL_LWF_LAMBDA == 0.0
-    assert DEFAULT_LIVIA_SOURCE_CSV.is_file()
+    assert DEFAULT_DEMO_SOURCE_CSV.is_file()
     assert (DEFAULT_SUGAR_ONE_CHECKPOINT / "best_model.pt").is_file()
     assert (DEFAULT_SUGAR_ONE_CHECKPOINT / "scalers.json").is_file()
 
@@ -700,23 +700,23 @@ def test_prepare_and_finetune_cli_defaults() -> None:
     from typer.main import get_command
 
     from personalization.constants import (
-        DEFAULT_LIVIA_PREPARED_CSV,
-        DEFAULT_LIVIA_SOURCE_CSV,
+        DEFAULT_DEMO_PREPARED_CSV,
+        DEFAULT_DEMO_SOURCE_CSV,
         DEFAULT_TRAIN_WINDOW_STRIDE,
     )
     from personalization.finetune import app as finetune_app
     from personalization.prepare import app as prepare_cli
 
-    livia = get_command(prepare_cli).commands["livia"]
-    input_opt = next(p for p in livia.params if "--input" in p.opts)
-    assert Path(str(input_opt.default)) == DEFAULT_LIVIA_SOURCE_CSV
+    subject_p1 = get_command(prepare_cli).commands["demo-subject"]
+    input_opt = next(p for p in subject_p1.params if "--input" in p.opts)
+    assert Path(str(input_opt.default)) == DEFAULT_DEMO_SOURCE_CSV
 
     ft = get_command(finetune_app)
     commands = getattr(ft, "commands", {})
     ft_cmd = commands.get("main", ft)
     csv_opt = next(p for p in ft_cmd.params if "--personal-csv" in p.opts)
     stride_opt = next(p for p in ft_cmd.params if "--train-window-stride" in p.opts)
-    assert Path(str(csv_opt.default)) == DEFAULT_LIVIA_PREPARED_CSV
+    assert Path(str(csv_opt.default)) == DEFAULT_DEMO_PREPARED_CSV
     assert int(stride_opt.default) == DEFAULT_TRAIN_WINDOW_STRIDE
 
 
@@ -800,7 +800,7 @@ def test_plot_data_size_curve(tmp_path: Path) -> None:
         },
     ]
     out_png = tmp_path / "curve.png"
-    meta = plot_data_size_curve(rows, out_png=out_png, subject="livia", mode="max_days")
+    meta = plot_data_size_curve(rows, out_png=out_png, subject="subject_p1", mode="max_days")
     assert out_png.is_file()
     assert 345.0 not in meta["x_values"]
     assert 999.0 not in meta["x_values"]
@@ -810,7 +810,7 @@ def test_plot_data_size_curve(tmp_path: Path) -> None:
 def test_plot_combined_data_size_curves(tmp_path: Path) -> None:
     from personalization.plots import ALL_DUMMY_X, plot_combined_data_size_curves
 
-    livia = [
+    subject_p1 = [
         {
             "status": "ok",
             "personal_days": "7",
@@ -846,7 +846,7 @@ def test_plot_combined_data_size_curves(tmp_path: Path) -> None:
     ]
     out_png = tmp_path / "combined.png"
     meta = plot_combined_data_size_curves(
-        [("livia", livia), ("loop_556", other)],
+        [("subject_p1", subject_p1), ("loop_556", other)],
         out_png=out_png,
         mode="dummy_all",
     )
@@ -858,7 +858,7 @@ def test_plot_combined_data_size_curves(tmp_path: Path) -> None:
 
     out_60 = tmp_path / "combined_60.png"
     meta_60 = plot_combined_data_size_curves(
-        [("livia", livia), ("loop_556", other)],
+        [("subject_p1", subject_p1), ("loop_556", other)],
         out_png=out_60,
         mode="max_days",
         max_days=60.0,
@@ -897,7 +897,7 @@ def test_plot_curriculum_mae_and_lambda(tmp_path: Path) -> None:
     ]
     out_png = tmp_path / "mae_lambda.png"
     plot_curriculum_mae_and_lambda(
-        [("livia_indep", rows), ("livia_curr_lwf", lwf_rows)],
+        [("subject_p1_indep", rows), ("subject_p1_curr_lwf", lwf_rows)],
         out_png=out_png,
     )
     assert out_png.is_file()
@@ -941,7 +941,7 @@ def test_archive_legacy_scaler_runs(tmp_path: Path) -> None:
     from personalization.sweep_utils import archive_legacy_scaler_runs
 
     out_dir = tmp_path / "data_size"
-    run_dir = out_dir / "days_1" / "livia_days_1"
+    run_dir = out_dir / "days_1" / "subject_p1_days_1"
     run_dir.mkdir(parents=True)
     (run_dir / "personalization_metrics.json").write_text(
         json.dumps({"finetuned_test": {"mae": 19.5}, "config": {"personal_days": 1}}),
