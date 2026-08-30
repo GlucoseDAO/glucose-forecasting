@@ -6,10 +6,10 @@ from typing import Annotated, Optional
 import typer
 
 from manuscript.convert import (
-    MANUSCRIPT_TEX,
-    TEMPLATE_TEX,
     latex_to_markdown,
     latex_to_pdf,
+    manuscript_tex,
+    template_tex,
 )
 
 app = typer.Typer(
@@ -43,19 +43,21 @@ def build_template(
         typer.Option(
             "--output",
             "-o",
-            help="Output Markdown file. Defaults to docs/manuscript/template.md.",
+            help="Output Markdown file. Defaults next to the latest docs/manuscriptN/template.tex.",
         ),
     ] = None,
     pdf_output: Annotated[
         Optional[Path],
         typer.Option(
             "--pdf-output",
-            help="Output PDF file. Defaults to docs/manuscript/template.pdf.",
+            help="Output PDF file. Defaults next to the latest docs/manuscriptN/template.tex.",
         ),
     ] = None,
 ) -> None:
-    """Build Markdown and PDF from the EASRP template."""
-    _build(TEMPLATE_TEX, output, pdf_output)
+    """Build Markdown and PDF from the EASRP template in the latest manuscript folder."""
+    source = template_tex()
+    typer.echo(f"Using {source.parent}")
+    _build(source, output, pdf_output)
 
 
 @app.command("manuscript")
@@ -65,19 +67,21 @@ def build_manuscript(
         typer.Option(
             "--output",
             "-o",
-            help="Output Markdown file. Defaults to docs/manuscript/manuscript.md.",
+            help="Output Markdown file. Defaults next to the latest docs/manuscriptN/manuscript.tex.",
         ),
     ] = None,
     pdf_output: Annotated[
         Optional[Path],
         typer.Option(
             "--pdf-output",
-            help="Output PDF file. Defaults to docs/manuscript/manuscript.pdf.",
+            help="Output PDF file. Defaults next to the latest docs/manuscriptN/manuscript.tex.",
         ),
     ] = None,
 ) -> None:
-    """Build Markdown and PDF from the paper LaTeX."""
-    _build(MANUSCRIPT_TEX, output, pdf_output)
+    """Build Markdown and PDF from the latest numbered manuscript folder."""
+    source = manuscript_tex()
+    typer.echo(f"Using {source.parent}")
+    _build(source, output, pdf_output)
 
 
 if __name__ == "__main__":
