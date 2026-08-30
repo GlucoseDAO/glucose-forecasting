@@ -1,61 +1,59 @@
 # Introduction
 
-A CGM reports an excursion after it has begun (Schmelzeisen-Redeker et al. 2015). A 60-minute forecast—12 steps at 5-minute sampling—is the task of this paper. A population model can be served immediately. Personal history arrives slowly. After $`N`$ days of one person’s data, is the fine-tuned checkpoint safe to serve?
+Because a CGM reports an excursion only after it has begun (Schmelzeisen-Redeker et al. 2015), a 60-minute forecast—12 steps at 5-minute sampling—gives a person time to act. A population model can be served immediately, but personalizing it requires the wearer’s own data, which accumulates slowly. After N days of one person’s history, is the fine-tuned checkpoint safe to serve?
 
-Glucose forecasting papers usually report a frozen global model, or one adapted model trained on all available personal data, or both (Sergazinov et al. 2023; Zhu et al. 2023). They rarely show the budgets in between. If 3–30 days of fine-tuning raise MAE, “always adapt” is the wrong rule. The system needs a gate: keep the frozen weights until the path is no longer harmful.
+Most studies report a frozen global model, or one adapted on all available data, or both (Sergazinov et al. 2023; Zhu et al. 2023), but rarely examine what happens in between. If fine-tuning on a partial history can raise MAE, “always adapt” is the wrong default. The system needs a gate: keep the population weights until adaptation is non-harmful.
 
-This paper treats personalization as a *curve*. We introduce **SugarOne**: the GluMind parallel dual-attention design (Farahmand et al. 2025) retargeted to covariates a commodity CGM plus an insulin record actually has (Section <a href="#sec:sugarone" data-reference-type="ref" data-reference="sec:sugarone">3.3</a>). SugarOne has no prior paper; it is specified here because it is the backbone we fine-tune. **SugarJEPA-288** adds a CGM-JEPA embedding (Muhammad et al. 2026) as a fourth stream. We compare day-budget curves on the same seven T1DM people against SugarOne and NeuralForecast continue-fit (Olivares et al. 2022, 2023; Lim et al. 2021).
-
-Contributions:
-
-- SugarOne: GluMind blocks on commodity covariates, our hyperparameters, and a joined Loop + AI-READI corpus.
-
-- Personalization scored as a path (zero-shot, then 3, 7, 14, 30, 60, and full history) with a named smoothness check.
-
-- On this cohort, a JEPA feature raises the day-zero floor and keeps short fine-tunes non-harmful. Frozen SugarJEPA-288 beats 30-day SugarOne for all seven users.
+We treat personalization as a *curve*, scored at 3, 7, 14, 30, 60, and all available days. **SugarOne** is an encoder-based transformer with parallel dual-attention and learnable softmax mixing, targeted at the covariates any commodity CGM-plus-insulin setup provides: glucose, carbohydrates, and basal/bolus insulin (Section <a href="#sec:sugarone" data-reference-type="ref" data-reference="sec:sugarone">3.3</a>). It has no prior paper; it is specified here because it is the backbone we fine-tune. **SugarJEPA-288** adds a frozen self-supervised glucose embedding (Muhammad et al. 2026) as a fourth stream alongside those three. We compare personalization curves for both on seven T1DM users against NeuralForecast continue-fit baselines (Olivares et al. 2022, 2023; Lim et al. 2021).
 
 # Related work
 
-#### Glucose transformers.
+#### Attention models for CGM.
 
-GluMind uses parallel cross-attention and multi-scale self-attention on glucose, heart rate, and steps (Farahmand et al. 2025). Gluformer and related attention models forecast from CGM with optional personalization (Sergazinov et al. 2023). We keep GluMind’s block design and change covariates, mixing, size, and training data (Section <a href="#sec:sugarone" data-reference-type="ref" data-reference="sec:sugarone">3.3</a>). We do not run a GluMind-versus-SugarOne leaderboard.
+Attention came to CGM forecasting with Gluformer, a probabilistic transformer with subject-level personalization (Sergazinov et al. 2023). Multimodal successors add non-glucose channels: AttenGluco fuses CGM with activity on AI-READI (Farahmand, Azghan, Chatrudi, Kim, et al. 2025), and GluMind combines parallel cross-attention over glucose, heart rate, and steps with multi-scale self-attention (Farahmand, Azghan, Chatrudi, Ansu-Baidoo, et al. 2025). Scaling the same recipe to large unlabeled corpora yields models that describe themselves as CGM foundation models—GluFormer (Lutsker et al. 2026) (distinct from Gluformer above, despite the name), CGMformer (Lu et al. 2025), CGM-LSM (Luo et al. 2025), CGM-JEPA (Muhammad et al. 2026) and GlucoFM (Li et al. 2026). Neither group reports a personal-history day-budget curve, which is the axis we score.
 
-#### Self-supervised CGM.
+#### Our backbone.
 
-CGM-JEPA learns glucose representations with a joint-embedding predictive objective (Muhammad et al. 2026). We use that idea as an extra *supervised-forecast* stream, pretrained on our train split. This is not a new foundation model.
+SugarOne borrows many elements from GluMind’s transformer design: parallel dual-attention block, glucose embeddings as queries against per-auxiliary keys and values, and multi-scale self-attention over glucose.
 
-#### Personalization and baselines.
+#### Fine-tuning sensitivity.
 
-Fine-tuning and meta-learning for T1DM typically yield one adapted model (Zhu et al. 2023). GlucoBench standardizes public CGM forecasting (Sergazinov et al. 2024) but not day-budget adaptation curves. We use NBEATSx and TFT, via NeuralForecast, as continue-fit baselines (Olivares et al. 2023, 2022; Lim et al. 2021).
+Whether adaptation helps at a given budget is unsettled beyond glucose: break-even against classical baselines ranges from 24 to 8,361 samples across 30 datasets (Tan Jerome and Simon 2026), and fine-tuned foundation models do not consistently beat smaller dedicated ones (Karaouli et al. 2025). In CGM, GlucoFM-Bench scores eight architectures on 15 datasets and 1,117 individuals under zero-, few- (5%) and full-shot protocols and finds adaptation non-monotone: TimesFM2.5 and Moirai2.0 degrade from few- to full-shot (18.75 → 19.47 and 19.48 → 20.30 mg/dL RMSE) (Lu et al. 2026).
+
+All of these studies vary the size of a pooled training set, drawn across many subjects. We vary a different quantity: the number of days of a single person’s own history.
+
+#### Benchmarks and personalization.
+
+GlucoBench documents why so few of these models can be compared: of 45 catalogued methods, 38 ship no public implementation (Sergazinov et al. 2024). Fine-tuning and meta-learning for T1DM typically yield one adapted model (Zhu et al. 2023); closest to us, Rigamonti et al. (2026) ablate shrinking patient-specific training sets.
 
 # Method
 
-## Task
+## Data
 
-Each model maps a lookback window to the next $`H=12`$ glucose values (60 minutes). The lead metric is MAE in mg/dL. Tables also report RMSE and MARD. The horizon is the same for every model.
+Most of our training data comes from AI-READI (AI-READI Consortium 2024), a wearable CGM study covering Healthy, Pre-T2DM, Oral-T2DM, and Insulin-T2DM groups but no Type 1 participants. Because forecast errors in T1DM can directly affect insulin dosing, we add the Loop study—a public dataset of DIY closed-loop pump users with CGM, basal/bolus insulin, and carbohydrate channels (Appendix <a href="#app:datasets" data-reference-type="ref" data-reference="app:datasets">10</a>). `glucose_data_processing` (GlucoseDAO 2026) resamples both sources to a 5-minute grid, gap-fills short dropouts, and joins them into one table (12.1 M rows, roughly half T1DM). AI-READI rows have no insulin or carbohydrate data (zero-filled); sequence IDs are prefixed to prevent collisions.
 
-## Data and two tests
+## Task and two tests
 
-Raw CGM and pump exports are resampled to a 5-minute grid and gap-filled with `glucose_data_processing` (GlucoseDAO 2026). We vertically join AI-READI-style wearable CGM (AI-READI Consortium 2024) and Loop T1DM pump records into one loop-style table (`loop_ai_ready_joined2.csv`; 12.1 million rows; about half T1DM / half non-T1DM by row mass). Study groups are Healthy, Pre-T2DM, Oral-T2DM, Insulin-T2DM, and T1DM. AI-READI rows have empty insulin and carbohydrate fields (zero-filled). Sequence IDs are prefixed so the two sources cannot collide.
+From this joined table every model forecasts H=12 glucose values (60 min at 5-min sampling). The lead metric is MAE in mg/dL, alongside RMSE and MARD—the standard CGM accuracy measure. All models share this horizon.
 
-We use two evaluations. Mixing them is a wrong sentence.
+Because the table mixes populations with and without insulin channels, we use two evaluations that must not be combined.
 
-**Global test.** The dataset `test` split of the joined table. Question: is this a competent population model?
+**Global test.** The `test` split of the joined table: is this a competent population model?
 
-**Personal test.** Seven T1DM users with long history: one personal pump export (Livia, $`\sim`$<!-- -->345 train days) and six Loop quality holdouts (Users 154, 556, 730, 1017, 1029, 1082). Each person’s CSV is split chronologically: last 25% test, 15% of the remainder validation, the rest train. A day budget shortens *train* only. Validation and test never change. User 1082 has $`\sim`$<!-- -->37 train days and no 60-day cell; 60-day means use $`n=6`$.
+**Personal test.** Seven T1DM users with long history—one personal pump export (Livia, ~345 train days) and six Loop holdouts (Users 154, 556, 730, 1017, 1029, 1082)—each split chronologically (last 25% test, 15% of the remainder validation, rest train). A day budget shortens *train* only; validation and test stay fixed. User 1082 has ~37 train days and no 60-day cell; 60-day means use n=6.
 
-Eight short-wear AI-READI users ($`\sim`$<!-- -->6–9 train days, no insulin/carb channels) are not in the main curve. SugarJEPA-288 needs a one-day lookback; those series are a limitation, not a second cohort.
+Eight short-wear AI-READI users (~6–9 train days, no insulin/carb channels) fall outside the main curve: SugarJEPA-288’s one-day lookback exceeds their usable history.
 
 ## SugarOne
 
-SugarOne uses GluMind’s parallel dual-attention blocks (Farahmand et al. 2025). A linear layer maps each scalar channel to $`d_{\mathrm{model}}`$ and adds sinusoidal positional encoding. Each block has (i) cross-attention in which glucose embeddings are queries and each auxiliary supplies its own keys and values, and (ii) multi-scale self-attention on glucose at downsampling factors 1, 2, and 4. A two-layer MLP decodes 12 steps.
+SugarOne uses GluMind’s parallel dual-attention blocks (Farahmand, Azghan, Chatrudi, Ansu-Baidoo, et al. 2025). A linear layer maps each scalar channel to d_model and adds sinusoidal positional encoding. Each block has (i) cross-attention in which glucose embeddings are queries and each auxiliary supplies its own keys and values, and (ii) multi-scale self-attention on glucose at downsampling factors 1, 2, and 4. A two-layer MLP decodes 12 steps.
 
 GluMind was built for wearable extras. SugarOne is the same design aimed at a commodity CGM plus an insulin record. Table <a href="#tab:glumind-vs-sugarone" data-reference-type="ref" data-reference="tab:glumind-vs-sugarone">1</a> is the difference. Fusion is learnable softmax mixing over the three auxiliary streams,
 ``` math
 \mathbf{C}=\sum_{i=1}^{3}w_i\mathbf{C}_i,\qquad
 w_i=\frac{\exp(\alpha_i)}{\sum_{j}\exp(\alpha_j)},
 ```
-with $`\boldsymbol{\alpha}`$ initialized at zero (equal mix). We do not evaluate a GluMind checkpoint on the personalization curves. SugarOne is the control in the same family as SugarJEPA.
+with α initialized at zero (equal mix). We do not evaluate a GluMind checkpoint on the personalization curves. SugarOne is the control in the same family as SugarJEPA.
 
 <div id="tab:glumind-vs-sugarone">
 
@@ -64,7 +62,7 @@ with $`\boldsymbol{\alpha}`$ initialized at zero (equal mix). We do not evaluate
 | Auxiliaries     |      Heart rate, steps      | Basal, bolus, carbohydrates  |
 | Fusion          |        Fixed average        |      Learnable softmax       |
 | Lookback / size | 80 steps, 4 heads, 3 blocks | 128 steps, 8 heads, 5 blocks |
-| Width           |          $`d=32`$           |           $`d=32`$           |
+| Width           |          d=32           |           d=32           |
 | Training table  |   Wearable AI-READI-style   |    Joined Loop + AI-READI    |
 
 SugarOne is unpublished. It keeps GluMind’s blocks and changes covariates, mixing, size, and data.
@@ -79,11 +77,11 @@ L=\mathrm{SmoothL1}(\hat{z},z)
 +\lambda\frac{1}{E}\sum_{j=1}^{E}
 \mathrm{ReLU}\bigl(\sigma_{\mathrm{target}}-\sigma_{c,j}\bigr),
 ```
-where $`E`$ is the embedding size and $`\sigma_{c,j}`$ is the standard deviation of context-block representations on dimension $`j`$.
+where E is the embedding size and σ_c,j is the standard deviation of context-block representations on dimension j.
 
-The encoder is attached as a fourth SugarOne branch, on the same footing as basal, bolus, and carbohydrates (Figure <a href="#fig:arch" data-reference-type="ref" data-reference="fig:arch">1</a>). Embeddings are layer-normalized and projected from 96 to 32 dimensions before cross-attention. If the encoder wants $`m`$ steps and SugarOne wants $`n=128`$, with $`m>n`$, each training window has length $`m`$: the encoder sees all $`m`$ points; SugarOne sees the last $`n`$.
+The encoder is attached as a fourth SugarOne branch, on the same footing as basal, bolus, and carbohydrates (Figure <a href="#fig:arch" data-reference-type="ref" data-reference="fig:arch">1</a>). Embeddings are layer-normalized and projected from 96 to 32 dimensions before cross-attention. If the encoder wants m steps and SugarOne wants n=128, with m>n, each training window has length m: the encoder sees all m points; SugarOne sees the last n.
 
-During *global* SugarJEPA training the encoder is not frozen. It is updated at $`4\times10^{-5}`$; the rest of the model at $`4\times10^{-4}`$. The hero encoder is **jepa-288** (96 dimensions, 288 steps, one day of CGM). Other windows (128, 864, 2016) are in Appendix <a href="#app:windows" data-reference-type="ref" data-reference="app:windows">7</a>. Longer windows change which series can be scored; they are not the claim of this paper.
+During *global* SugarJEPA training the encoder is not frozen. It is updated at 4×10^-5; the rest of the model at 4×10^-4. The hero encoder is **jepa-288** (96 dimensions, 288 steps, one day of CGM). Other windows (128, 864, 2016) are in Appendix <a href="#app:windows" data-reference-type="ref" data-reference="app:windows">7</a>. Longer windows change which series can be scored; they are not the claim of this paper.
 
 <figure id="fig:arch" data-latex-placement="t">
 <img src="sugar_jepa.png" style="width:82.0%" />
@@ -92,23 +90,21 @@ During *global* SugarJEPA training the encoder is not frozen. It is updated at $
 
 ## Fine-tune protocol and smoothness
 
-Each day budget is an independent run from the global checkpoint, not a curriculum. Scalers stay the global `scalers.json`; they are not refit on personal train. SugarJEPA personalization freezes the JEPA encoder and updates only the SugarOne weights. We use plain fine-tune ($`\lambda=0`$). Learning-without-Forgetting distillation (Li and Hoiem 2018) did not remove SugarOne’s short-budget harm on this protocol; we do not use it here.
+Every day budget starts fresh from the global checkpoint; we do not chain budgets into a curriculum. The global `scalers.json` is kept as-is and never refit on personal data. When personalizing SugarJEPA we freeze the JEPA encoder and update only the SugarOne weights, using plain fine-tuning (λ=0). We tried Learning-without-Forgetting distillation (Li and Hoiem 2018) but it did not remove SugarOne’s short-budget harm, so we dropped it. NeuralForecast models follow the same idea: continue-fit from the saved global bundle (`use_init_models=False`), shorten training to the day budget, keep the personal test split fixed (Olivares et al. 2022).
 
-NeuralForecast models continue-fit from the saved global bundle (`use_init_models=False`), with the same idea: the day budget shortens train; the personal test split is frozen (Olivares et al. 2022).
+Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">2</a> shows zero-shot, then 3, 7, 14, 30, 60, and full history. We omit a 1-day point because SugarJEPA-288 already looks back one full day of CGM, and a 1-day training slice cannot supply enough context for a window. Models whose shorter lookback does allow a 1-day fine-tune appear in Appendix <a href="#app:oneday" data-reference-type="ref" data-reference="app:oneday">9</a>.
 
-There is no 1-day point on the main figure. SugarJEPA-288’s lookback is already one day of CGM, so a 1-day train slice cannot form a window. All models on Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">2</a> use zero-shot, then 3, 7, 14, 30, 60, and full history. Models that can form a 128-step window at 1 day are in Appendix <a href="#app:oneday" data-reference-type="ref" data-reference="app:oneday">9</a>.
+We call a personalization path *smooth* when it passes three checks on mean personal-test MAE across the seven users (60-day averages use n=6 because one user’s history is shorter):
 
-Smoothness, in this paper, is three checks on *mean* personal-test MAE over the seven users (60-day means: $`n=6`$):
+1.  **Non-harmful.** MAE at budget t stays at or below that model’s own zero-shot.
 
-1.  **Non-harmful.** MAE at budget $`t`$ is not worse than that model’s own zero-shot.
+2.  **Early gain.** The mean drops below zero-shot before 60 days.
 
-2.  **Early gain.** Mean MAE falls below zero-shot before 60 days.
+3.  **Terminal gain.** Full-history MAE beats zero-shot.
 
-3.  **Terminal gain.** Full-history MAE is below that model’s zero-shot.
+These are checks on the group mean; individual users may dip.
 
-We do not claim the path is monotonic for every user.
-
-The main figure has four curves: SugarOne, SugarJEPA-288, NBEATSx (harmful short continue-fit), and TFT (helps by 30 days on average). Other NeuralForecast models are in Appendix <a href="#app:nf" data-reference-type="ref" data-reference="app:nf">8</a>.
+The main figure shows four curves: SugarOne, SugarJEPA-288, NBEATSx (whose short continue-fit is harmful), and TFT (which helps from about 30 days). Other NeuralForecast models appear in Appendix <a href="#app:nf" data-reference-type="ref" data-reference="app:nf">8</a>.
 
 # Results
 
@@ -144,9 +140,9 @@ NBEATSx starts worse on this personal test (23.05) despite a competitive global 
 
 TFT starts at 24.41. At 3–14 days the mean is *higher* than zero-shot (32.78, 29.56, 27.04). By 30 days the mean is below zero-shot (22.65) and full history is 19.87. TFT is not a smooth path from day 3. It is a delayed-gain exception among the NeuralForecast models we plot: useful from about 30 days, costly before that.
 
-SugarJEPA-288 starts at 18.13—already below 30-day SugarOne. From 3 days the mean stays at or below its own zero-shot (18.08, 17.99, 17.92, 17.82; 18.09 at 60 days, still $`\le`$ 18.13) and ends at 17.51. All three checks hold on the mean. Single users can dip; we do not claim monotonicity per person.
+SugarJEPA-288 starts at 18.13—already below 30-day SugarOne. From 3 days the mean stays at or below its own zero-shot (18.08, 17.99, 17.92, 17.82; 18.09 at 60 days, still ≤ 18.13) and ends at 17.51. All three checks hold on the mean. Single users can dip; we do not claim monotonicity per person.
 
-User 1082 is the short T1DM history ($`\sim`$<!-- -->37 train days). SugarOne’s full fine-tune is worse than frozen (17.00 $`\rightarrow`$ 17.79). SugarJEPA-288 stays flat (15.17 $`\rightarrow`$ 15.19). That is evidence for a gate, not a reason to drop the user.
+User 1082 is the short T1DM history (~37 train days). SugarOne’s full fine-tune is worse than frozen (17.00 → 17.79). SugarJEPA-288 stays flat (15.17 → 15.19). That is evidence for a gate, not a reason to drop the user.
 
 ## The 30-day slice
 
@@ -170,19 +166,27 @@ Personal-test MAE (mg/dL). Frozen SugarJEPA-288 versus SugarOne fine-tuned for 3
 
 ## Fine-tuning SugarJEPA-288
 
-A better frozen model can still adapt. With the JEPA encoder held fixed, mean personal MAE versus SugarJEPA-288’s own zero-shot is $`-0.05`$ at 3 days, $`-0.31`$ at 30 days, $`-0.04`$ at 60 days ($`n=6`$), and $`-0.62`$ at full history. Smoothness is not “refuse to fine-tune.” The path is usable, and full history still helps. That is a better system than waiting 60 days to fine-tune SugarOne.
+A better frozen model can still adapt. With the JEPA encoder held fixed, mean personal MAE versus SugarJEPA-288’s own zero-shot is -0.05 at 3 days, -0.31 at 30 days, -0.04 at 60 days (n=6), and -0.62 at full history. Smoothness is not “refuse to fine-tune.” The path is usable, and full history still helps. That is a better system than waiting 60 days to fine-tune SugarOne.
 
 # Discussion
 
-SugarOne and NBEATSx need a rule: keep frozen weights until enough days exist. On this cohort SugarJEPA-288 can be adapted from 3 days without a mean MAE penalty. TFT shows that a NeuralForecast model can recover by 30 days; it does not show a non-harmful 3–14 day path, and its personal zero-shot is weaker than SugarOne’s. The JEPA feature is not “the only smooth model.” It is the model that is both better on day zero and non-harmful on the early path.
+The introduction asks when a fine-tuned checkpoint becomes safe to serve, and the answer is easiest to read as a number of sensors. A current sensor lasts ten to fifteen days, so the sixty days SugarOne needs before adaptation helps is four or more consecutive wears. That is not an unreasonable thing to ask of a motivated user, but it is weeks of wear spent serving a model that could already have been personalized. SugarJEPA-288 crosses the same line three days into the first sensor.
 
-The 30-day slice is the cleanest single sentence. It compares two models at two budgets. A reviewer can say we compared a stronger global model to a weaker model’s short fine-tune. Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">2</a> is the answer: when SugarJEPA-288 is itself fine-tuned, the path does not go through a valley.
+The reason to care is that the risk is asymmetric. Adapting too early can add more error than adapting ever removes, and the cost is paid immediately while the benefit arrives months later. How large that cost is depends on the model and the fine-tuning recipe rather than on the day budget, so the safe day count has to be measured per model; a strong score on the joined corpus does not predict it.
 
-Limits. The personal cohort is seven T1DM users. Short-wear AI-READI series are out of the main figure. SugarJEPA-288’s lookback is one day versus SugarOne’s 10.7 hours; a matched 128-step encoder is in Appendix <a href="#app:windows" data-reference-type="ref" data-reference="app:windows">7</a> and still starts below SugarOne, with a slightly smaller margin. Smoothness is not a theorem. We did not put a GluMind checkpoint on these curves. We make no clinical deployment claim.
+What the JEPA feature contributes is a floor rather than a faster learner. Attaching the frozen embedding improves day-zero accuracy by more than fine-tuning SugarOne on a person’s entire history does, and the two then add up: the corpus supplies glucose dynamics, the person supplies their own response, and neither substitutes for the other. Two of seven users still do better fully fine-tuned, so this shifts the average starting point rather than settling every case.
+
+Two failures say where the effect comes from. Distilling from the population checkpoint during fine-tuning left the short-budget harm intact, so that harm is not simple forgetting; changing what the model sees is what removed it. Nor is the gain merely a longer view of the past, since an encoder matched to SugarOne’s own lookback keeps about half of it while the longest encoder we trained is the least stable one to adapt (Appendix <a href="#app:windows" data-reference-type="ref" data-reference="app:windows">7</a>).
+
+Limits. Seven T1DM users, and smoothness is a property of averages rather than of individuals. The short-wear users fall outside Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">2</a> because our best encoder needs a day of context; serving them means the shorter encoders, which we have not scored on this axis. Nothing here is a clinical claim.
 
 # Conclusion
 
-Personalization of a 60-minute glucose forecast should be scored as a path, not only as zero-shot and full-history endpoints. Adding a frozen CGM-JEPA feature to SugarOne raises the day-zero floor and keeps short fine-tunes non-harmful on seven T1DM users. Frozen SugarJEPA-288 beats 30-day SugarOne for every user in that set.
+How a 60-minute glucose forecaster personalizes cannot be judged from two snapshots, one with no personal data and one with a full history. What matters is the path between them, because that is where adaptation can quietly make a model worse while both endpoints still look healthy.
+
+Scored that way, a frozen CGM-JEPA feature does two things for SugarOne. It improves accuracy before the model has seen any of the person’s own data, and it keeps early fine-tuning—on the handful of days a new wearer actually has—from doing harm. The practical difference is a number of sensors: SugarJEPA-288 can be adapted three days into someone’s first wear, while SugarOne and the NeuralForecast baselines need four or more consecutive sensors before adaptation stops hurting.
+
+The clearest single result is that frozen SugarJEPA-288, with no fine-tuning at all, was better than SugarOne fine-tuned for thirty days for every one of the seven people with type 1 diabetes we tested. Read together with the rest of the paper, that points at improving what a forecaster sees rather than how it adapts.
 
 # Other JEPA windows
 
@@ -781,11 +785,26 @@ Mean personal zero-shot MAE: SugarOne 19.48; jepa-128-64 19.00; jepa-128 18.87; 
 
 # Other NeuralForecast models
 
-N-HiTS on the same six T1DM users with $`\ge`$<!-- -->60 train days has mean continue-fit $`\Delta`$ $`+2.24`$ at 30 days (harmful), $`+0.16`$ at 60 days, and $`-1.92`$ at full history—the same shape as NBEATSx (Challu et al. 2023). Its joined-corpus test MAE is 11.94 (RMSE 19.38, MARD 8.08%), close to NBEATSx. LSTM is worse at 30 days ($`\Delta`$ $`+6.00`$) and weaker globally (test MAE 17.37, RMSE 26.30, MARD 11.57%). TiDE’s 30-day mean $`\Delta`$ is $`-7.01`$ (helpful) but its global test MAE is 16.12 (RMSE 24.01, MARD 11.07%), well above the models in Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">2</a>. We left them off Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">2</a> so the harmful-path contrast is one curve (NBEATSx), not five.
+N-HiTS on the same six T1DM users with ≥60 train days has mean continue-fit Δ +2.24 at 30 days (harmful), +0.16 at 60 days, and -1.92 at full history—the same shape as NBEATSx (Challu et al. 2023). Its joined-corpus test MAE is 11.94 (RMSE 19.38, MARD 8.08%), close to NBEATSx. LSTM is worse at 30 days (Δ +6.00) and weaker globally (test MAE 17.37, RMSE 26.30, MARD 11.57%). TiDE’s 30-day mean Δ is -7.01 (helpful) but its global test MAE is 16.12 (RMSE 24.01, MARD 11.07%), well above the models in Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">2</a>. We left them off Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">2</a> so the harmful-path contrast is one curve (NBEATSx), not five.
 
 # One-day fine-tune
 
-SugarOne, jepa-128\*, and the NeuralForecast models can form a 128-step window from one day of train. SugarJEPA-288 cannot. Mean SugarOne MAE at 1 day is 19.52 (slightly above zero-shot 19.48). NBEATSx and TFT 1-day continue-fit are sharply harmful on several users (e.g. TFT User 1017: 21.70 $`\rightarrow`$ 52.81). Those points are omitted from Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">2</a> so every model shares the same x-axis.
+SugarOne, jepa-128\*, and the NeuralForecast models can form a 128-step window from one day of train. SugarJEPA-288 cannot. Mean SugarOne MAE at 1 day is 19.52 (slightly above zero-shot 19.48). NBEATSx and TFT 1-day continue-fit are sharply harmful on several users (e.g. TFT User 1017: 21.70 → 52.81). Those points are omitted from Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">2</a> so every model shares the same x-axis.
+
+# Dataset catalog
+
+Table <a href="#tab:datasets" data-reference-type="ref" data-reference="tab:datasets">6</a> summarizes the two datasets used in this study and the channels each provides. `glucose_data_processing` (GlucoseDAO 2026) supports ingestion of over 50 public CGM datasets across 9 device formats; the full catalog is in that repository’s documentation.
+
+<div id="tab:datasets">
+
+| Dataset  |     Participants      |     Diabetes types      | CGM | Insulin | Carbs |
+|:---------|:---------------------:|:-----------------------:|:---:|:-------:|:-----:|
+| AI-READI | ~4 000 | Healthy, Pre-T2DM, T2DM |     |    —    |   —   |
+| Loop     |         1 000         |          T1DM           |     |         |       |
+
+Datasets used in this study. AI-READI provides wearable CGM across metabolic health groups but no Type 1 participants and no insulin/carbohydrate records. The Loop observational study adds T1DM users with full pump telemetry.
+
+</div>
 
 <div id="refs" class="references csl-bib-body hanging-indent">
 
@@ -807,15 +826,33 @@ Challu, Cristian, Kin G. Olivares, Boris N. Oreshkin, Federico Garza Ramirez, Ma
 
 </div>
 
+<div id="ref-farahmand2025attengluco" class="csl-entry">
+
+Farahmand, Ebrahim, Reza Rahimi Azghan, Nooshin Taheri Chatrudi, Eric Kim, et al. 2025. “AttenGluco: Multimodal Transformer-Based Blood Glucose Forecasting on AI-READI Dataset.” *arXiv Preprint arXiv:2502.09919*. <https://arxiv.org/abs/2502.09919>.
+
+</div>
+
 <div id="ref-farahmand2025glumind" class="csl-entry">
 
-Farahmand, Ebrahim, Reza Rahimi Azghan, Nooshin Taheri Chatrudi, et al. 2025. “GluMind: Multimodal Parallel Attention and Knowledge Retention for Robust Cross-Population Blood Glucose Forecasting.” *arXiv Preprint arXiv:2509.18457*. <https://arxiv.org/abs/2509.18457>.
+Farahmand, Ebrahim, Reza Rahimi Azghan, Nooshin Taheri Chatrudi, Velarie Yaa Ansu-Baidoo, et al. 2025. “GluMind: Multimodal Parallel Attention and Knowledge Retention for Robust Cross-Population Blood Glucose Forecasting.” *arXiv Preprint arXiv:2509.18457*. <https://arxiv.org/abs/2509.18457>.
 
 </div>
 
 <div id="ref-glucosedataprocessing" class="csl-entry">
 
 GlucoseDAO. 2026. *Glucose_data_processing*. <a href="https://github.com/GlucoseDAO/glucose_data_processing" class="uri">Https://github.com/GlucoseDAO/glucose_data_processing</a>.
+
+</div>
+
+<div id="ref-karaouli2025foundational" class="csl-entry">
+
+Karaouli, Nouha, Denis Coquenet, Elisa Fromont, Martial Mermillod, and Marina Reyboz. 2025. “How Foundational Are Foundation Models for Time Series Forecasting?” *arXiv Preprint arXiv:2510.00742*. <https://arxiv.org/abs/2510.00742>.
+
+</div>
+
+<div id="ref-li2026glucofm" class="csl-entry">
+
+Li, Zechen, Keerthana Natarajan, Weizhi Zhang, et al. 2026. “GlucoFM: A Dual-Stream Foundation Model for Continuous Glucose Monitoring.” *arXiv Preprint arXiv:2605.30865*. <https://arxiv.org/abs/2605.30865>.
 
 </div>
 
@@ -828,6 +865,30 @@ Li, Zhizhong, and Derek Hoiem. 2018. “Learning Without Forgetting.” *IEEE Tr
 <div id="ref-lim2021tft" class="csl-entry">
 
 Lim, Bryan, Sercan Ö Arık, Nicolas Loeff, and Tomas Pfister. 2021. “Temporal Fusion Transformers for Interpretable Multi-Horizon Time Series Forecasting.” *International Journal of Forecasting* 37 (4): 1748–64. <https://doi.org/10.1016/j.ijforecast.2021.03.012>.
+
+</div>
+
+<div id="ref-lu2026glucofmbench" class="csl-entry">
+
+Lu, Baiying, Zhaohui Liang, Ryan Pontius, Shengpu Tang, and Temiloluwa Prioleau. 2026. “GlucoFM-Bench: Benchmarking Time-Series Foundation Models for Blood Glucose Forecasting.” *arXiv Preprint arXiv:2606.06881*. <https://arxiv.org/abs/2606.06881>.
+
+</div>
+
+<div id="ref-lu2025cgmformer" class="csl-entry">
+
+Lu, Yurun, Dan Liu, Zhongming Liang, et al. 2025. “A Pretrained Transformer Model for Decoding Individual Glucose Dynamics from Continuous Glucose Monitoring Data.” *National Science Review* 12 (5): nwaf039. <https://doi.org/10.1093/nsr/nwaf039>.
+
+</div>
+
+<div id="ref-luo2025cgmlsm" class="csl-entry">
+
+Luo, Junjie, Abhimanyu Kumbara, Mansur Shomali, et al. 2025. “A Large Sensor Foundation Model Pretrained on Continuous Glucose Monitor Data for Diabetes Management.” *Npj Health Systems* 2 (1). <https://doi.org/10.1038/s44401-025-00039-y>.
+
+</div>
+
+<div id="ref-lutsker2026gluformer" class="csl-entry">
+
+Lutsker, Guy, Gal Sapir, Smadar Shilo, et al. 2026. “A Foundation Model for Continuous Glucose Monitoring Data.” *Nature* 650 (8103): 978–86. <https://doi.org/10.1038/s41586-025-09925-9>.
 
 </div>
 
@@ -849,6 +910,12 @@ Olivares, Kin G., Cristian Challú, Azul Garza, Max Mergenthaler Canseco, and Ar
 
 </div>
 
+<div id="ref-rigamonti2026patientspecific" class="csl-entry">
+
+Rigamonti, Giorgia, Mirko Paolo Barbato, Davide Marelli, and Paolo Napoletano. 2026. “Tailoring Adverse Event Prediction in Type 1 Diabetes with Patient-Specific Deep Learning Models.” *arXiv Preprint arXiv:2601.14917*. <https://arxiv.org/abs/2601.14917>.
+
+</div>
+
 <div id="ref-schmelzeisen2015delay" class="csl-entry">
 
 Schmelzeisen-Redeker, Günther, Arnd Staib, Michael Strasser, Ulrich Müller, and Michael Schoemaker. 2015. “Time Delay of CGM Sensors: Relevance, Causes, and Countermeasures.” *Journal of Diabetes Science and Technology* 9 (5): 1006–15. <https://doi.org/10.1177/1932296815590154>.
@@ -864,6 +931,12 @@ Sergazinov, Renat, Mohammadreza Armandpour, and Irina Gaynanova. 2023. “Glufor
 <div id="ref-sergazinov2024glucobench" class="csl-entry">
 
 Sergazinov, Renat, Elizabeth Chun, Valeriya Rogovchenko, Nathaniel Fernandes, Nicholas Kasman, and Irina Gaynanova. 2024. “GlucoBench: Curated List of Continuous Glucose Monitoring Datasets with Prediction Benchmarks.” *arXiv Preprint arXiv:2410.05780*. <https://arxiv.org/abs/2410.05780>.
+
+</div>
+
+<div id="ref-jerome2026breakeven" class="csl-entry">
+
+Tan Jerome, Nicholas, and Frank Simon. 2026. “When Do Foundation Models Pay Off? A Break-Even Analysis of Pretrained Time Series Forecasters.” *arXiv Preprint arXiv:2607.04919*. <https://arxiv.org/abs/2607.04919>.
 
 </div>
 
