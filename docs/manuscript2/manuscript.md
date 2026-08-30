@@ -30,19 +30,21 @@ GlucoBench documents why so few of these models can be compared: of 45 catalogue
 
 ## Data
 
-Most of our training data comes from AI-READI (AI-READI Consortium 2024), a wearable CGM study covering Healthy, Pre-T2DM, Oral-T2DM, and Insulin-T2DM groups but no Type 1 participants. Because forecast errors in T1DM can directly affect insulin dosing, we add the Loop observational study from the JAEB Center for Health Research: a public dataset of DIY closed-loop pump users with CGM, basal/bolus insulin, and carbohydrate channels (Appendix <a href="#app:datasets" data-reference-type="ref" data-reference="app:datasets">8</a>). Loop has fewer unique patients than AI-READI, but each contributes many more sequences; by row mass the joined table is roughly half T1DM. `glucose_data_processing` (GlucoseDAO 2026) resamples both sources to a 5-minute grid, gap-fills short dropouts, and joins them into one table (12.1 million rows). AI-READI rows have no insulin or carbohydrate data (zero-filled); sequence IDs are prefixed to prevent collisions.
+Most of our training data comes from AI-READI (AI-READI Consortium 2024), a wearable CGM study covering Healthy, Pre-T2DM, Oral-T2DM, and Insulin-T2DM groups but no Type 1 participants. Because forecast errors in T1DM can directly affect insulin dosing, we add the Loop observational study from the JAEB Center for Health Research: a public dataset of DIY closed-loop pump users with CGM, basal/bolus insulin, and carbohydrate channels (Appendix <a href="#app:datasets" data-reference-type="ref" data-reference="app:datasets">8</a>). Loop has fewer unique patients than AI-READI, but each contributes many more sequences; by row mass the joined table is roughly half T1DM. `glucose_data_processing` (Anonymous 2026) resamples both sources to a 5-minute grid, gap-fills short dropouts, and joins them into one table (12.1 million rows). AI-READI rows have no insulin or carbohydrate data (zero-filled); sequence IDs are prefixed to prevent collisions.
 
-The personal test also includes *Livia*: a personal Dexcom CGM recording collected by a co-author (~345 train days), ingested from the raw Dexcom export onto the 5-minute grid and held out from the joined training table.
+The personal test also includes *Author1*: a personal Dexcom CGM recording collected by a co-author (~345 train days), ingested from the raw Dexcom export onto the 5-minute grid and held out from the joined training table.
 
 ## Task and two tests
 
 From this joined table every model forecasts H=12 glucose values (60 min at 5-min sampling). The lead metric is MAE in mg/dL, alongside RMSE and MARD—the standard CGM accuracy measure. All models share this horizon.
 
+As a secondary experiment, we also trained a 120-minute forecasting variant (H=24) after Google released GlucoFM (Li et al. 2026), which reports 2-hour glucose prediction. GlucoFM appeared days before our submission; we did not have time to fine-tune the 120-minute models but evaluated them at the global (zero-shot) level for a direct comparison. On this horizon, our generic SugarOne already reaches MAE 17.99 mg/dL and SugarJEPA 16.32, versus GlucoFM’s reported 22.88. These numbers are preliminary—no personalization curves were run at H=24—but they suggest the architecture is competitive beyond the 60-minute horizon that is the focus of this paper.
+
 Because the table mixes populations with and without insulin channels, we use two evaluations that must not be combined.
 
 **Global test.** The `test` split of the joined table: is this a competent population model?
 
-**Personal test.** Seven T1DM users with long history—the Livia export and six Loop holdouts (Users 154, 556, 730, 1017, 1029, 1082)—each split chronologically (last 25% test, 15% of the remainder validation, rest train). A day budget shortens *train* only; validation and test stay fixed. User 1082 has ~37 train days and no 60-day cell; 60-day means use n=6.
+**Personal test.** Seven T1DM users with long history—the Author1 export and six Loop holdouts (Users 154, 556, 730, 1017, 1029, 1082)—each split chronologically (last 25% test, 15% of the remainder validation, rest train). A day budget shortens *train* only; validation and test stay fixed. User 1082 has ~37 train days and no 60-day cell; 60-day means use n=6.
 
 Eight short-wear AI-READI users (~6–9 train days, no insulin/carb channels) fall outside the main curve: SugarJEPA-288’s one-day lookback exceeds their usable history.
 
@@ -107,7 +109,9 @@ The main figure shows four curves: SugarOne, SugarJEPA-288, NBEATSx (whose short
 
 ## Global test
 
-Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">2</a> is the joined-corpus holdout, not the personal chronological test. All four models are scored on the dataset `test` split. NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit.
+Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">3</a> is the joined-corpus holdout, not the personal chronological test. All four models are scored on the dataset `test` split. NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit.
+
+<div class="minipage">
 
 <div id="tab:global">
 
@@ -118,13 +122,67 @@ Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:globa
 | NBEATSx       | 11.81 | 19.10 | 8.05% |
 | TFT           | 12.69 | 20.36 | 8.47% |
 
-Joined-corpus holdout (global test). Dataset `test` split. NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit. SugarJEPA-864/2016 are omitted; they score a smaller population of long series.
+**Left:** Joined-corpus holdout (H\!=\!12, 60 min). NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit. SugarJEPA-864/2016 are omitted; they score a smaller population of long series. **Right:** H\!=\!24 global test (120 min), trained after the release of GlucoFM (Li et al. 2026) (reported MAE 22.88). Generic models, no fine-tuning. The 60 min rows show the first 12 steps of the H\!=\!24 forecast.
+
+</div>
+
+</div>
+
+<div class="minipage">
+
+<div id="tab:global">
+
+<table>
+<caption><strong>Left:</strong> Joined-corpus holdout (<span class="math inline"><em>H</em> = 12</span>, 60 min). NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit. SugarJEPA-864/2016 are omitted; they score a smaller population of long series. <strong>Right:</strong> <span class="math inline"><em>H</em> = 24</span> global test (120 min), trained after the release of GlucoFM <span class="citation" data-cites="li2026glucofm">(Li et al. 2026)</span> (reported MAE 22.88). Generic models, no fine-tuning. The 60 min rows show the first 12 steps of the <span class="math inline"><em>H</em> = 24</span> forecast.</caption>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th style="text-align: center;">MAE</th>
+<th style="text-align: center;">RMSE</th>
+<th style="text-align: center;">MARD</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td colspan="4" style="text-align: left;"><em>120 min (<span class="math inline"><em>H</em> = 24</span>)</em></td>
+</tr>
+<tr>
+<td style="text-align: left;">SugarOne</td>
+<td style="text-align: center;">17.99</td>
+<td style="text-align: center;">27.45</td>
+<td style="text-align: center;">13.61%</td>
+</tr>
+<tr>
+<td style="text-align: left;">SugarJEPA-288</td>
+<td style="text-align: center;">16.32</td>
+<td style="text-align: center;">25.23</td>
+<td style="text-align: center;">12.57%</td>
+</tr>
+<tr>
+<td colspan="4" style="text-align: left;"><em>60 min (<span class="math inline"><em>H</em> = 24</span> model)</em></td>
+</tr>
+<tr>
+<td style="text-align: left;">SugarOne</td>
+<td style="text-align: center;">13.02</td>
+<td style="text-align: center;">18.99</td>
+<td style="text-align: center;">9.66%</td>
+</tr>
+<tr>
+<td style="text-align: left;">SugarJEPA-288</td>
+<td style="text-align: center;">11.56</td>
+<td style="text-align: center;">16.81</td>
+<td style="text-align: center;">8.93%</td>
+</tr>
+</tbody>
+</table>
+
+</div>
 
 </div>
 
 ## Personalization paths
 
-Frozen SugarJEPA-288 has lower personal-test MAE than SugarOne fine-tuned for 30 days, for all seven T1DM users in this study (Table <a href="#tab:slice" data-reference-type="ref" data-reference="tab:slice">3</a>). That is one slice. Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">1</a> is the path.
+Frozen SugarJEPA-288 has lower personal-test MAE than SugarOne fine-tuned for 30 days, for all seven T1DM users in this study (Table <a href="#tab:slice" data-reference-type="ref" data-reference="tab:slice">4</a>). That is one slice. Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">1</a> is the path.
 
 <figure id="fig:curves" data-latex-placement="t">
 <img src="fig_personalization_curves.png" style="width:92.0%" />
@@ -143,19 +201,19 @@ User 1082 is the short T1DM history (~37 train days). SugarOne’s full fine-tun
 
 ## The 30-day slice
 
-Thirty days is a budget at which a clinic might first try to personalize, and at which SugarOne’s mean gain is still about zero. Table <a href="#tab:slice" data-reference-type="ref" data-reference="tab:slice">3</a> holds for every user in this study. The same “all seven” sentence is false against SugarOne’s *full* fine-tune: Livia (16.98) and User 1017 (16.95) beat frozen SugarJEPA-288 (17.64 and 17.41). Thirty days is the honest quote because it sits on Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">1</a>, not because it replaces the figure.
+Thirty days is a budget at which a clinic might first try to personalize, and at which SugarOne’s mean gain is still about zero. Table <a href="#tab:slice" data-reference-type="ref" data-reference="tab:slice">4</a> holds for every user in this study. The same “all seven” sentence is false against SugarOne’s *full* fine-tune: Author1 (16.98) and User 1017 (16.95) beat frozen SugarJEPA-288 (17.64 and 17.41). Thirty days is the honest quote because it sits on Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">1</a>, not because it replaces the figure.
 
 <div id="tab:slice">
 
-| User  | SugarJEPA-288 ZS | SugarOne @ 30 d | Margin |
-|:------|:----------------:|:---------------:|:------:|
-| Livia |      17.64       |      18.06      |  0.42  |
-| 154   |      23.13       |      24.84      |  1.70  |
-| 556   |      17.22       |      17.65      |  0.43  |
-| 730   |      16.02       |      18.23      |  2.21  |
-| 1017  |      17.41       |      18.30      |  0.90  |
-| 1029  |      20.30       |      22.81      |  2.51  |
-| 1082  |      15.17       |      17.60      |  2.43  |
+| User    | SugarJEPA-288 ZS | SugarOne @ 30 d | Margin |
+|:--------|:----------------:|:---------------:|:------:|
+| Author1 |      17.64       |      18.06      |  0.42  |
+| 154     |      23.13       |      24.84      |  1.70  |
+| 556     |      17.22       |      17.65      |  0.43  |
+| 730     |      16.02       |      18.23      |  2.21  |
+| 1017    |      17.41       |      18.30      |  0.90  |
+| 1029    |      20.30       |      22.81      |  2.51  |
+| 1082    |      15.17       |      17.60      |  2.43  |
 
 Personal-test MAE (mg/dL). Frozen SugarJEPA-288 versus SugarOne fine-tuned for 30 days. All seven T1DM users in this study.
 
@@ -194,7 +252,7 @@ The clearest single result is that frozen SugarJEPA-288, with no fine-tuning at 
 
 # Datasets
 
-Table <a href="#tab:datasets" data-reference-type="ref" data-reference="tab:datasets">4</a> summarizes the two public sources. Loop is the observational study of open-source DIY closed-loop pump users collected by the JAEB Center for Health Research (~1,000 T1DM participants). `glucose_data_processing` (GlucoseDAO 2026) supports ingestion of over 50 public CGM datasets across 9 device formats; the full catalog is in that repository’s documentation.
+Table <a href="#tab:datasets" data-reference-type="ref" data-reference="tab:datasets">5</a> summarizes the two public sources. Loop is the observational study of open-source DIY closed-loop pump users collected by the JAEB Center for Health Research (~1,000 T1DM participants). `glucose_data_processing` (Anonymous 2026) supports ingestion of over 50 public CGM datasets across 9 device formats; the full catalog is in that repository’s documentation.
 
 <div id="tab:datasets">
 
@@ -203,13 +261,13 @@ Table <a href="#tab:datasets" data-reference-type="ref" data-reference="tab:dat
 | AI-READI | ~4,000 | Healthy, Pre-T2DM, T2DM | yes |    —    |   —   |
 | Loop     | ~1,000 |          T1DM           | yes |   yes   |  yes  |
 
-Datasets used in this study. AI-READI provides wearable CGM across metabolic health groups but no Type 1 participants and no insulin/carbohydrate records. Loop adds T1DM users with full pump telemetry. Livia is a personal Dexcom CGM recording from a co-author, not counted in the Loop row.
+Datasets used in this study. AI-READI provides wearable CGM across metabolic health groups but no Type 1 participants and no insulin/carbohydrate records. Loop adds T1DM users with full pump telemetry. Author1 is a personal Dexcom CGM recording from a co-author, not counted in the Loop row.
 
 </div>
 
 # Other JEPA windows
 
-Table <a href="#tab:encoders" data-reference-type="ref" data-reference="tab:encoders">5</a> lists the encoders that were trained. The main text uses jepa-288 only. Table <a href="#tab:all-ft" data-reference-type="ref" data-reference="tab:all-ft">6</a> is the full personal-test grid from the JEPA source draft. Empty cells are missing runs, not zeros: a window needs lookback plus horizon, so 1-day train is undefined for jepa-288 and short budgets drop for 864/2016. User 1082 has no 60-day cell. jepa-2016 has no rows for Users 1017 and 1082; do not average those people in. jepa-2016 can *raise* MAE at full fine-tune (mean 19.77 versus zero-shot 18.96). Longer context is not a smoother adapter. Global MAE for 864/2016 looks better in part because those encoders score fewer, longer series (Healthy windows fall from 194k at 288 steps to 49k at 2016). That is why they are not in Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">2</a>.
+Table <a href="#tab:encoders" data-reference-type="ref" data-reference="tab:encoders">6</a> lists the encoders that were trained. The main text uses jepa-288 only. Table <a href="#tab:all-ft" data-reference-type="ref" data-reference="tab:all-ft">7</a> is the full personal-test grid from the JEPA source draft. Empty cells are missing runs, not zeros: a window needs lookback plus horizon, so 1-day train is undefined for jepa-288 and short budgets drop for 864/2016. User 1082 has no 60-day cell. jepa-2016 has no rows for Users 1017 and 1082; do not average those people in. jepa-2016 can *raise* MAE at full fine-tune (mean 19.77 versus zero-shot 18.96). Longer context is not a smoother adapter. Global MAE for 864/2016 looks better in part because those encoders score fewer, longer series (Healthy windows fall from 194k at 288 steps to 49k at 2016). That is why they are not in Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">3</a>.
 
 <div id="tab:encoders">
 
@@ -246,7 +304,7 @@ Mean personal zero-shot MAE: SugarOne 19.48; jepa-128-64 19.00; jepa-128 18.87; 
 </thead>
 <tbody>
 <tr>
-<td colspan="9" style="text-align: left;"><em>Livia</em></td>
+<td colspan="9" style="text-align: left;"><em>Author1</em></td>
 </tr>
 <tr>
 <td style="text-align: left;">SugarOne</td>
@@ -804,7 +862,7 @@ Mean personal zero-shot MAE: SugarOne 19.48; jepa-128-64 19.00; jepa-128 18.87; 
 
 # Other NeuralForecast models
 
-N-HiTS on the same six T1DM users with ≥60 train days has mean continue-fit Δ +2.24 at 30 days (harmful), +0.16 at 60 days, and -1.92 at full history—the same shape as NBEATSx (Challu et al. 2023). Its joined-corpus test MAE is 11.94 (RMSE 19.38, MARD 8.08%), close to NBEATSx. LSTM is worse at 30 days (Δ +6.00) and weaker globally (test MAE 17.37, RMSE 26.30, MARD 11.57%). TiDE’s 30-day mean Δ is -7.01 (helpful) but its global test MAE is 16.12 (RMSE 24.01, MARD 11.07%), well above the models in Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">2</a>. We left them off Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">1</a> so the harmful-path contrast is one curve (NBEATSx), not five.
+N-HiTS on the same six T1DM users with ≥60 train days has mean continue-fit Δ +2.24 at 30 days (harmful), +0.16 at 60 days, and -1.92 at full history—the same shape as NBEATSx (Challu et al. 2023). Its joined-corpus test MAE is 11.94 (RMSE 19.38, MARD 8.08%), close to NBEATSx. LSTM is worse at 30 days (Δ +6.00) and weaker globally (test MAE 17.37, RMSE 26.30, MARD 11.57%). TiDE’s 30-day mean Δ is -7.01 (helpful) but its global test MAE is 16.12 (RMSE 24.01, MARD 11.07%), well above the models in Table <a href="#tab:global" data-reference-type="ref" data-reference="tab:global">3</a>. We left them off Figure <a href="#fig:curves" data-reference-type="ref" data-reference="fig:curves">1</a> so the harmful-path contrast is one curve (NBEATSx), not five.
 
 # One-day fine-tune
 
@@ -815,6 +873,12 @@ SugarOne, jepa-128\*, and the NeuralForecast models can form a 128-step window f
 <div id="ref-aireadi2024" class="csl-entry">
 
 AI-READI Consortium. 2024. “AI-READI: Rethinking AI Data Collection, Preparation and Sharing in Diabetes Research and Beyond.” *Nature Metabolism* 6: 2210–12. <https://doi.org/10.1038/s42255-024-01165-x>.
+
+</div>
+
+<div id="ref-glucosedataprocessing" class="csl-entry">
+
+Anonymous. 2026. *Glucose_data_processing*. <a href="https://anonymous.4open.science/r/glucose_data_processing" class="uri">Https://anonymous.4open.science/r/glucose_data_processing</a>.
 
 </div>
 
@@ -839,12 +903,6 @@ Farahmand, Ebrahim, Reza Rahimi Azghan, Nooshin Taheri Chatrudi, Velarie Yaa Ans
 <div id="ref-farahmand2025attengluco" class="csl-entry">
 
 Farahmand, Ebrahim, Reza Rahimi Azghan, Nooshin Taheri Chatrudi, Eric Kim, Gautham Krishna Gudur, and Edison Thomaz. 2025. “AttenGluco: Multimodal Transformer-Based Blood Glucose Forecasting on AI-READI Dataset.” *arXiv Preprint arXiv:2502.09919*. <https://arxiv.org/abs/2502.09919>.
-
-</div>
-
-<div id="ref-glucosedataprocessing" class="csl-entry">
-
-GlucoseDAO. 2026. *Glucose_data_processing*. <a href="https://github.com/GlucoseDAO/glucose_data_processing" class="uri">Https://github.com/GlucoseDAO/glucose_data_processing</a>.
 
 </div>
 

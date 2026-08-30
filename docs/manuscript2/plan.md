@@ -229,7 +229,7 @@ Colleague comment, checked on `jepa_mae_by_days.csv` (still to fact-check agains
 
 | User | JEPA-288 zero-shot | SugarOne @ 30 d | Margin (mg/dL) |
 |------|--------------------|-----------------|----------------|
-| Livia | 17.64 | 18.06 | 0.42 |
+| Author1 | 17.64 | 18.06 | 0.42 |
 | 154 | 23.13 | 24.84 | 1.70 |
 | 556 | 17.22 | 17.65 | 0.43 |
 | 730 | 16.02 | 18.23 | 2.21 |
@@ -243,7 +243,7 @@ Why it stays a result, not the spine:
 
 - It is one slice of the curve (frozen A vs 30-day B). The research gap is the *path* (can you keep adapting?).
 - A reviewer can say: you compared a better global model to a weaker model’s short fine-tune. The smoothness story answers what happens when you *do* fine-tune JEPA-288.
-- The same “all 7” statement is **false** vs SugarOne’s *full* fine-tune (Livia and 1017: full SugarOne beats frozen JEPA-288). So 30 days is the right cutoff, but it must sit on the figure, not replace it.
+- The same “all 7” statement is **false** vs SugarOne’s *full* fine-tune (Author1 and 1017: full SugarOne beats frozen JEPA-288). So 30 days is the right cutoff, but it must sit on the figure, not replace it.
 - Write **“all 7 T1DM users in this study,”** never “all patients.”
 
 Where it lives: abstract; opening of Results; a mark on the main curve figure at the 30-day SugarOne point. The rest of the paper still argues zero-shot level **plus** a non-harmful fine-tune path.

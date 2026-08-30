@@ -131,7 +131,7 @@ into one table (12.1 million rows). AI-READI rows have no insulin or
 carbohydrate data (zero-filled); sequence IDs are prefixed to prevent
 collisions.
 
-The personal test also includes \emph{Livia}: a personal Dexcom CGM
+The personal test also includes \emph{Author1}: a personal Dexcom CGM
 recording collected by a co-author (\(\sim\)345 train days), ingested from
 the raw Dexcom export onto the 5-minute grid and held out from the joined
 training table.
@@ -144,13 +144,24 @@ From this joined table every model forecasts \(H=12\) glucose values
 and MARD---the standard CGM accuracy measure. All models share this
 horizon.
 
+As a secondary experiment, we also trained a 120-minute forecasting variant
+(\(H=24\)) after Google released GlucoFM~\citep{li2026glucofm}, which
+reports 2-hour glucose prediction. GlucoFM appeared days before our
+submission; we did not have time to fine-tune the 120-minute models but
+evaluated them at the global (zero-shot) level for a direct comparison. On
+this horizon, our generic SugarOne already reaches MAE 17.99~mg/dL and
+SugarJEPA 16.32, versus GlucoFM's reported 22.88. These numbers are
+preliminary---no personalization curves were run at \(H=24\)---but they
+suggest the architecture is competitive beyond the 60-minute horizon that
+is the focus of this paper.
+
 Because the table mixes populations with and without insulin channels, we
 use two evaluations that must not be combined.
 
 \textbf{Global test.} The \texttt{test} split of the joined table: is this a
 competent population model?
 
-\textbf{Personal test.} Seven T1DM users with long history---the Livia
+\textbf{Personal test.} Seven T1DM users with long history---the Author1
 export and six Loop holdouts (Users 154, 556, 730, 1017, 1029,
 1082)---each split chronologically (last 25\% test, 15\% of the remainder
 validation, rest train). A day budget shortens \emph{train} only;
@@ -284,6 +295,8 @@ used for continue-fit.
 \begin{table}[t]
 \centering
 \small
+\begin{minipage}[t]{0.48\textwidth}
+\centering
 \begin{tabular}{lccc}
 \toprule
 Model & MAE & RMSE & MARD \\
@@ -294,10 +307,32 @@ NBEATSx & 11.81 & 19.10 & 8.05\% \\
 TFT & 12.69 & 20.36 & 8.47\% \\
 \bottomrule
 \end{tabular}
-\caption{Joined-corpus holdout (global test). Dataset \texttt{test} split.
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\begin{tabular}{lccc}
+\toprule
+ & MAE & RMSE & MARD \\
+\midrule
+\multicolumn{4}{l}{\textit{120~min (\(H\!=\!24\))}} \\
+SugarOne & 17.99 & 27.45 & 13.61\% \\
+SugarJEPA-288 & 16.32 & 25.23 & 12.57\% \\
+\midrule
+\multicolumn{4}{l}{\textit{60~min (\(H\!=\!24\) model)}} \\
+SugarOne & 13.02 & 18.99 & 9.66\% \\
+SugarJEPA-288 & 11.56 & 16.81 & 8.93\% \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\caption{\textbf{Left:} Joined-corpus holdout (\(H\!=\!12\), 60~min).
 NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit.
 SugarJEPA-864/2016 are omitted; they score a smaller population of long
-series.}
+series.
+\textbf{Right:} \(H\!=\!24\) global test (120~min), trained after the
+release of GlucoFM~\citep{li2026glucofm} (reported MAE 22.88). Generic
+models, no fine-tuning. The 60~min rows show the first 12~steps of the
+\(H\!=\!24\) forecast.}
 \label{tab:global}
 \end{table}
 
@@ -351,7 +386,7 @@ reason to drop the user.
 Thirty days is a budget at which a clinic might first try to personalize, and
 at which SugarOne's mean gain is still about zero. Table~\ref{tab:slice}
 holds for every user in this study. The same ``all seven'' sentence is false
-against SugarOne's \emph{full} fine-tune: Livia (16.98) and User 1017 (16.95)
+against SugarOne's \emph{full} fine-tune: Author1 (16.98) and User 1017 (16.95)
 beat frozen SugarJEPA-288 (17.64 and 17.41). Thirty days is the honest quote
 because it sits on Figure~\ref{fig:curves}, not because it replaces the
 figure.
@@ -363,7 +398,7 @@ figure.
 \toprule
 User & SugarJEPA-288 ZS & SugarOne @ 30 d & Margin \\
 \midrule
-Livia & 17.64 & 18.06 & 0.42 \\
+Author1 & 17.64 & 18.06 & 0.42 \\
 154 & 23.13 & 24.84 & 1.70 \\
 556 & 17.22 & 17.65 & 0.43 \\
 730 & 16.02 & 18.23 & 2.21 \\
@@ -493,7 +528,7 @@ Loop & \(\sim\)1{,}000 & T1DM & yes & yes & yes \\
 \caption{Datasets used in this study. AI-READI provides wearable CGM across
 metabolic health groups but no Type~1 participants and no
 insulin/carbohydrate records. Loop adds T1DM users with full pump
-telemetry. Livia is a personal Dexcom CGM recording from a co-author, not
+telemetry. Author1 is a personal Dexcom CGM recording from a co-author, not
 counted in the Loop row.}
 \label{tab:datasets}
 \end{table}
@@ -544,7 +579,7 @@ the smoother hero curve we locked.
 \toprule
 Model & ZS & 1d & 3d & 7d & 14d & 30d & 60d & All \\
 \midrule
-\multicolumn{9}{l}{\textit{Livia}} \\
+\multicolumn{9}{l}{\textit{Author1}} \\
 SugarOne & 18.31 & 18.42 & 18.60 & 18.88 & 18.48 & 18.06 & 17.54 & 16.98 \\
 jepa-128-64 & 18.05 & 19.14 & 17.56 & 17.30 & 17.26 & 17.31 & 16.90 & 16.76 \\
 jepa-128 & 17.67 & 18.10 & 17.55 & 17.24 & 17.24 & 17.20 & 16.95 & 16.69 \\

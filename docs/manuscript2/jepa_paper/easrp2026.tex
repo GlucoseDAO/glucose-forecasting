@@ -454,13 +454,13 @@ Trained encoders were used as an auxiliary objective in SugarOne model, on par w
 
 \subsection{SugarJepa finetuning}
 
-We then tested performance of SugarJepa model on a holdout set of Loop users and a personal dataset provided by Livia Zaharia. We recorded zero-shot performance as well as fine-tuned performance. During fine-tuning, JEPA encoder remained frozen and only the main model's weight was updated. All models started from \texttt{jepa-288} beat SugarOne baseline on zero-shot, in most cases outperforming even fine-tuned version on horizon of 30-60 days. For zero-shot, dependency between the encoder's context size and improvement was linear in all cases except of Livia's data where \texttt{jepa-288} showed the best result (17.64). Fine-tuning benefited 1- and 3-day encoders most, with their performance beating that of the \texttt{jepa-2016}, which in most cases regressed from fine-tuning. With that said, fine-tuned versions surpassed their own zero-shot MAE but often struggled to reach the level of zero-shot \texttt{jepa-2016}. Given that in many cases there were not enough data for the 7 consecutive days of glucose we propose to use \texttt{jepa-288} and \texttt{jepa-864} as the models most suitable to practical use. Fine-tuning was not performed for cases where there was not enough data to train and evaluate the model correctly. 
+We then tested performance of SugarJepa model on a holdout set of Loop users and a personal dataset provided by a co-author (Author1). We recorded zero-shot performance as well as fine-tuned performance. During fine-tuning, JEPA encoder remained frozen and only the main model's weight was updated. All models started from \texttt{jepa-288} beat SugarOne baseline on zero-shot, in most cases outperforming even fine-tuned version on horizon of 30-60 days. For zero-shot, dependency between the encoder's context size and improvement was linear in all cases except of Author1's data where \texttt{jepa-288} showed the best result (17.64). Fine-tuning benefited 1- and 3-day encoders most, with their performance beating that of the \texttt{jepa-2016}, which in most cases regressed from fine-tuning. With that said, fine-tuned versions surpassed their own zero-shot MAE but often struggled to reach the level of zero-shot \texttt{jepa-2016}. Given that in many cases there were not enough data for the 7 consecutive days of glucose we propose to use \texttt{jepa-288} and \texttt{jepa-864} as the models most suitable to practical use. Fine-tuning was not performed for cases where there was not enough data to train and evaluate the model correctly. 
 
 \begin{tabular}{lcccccccc}
   \hline
   Model & Zero-shot & 1d & 3d & 7d & 14d & 30d & 60d & All \\
   \hline
-  \multicolumn{9}{l}{\textit{Livia}} \\
+  \multicolumn{9}{l}{\textit{Author1}} \\
   SugarOne & 18.31 & 18.42 & 18.60 & 18.88 & 18.48 & 18.06 & 17.54 & 16.98 \\
   jepa-128-64 & 18.05 & 19.14 & 17.56 & 17.30 & 17.26 & 17.31 & 16.90 & 16.76 \\
   jepa-128 & 17.67 & \textbf{18.10} & \textbf{17.55} & 17.24 & 17.24 & 17.20 & 16.95 & 16.69 \\

@@ -103,7 +103,7 @@ Window → 12-step (60 min) glucose. Lead metric MAE (mg/dL); RMSE and MARD in t
 
 - Pipeline in one paragraph: raw CGM/pump → `glucose_data_processing` (5-minute grid, gap fill) → join → `loop_ai_ready_joined2.csv`. Sources: AI-READI-style wearable CGM and Loop T1DM pump records; roughly balanced row mass; study groups named. No device archaeology.
 - **Global test:** dataset `test` split of the joined CSV. Question: competent population model?
-- **Personal test:** 7 T1DM users (Livia + six Loop holdouts). Chronological split: last 25% test, 15% of remainder val, rest train. A day budget **only shortens train**. Val/test frozen.
+- **Personal test:** 7 T1DM users (Author1 + six Loop holdouts). Chronological split: last 25% test, 15% of remainder val, rest train. A day budget **only shortens train**. Val/test frozen.
 - Why not the 8 short AI-READY users in the main curve: ~6–9 train days and empty insulin/carb channels; JEPA-288 needs a 1-day lookback. Mention as a limitation, not a second cohort table.
 
 Name both tests every time they appear later.
@@ -173,7 +173,7 @@ User 1082 in **one sentence**: SugarOne full fine-tune worse than frozen; SugarJ
 
 ### 4.3 The 30-day slice (~0.4 p)
 
-**Table 3.** Seven rows, two columns, margin. One paragraph: 30 days is the budget where a clinic might first try to personalize, and where SugarOne’s mean gain is still ~0. The same “all 7” line is **false** vs SugarOne’s **full** fine-tune (Livia, User 1017). So we do not replace Fig. 2 with this table; we show why 30 days is the honest quote.
+**Table 3.** Seven rows, two columns, margin. One paragraph: 30 days is the budget where a clinic might first try to personalize, and where SugarOne’s mean gain is still ~0. The same “all 7” line is **false** vs SugarOne’s **full** fine-tune (Author1, User 1017). So we do not replace Fig. 2 with this table; we show why 30 days is the honest quote.
 
 ### 4.4 Fine-tuning SugarJEPA-288 (~0.4 p)
 
