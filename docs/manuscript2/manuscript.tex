@@ -492,6 +492,10 @@ how it adapts.
 \bibliography{references}
 
 \appendix
+\section*{Appendix}
+\addcontentsline{toc}{section}{Appendix}
+\renewcommand{\thesection}{\Alph{section}}
+\setcounter{section}{0}
 
 \section{Architecture}
 \label{app:arch}

@@ -243,6 +243,8 @@ Scored that way, a frozen CGM-JEPA feature does two things for SugarOne. It impr
 
 The clearest single result is that frozen SugarJEPA-288, with no fine-tuning at all, was better than SugarOne fine-tuned for thirty days for every one of the seven people with type 1 diabetes we tested. Read together with the rest of the paper, that points at improving what a forecaster sees rather than how it adapts.
 
+# Appendix
+
 # Architecture
 
 <figure id="fig:arch" data-latex-placement="H">
