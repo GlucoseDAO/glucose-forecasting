@@ -1,17 +1,18 @@
 \documentclass[11pt,a4paper]{article}
 
 \usepackage{graphicx}
+\usepackage{float}
 \usepackage{easrp2026}
 
-\easrpauthor{Oleh Kovalyshyn, Yevhenii Zasko, Volodymyr Sydorskyi, Livia Zaharia}
-\easrpaffiliation{Kyiv School of Economics, Kyiv, Ukraine}
+\easrpauthor{Anonymous Author F, Anonymous Author G, Anonymous Author H, Anonymous Author A}
+\easrpaffiliation{Anonymous Institution}
 
 \easrptitle{Fine-tuning paths for 60-minute glucose forecasts:\\
 a JEPA feature on a transformer backbone\footnote{Code:
   model training and evaluation
-  \url{https://anonymous.4open.science/r/glucose-forecasting},
+  \url{https://anonymous.4open.science/r/glucose-forecasting}~\citep{glucoseforecasting},
   data processing pipeline
-  \url{https://anonymous.4open.science/r/glucose_data_processing}.}}
+  \url{https://anonymous.4open.science/r/glucose_data_processing}~\citep{glucosedataprocessing}.}}
 
 \begin{document}
 
@@ -21,24 +22,20 @@ a JEPA feature on a transformer backbone\footnote{Code:
 Continuous glucose monitors (CGM) are worn by tens of millions of people with
 diabetes and increasingly by wellness users who may wear a sensor only once a
 year. Available personal history therefore spans years of uninterrupted
-recording down to a single 10--14 day wear. Fine-tuning a population model to
+recording down to a single 10--14~day wear. Fine-tuning a population model to
 one person is usually reported at two endpoints---zero-shot and full
 history---but on short histories fine-tuning can raise error. The practical
 question is: how many days make adaptation safe?
 
 We score personalization as a curve at 3, 7, 14, 30, 60, and full-history day
-budgets. \textbf{SugarOne} is a compact multi-input transformer on commodity
-CGM and insulin-record covariates. \textbf{SugarJEPA-288} adds a frozen
-CGM-JEPA embedding~\citep{muhammad2026cgmjepa} as a fourth stream. Frozen
-SugarJEPA-288 (mean personal-test MAE 18.13~mg/dL) already beats SugarOne
-fine-tuned for 30 days (19.64) for all seven type~1 diabetes (T1DM) users in
-the study. Its own fine-tune path stays at or below the zero-shot floor from
-3 days onward, while SugarOne and NBEATSx need 60+ days before adaptation
-helps. Self-supervised representations reduce the minimum safe
-personalization window from months to days.
-
-The study is small (\(n=7\) T1DM). Smoothness is an empirical check, not a
-guarantee.
+budgets. SugarJEPA-288---a compact multi-input transformer augmented with a
+frozen CGM-JEPA self-supervised embedding~\citep{muhammad2026cgmjepa} as a
+fourth stream---already beats SugarOne fine-tuned for 30~days, for all seven
+type~1 diabetes mellitus (T1DM) users in the study. Its own fine-tune path
+stays at or below the zero-shot floor from 3~days onward, while SugarOne and
+NBEATSx need 60+ days before adaptation helps. Self-supervised
+representations reduce the minimum safe personalization window from months to
+days.
 \end{abstract}
 
 \section{Introduction}
@@ -93,13 +90,15 @@ keys and values, and multi-scale self-attention over glucose.
 \paragraph{Fine-tuning sensitivity.}
 Whether adaptation helps at a given budget is unsettled beyond glucose:
 break-even against classical baselines ranges from 24 to 8,361 samples
-across 30 datasets~\citep{jerome2026breakeven}, and fine-tuned foundation
-models do not consistently beat smaller dedicated
-ones~\citep{karaouli2025foundational}. In CGM, GlucoFM-Bench scores eight
-architectures on 15 datasets and 1,117 individuals under zero-, few- (5\%)
-and full-shot protocols and finds adaptation non-monotone: TimesFM2.5 and
-Moirai2.0 degrade from few- to full-shot (18.75 \(\rightarrow\) 19.47 and
-19.48 \(\rightarrow\) 20.30~mg/dL RMSE)~\citep{lu2026glucofmbench}.
+on 9 of 30 datasets~\citep{jerome2026breakeven}, and fine-tuned foundation
+models do not consistently beat smaller dedicated ones once their parameter
+and memory cost is counted~\citep{karaouli2025foundational}. In CGM,
+GlucoFM-Bench scores eight architectures on 15 datasets and 1,117
+individuals under zero-, few- (5\%) and full-shot protocols and finds
+adaptation non-monotone: at a 12-hour context and 30-minute horizon,
+TimesFM2.5 and Moirai2.0 degrade from zero- to full-shot
+(18.75 \(\rightarrow\) 19.47 and 19.48 \(\rightarrow\)
+20.30~mg/dL RMSE)~\citep{lu2026glucofmbench}.
 
 All of these studies vary the size of a pooled training set, drawn across
 many subjects. We vary a different quantity: the number of days of a single
@@ -150,14 +149,15 @@ horizon.
 
 As a secondary experiment, we also trained a 120-minute forecasting variant
 (\(H=24\)) after Google released GlucoFM~\citep{li2026glucofm}, which
-reports 2-hour glucose prediction. GlucoFM appeared days before our
-submission; we did not have time to fine-tune the 120-minute models but
-evaluated them at the global (zero-shot) level for a direct comparison. On
-this horizon, our generic SugarOne already reaches MAE 17.99~mg/dL and
-SugarJEPA 16.32, versus GlucoFM's reported 22.88. These numbers are
-preliminary---no personalization curves were run at \(H=24\)---but they
-suggest the architecture is competitive beyond the 60-minute horizon that
-is the focus of this paper.
+reports 2-hour glucose prediction. We did not fine-tune the 120-minute
+models but evaluated them at the global (zero-shot) level. On this horizon,
+our generic SugarOne already reaches MAE 17.99~mg/dL and SugarJEPA 16.32,
+against GlucoFM's 21.88. While our metrics look better, GlucoFM scores
+narrower meal-related segments and adds nutrition and subject covariates,
+so the comparison is not direct. These
+numbers are preliminary---no personalization curves were run at
+\(H=24\)---but they suggest the architecture is competitive beyond the
+60-minute horizon that is the focus of this paper.
 
 Because the table mixes populations with and without insulin channels, we
 use two evaluations that must not be combined.
@@ -270,6 +270,15 @@ full day of CGM, and a 1-day training slice cannot supply enough context for
 a window. Models whose shorter lookback does allow a 1-day fine-tune appear
 in Appendix~\ref{app:oneday}.
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{fig_personalization_curves.png}
+\caption{Mean personal-test MAE versus train-day budget on seven T1DM users
+(60-day means: \(n=6\)). Dotted line: 30-day SugarOne point. There is no
+1-day budget: SugarJEPA-288 cannot form a window from one day of train.}
+\label{fig:curves}
+\end{figure}
+
 We call a personalization path \emph{smooth} when it passes three checks on
 mean personal-test MAE across the seven users (60-day averages use \(n=6\)
 because one user's history is shorter):
@@ -334,9 +343,9 @@ NBEATSx and TFT are the global NeuralForecast bundles used for continue-fit.
 SugarJEPA-864/2016 are omitted; they score a smaller population of long
 series.
 \textbf{Right:} \(H\!=\!24\) global test (120~min), trained after the
-release of GlucoFM~\citep{li2026glucofm} (reported MAE 22.88). Generic
-models, no fine-tuning. The 60~min rows show the first 12~steps of the
-\(H\!=\!24\) forecast.}
+release of GlucoFM~\citep{li2026glucofm} (GlucoFM's 21.88 is on narrower
+meal-related segments). Generic models, no fine-tuning. The 60~min rows
+show the first 12~steps of the \(H\!=\!24\) forecast.}
 \label{tab:global}
 \end{table}
 
@@ -347,15 +356,6 @@ Frozen SugarJEPA-288 has lower personal-test MAE than SugarOne fine-tuned
 for 30 days, for all seven T1DM users in this study
 (Table~\ref{tab:slice}). That is one slice. Figure~\ref{fig:curves} is the
 path.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.92\textwidth]{fig_personalization_curves.png}
-\caption{Mean personal-test MAE versus train-day budget on seven T1DM users
-(60-day means: \(n=6\)). Dotted line: 30-day SugarOne point. There is no
-1-day budget: SugarJEPA-288 cannot form a window from one day of train.}
-\label{fig:curves}
-\end{figure}
 
 SugarOne starts at 19.48~mg/dL. Mean MAE stays at or above that floor through
 30 days (19.64) and only then falls (19.09 at 60 days; 18.67 at full
@@ -496,7 +496,7 @@ how it adapts.
 \section{Architecture}
 \label{app:arch}
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.92\textwidth]{sugar_jepa.png}
 \caption{SugarJEPA-288. One shared window of 288 steps (24~h) ends at
@@ -656,13 +656,14 @@ draft table. Means do not fill empty cells with zeros.}
 \section{Other NeuralForecast models}
 \label{app:nf}
 
-N-HiTS on the same six T1DM users with \(\ge\)60 train days has mean
-continue-fit \(\Delta\) \(+2.24\) at 30 days (harmful), \(+0.16\) at 60 days,
-and \(-1.92\) at full history---the same shape as NBEATSx
-\citep{challu2023nhits}. Its joined-corpus test MAE is 11.94 (RMSE 19.38,
-MARD 8.08\%), close to NBEATSx. LSTM is worse at 30 days (\(\Delta\)
-\(+6.00\)) and weaker globally (test MAE 17.37, RMSE 26.30, MARD 11.57\%).
-TiDE's 30-day mean \(\Delta\) is \(-7.01\) (helpful) but its global test MAE
+N-HiTS~\citep{challu2023nhits} on the same six T1DM users with \(\ge\)60
+train days has mean continue-fit \(\Delta\) \(+2.24\) at 30 days (harmful),
+\(+0.16\) at 60 days, and \(-1.92\) at full history---the same shape as
+NBEATSx~\citep{olivares2023nbeatsx}. Its joined-corpus test MAE is 11.94
+(RMSE 19.38, MARD 8.08\%), close to NBEATSx. LSTM~\citep{hochreiter1997lstm}
+is worse at 30 days (\(\Delta\) \(+6.00\)) and weaker globally (test MAE
+17.37, RMSE 26.30, MARD 11.57\%).
+TiDE's~\citep{das2023tide} 30-day mean \(\Delta\) is \(-7.01\) (helpful) but its global test MAE
 is 16.12 (RMSE 24.01, MARD 11.07\%), well above the models in
 Table~\ref{tab:global}. We left them off Figure~\ref{fig:curves} so the
 harmful-path contrast is one curve (NBEATSx), not five.
