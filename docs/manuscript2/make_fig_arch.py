@@ -1,318 +1,131 @@
-"""SugarJEPA-288 architecture figure, matching jepa_paper/sugar_jepa.png style.
+"""Build docs/manuscript2/sugar_jepa.png from the 128-step original.
 
-Only input shape and branch paths differ from the 128-step original:
-shared window is (B, 288, 4); JEPA reads all 288 glucose steps (36 patches);
-SugarOne still uses the last 128 steps (flatten 4096 unchanged).
+The original (jepa_paper/sugar_jepa.png) is copied pixel-for-pixel; only the
+288-window / 36-patch labels are rewritten.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Rectangle
+from PIL import Image, ImageDraw, ImageFont
 
-# Palette sampled from docs/manuscript2/jepa_paper/sugar_jepa.png
-RED = "#F6B0A8"
-YELLOW = "#F7E3A8"
-GREEN = "#CFE6BF"
-PURPLE = "#C4A6C8"
-BLUE = "#DFE7F2"
-GRAY = "#EFEFEF"
-EDGE = "#515151"
+HERE = Path(__file__).resolve().parent
+SRC = HERE / "jepa_paper" / "sugar_jepa.png"
+OUT = HERE / "sugar_jepa.png"
+
+FONTS = Path(r"C:\Windows\Fonts")
+TIMES = FONTS / "times.ttf"
+TIMES_I = FONTS / "timesi.ttf"
+
+WHITE = (255, 255, 255)
+CAPTION = (40, 40, 40)
+SHAPE = (70, 70, 70)
+GREEN_NOTE = (90, 140, 105)
+KV_GREEN = (80, 130, 95)
 
 
-def box(
-    ax: plt.Axes,
-    x: float,
-    y: float,
-    w: float,
-    h: float,
+def _font(path: Path, size: float) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(str(path), size=size)
+
+
+def _cover(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], color: tuple[int, int, int]) -> None:
+    draw.rectangle(box, fill=color)
+
+
+def _clone_rows(im: Image.Image, box: tuple[int, int, int, int], src_y: int) -> None:
+    """Copy one fill row across a rectangle so box shading is preserved."""
+    x0, y0, x1, y1 = box
+    row = im.crop((x0, src_y, x1, src_y + 1))
+    for y in range(y0, y1):
+        im.paste(row, (x0, y))
+
+
+def _center(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
     text: str,
-    facecolor: str,
-    *,
-    fontsize: float = 6.4,
-    lw: float = 0.85,
-    family: str = "DejaVu Sans",
-    dashed: bool = False,
+    font: ImageFont.FreeTypeFont,
+    fill: tuple[int, int, int],
 ) -> None:
-    ax.add_patch(
-        FancyBboxPatch(
-            (x, y),
-            w,
-            h,
-            boxstyle="round,pad=0.03,rounding_size=0.06",
-            facecolor=facecolor,
-            edgecolor=EDGE,
-            linewidth=lw,
-            linestyle=(0, (3.5, 2.2)) if dashed else "solid",
-        )
-    )
-    if text:
-        ax.text(
-            x + w / 2,
-            y + h / 2,
-            text,
-            ha="center",
-            va="center",
-            fontsize=fontsize,
-            color=EDGE,
-            family=family,
-            linespacing=1.25,
-        )
-
-
-def arrow(ax: plt.Axes, x1: float, y1: float, x2: float, y2: float, *, lw: float = 0.8) -> None:
-    ax.add_patch(
-        FancyArrowPatch(
-            (x1, y1),
-            (x2, y2),
-            arrowstyle="-|>",
-            mutation_scale=8,
-            linewidth=lw,
-            color=EDGE,
-            shrinkA=0.5,
-            shrinkB=0.5,
-        )
-    )
+    x0, y0, x1, y1 = box
+    l, t, r, b = font.getbbox(text)
+    tw, th = r - l, b - t
+    x = x0 + (x1 - x0 - tw) / 2 - l
+    y = y0 + (y1 - y0 - th) / 2 - t
+    draw.text((x, y), text, font=font, fill=fill)
 
 
 def main() -> None:
-    # Portrait, close to the original 1394x1624.
-    fig, ax = plt.subplots(figsize=(6.97, 8.12), dpi=200)
-    ax.set_xlim(0, 14.0)
-    ax.set_ylim(0, 16.3)
-    ax.axis("off")
-    fig.patch.set_facecolor("white")
+    im = Image.open(SRC).convert("RGB")
+    draw = ImageDraw.Draw(im)
 
-    # ----- legend (bottom) -----
-    legend = [
-        (BLUE, "input / target"),
-        (YELLOW, "Linear / FFN / Conv"),
-        (GREEN, "embed / mix / norm"),
-        (RED, "attention"),
-        (PURPLE, "JEPA stream"),
-    ]
-    for i, (c, name) in enumerate(legend):
-        x = 0.25 + i * 2.75
-        ax.add_patch(Rectangle((x, 0.18), 0.38, 0.28, facecolor=c, edgecolor=EDGE, lw=0.6))
-        ax.text(x + 0.46, 0.32, name, ha="left", va="center", fontsize=5.8, color=EDGE)
+    times13 = _font(TIMES, 13)
+    times11 = _font(TIMES, 11)
+    timesi11 = _font(TIMES_I, 11)
+    timesi10 = _font(TIMES_I, 10.5)
+    timesi12 = _font(TIMES_I, 12)
 
-    # ----- inputs -----
-    box(
-        ax,
-        0.25,
-        1.55,
-        9.15,
-        1.55,
-        "$x$  $(B,\\,288,\\,4)$   glucose, basal rate, bolus, carbs\n"
-        "288 steps = 24 h @ 5 min, ends at $t=$ now\n"
-        "SugarOne trunk: $x[:,\\,-128:,:]$   "
-        "JEPA: $x[:,\\,:,0]$  glucose only",
-        BLUE,
-        fontsize=6.5,
+    # Input caption (do not touch "128 steps" under the glucose box).
+    cap = (460, 1434, 922, 1450)
+    _cover(draw, cap, WHITE)
+    _center(
+        draw,
+        cap,
+        "Input window x : (B, 288, 4) — 288 × 5 min = 24 h, MinMax-scaled",
+        times13,
+        CAPTION,
     )
 
-    ch = [
-        (0.25, "glucose\n$(B,128,1)$"),
-        (2.55, "basal rate\n$(B,128,1)$"),
-        (4.85, "bolus\n$(B,128,1)$"),
-        (7.15, "carbs\n$(B,128,1)$"),
-    ]
-    for x, label in ch:
-        box(ax, x, 3.25, 2.15, 0.85, label, BLUE, fontsize=6.3)
-        arrow(ax, x + 1.07, 3.25 + 0.85, x + 1.07, 4.22)
-
-    # four Linear(1->32)
-    for x, _ in ch:
-        box(ax, x, 4.25, 2.15, 0.72, "Linear$(1\\to 32)$\n$(B,128,32)$", YELLOW, fontsize=6.0)
-        arrow(ax, x + 1.07, 4.97, 4.82, 5.28)
-
-    box(
-        ax,
-        0.25,
-        5.32,
-        9.15,
-        0.78,
-        "sinusoidal positional encoding  (fixed buffer $(1,128,32)$)\n"
-        "$g_e,\\,b_e,\\,bo_e,\\,c_e$  each $(B,128,32)$",
-        GREEN,
-        fontsize=6.3,
-    )
-    arrow(ax, 4.82, 6.10, 4.82, 6.42)
-
-    # ----- parallel block -----
-    box(ax, 0.15, 6.45, 9.35, 6.55, "", GRAY, dashed=True, lw=1.05)
-    ax.text(
-        4.82,
-        12.78,
-        "SugarJepa parallel block  $\\times 5$   (batch-first — no permutes)\n"
-        "only the glucose stream is updated; auxiliaries are re-read unchanged",
-        ha="center",
-        va="top",
-        fontsize=6.4,
-        color=EDGE,
+    # Note that SugarOne still uses the last 128 of this 288 window.
+    note = (460, 1484, 900, 1502)
+    _cover(draw, note, WHITE)
+    _center(
+        draw,
+        note,
+        "SugarOne trunk uses last 128 of 288",
+        timesi12,
+        GREEN_NOTE,
     )
 
-    # multi-scale
-    box(
-        ax,
-        0.32,
-        6.62,
-        4.42,
-        5.55,
-        "Multi-scale self-attention  (glucose only)\n"
-        "8 heads, $d{=}32$\n\n"
-        "DS$=1$:  self-attn  $(B,128,32)$\n"
-        "DS$=2$:  AvgPool$(2)$ $\\to$ $(B,64,32)$\n"
-        "         interpolate back to 128\n"
-        "DS$=4$:  AvgPool$(4)$ $\\to$ $(B,32,32)$\n"
-        "         interpolate back to 128\n\n"
-        "high $+$ up2 $+$ up4\n"
-        "FFN $32\\to 128\\to 32$  (LN2 residual)\n"
-        "$\\mathrm{ms\\_out}$  $(B,128,32)$",
-        RED,
-        fontsize=5.9,
+    # Green italic JEPA feed line.
+    gnote = (460, 1543, 880, 1559)
+    _cover(draw, gnote, WHITE)
+    _center(
+        draw,
+        gnote,
+        "glucose channel x[..., 0] — full 288-step window feeds the JEPA encoder",
+        timesi12,
+        GREEN_NOTE,
     )
 
-    # cross-attention
-    box(
-        ax,
-        4.90,
-        6.62,
-        4.42,
-        5.55,
-        "Cross-attention  (4 auxiliaries)\n"
-        "$Q=$ glucose $(B,128,32)$\n\n"
-        "MHA basal   $K/V$ $(B,128,32)$\n"
-        "MHA bolus   $K/V$ $(B,128,32)$\n"
-        "MHA carbs   $K/V$ $(B,128,32)$\n"
-        "MHA jepa    $K/V$ $(B,36,32)$\n"
-        "each 32-d, 8 heads\n\n"
-        "$\\mathrm{merged}=\\sum_i \\mathrm{softmax}(\\mathrm{mix\\_logits})[i]\\,\\mathrm{res}_i$\n"
-        "shared ln1;  FFN $32\\to 128\\to 32$\n"
-        "$\\mathrm{cross\\_out}$  $(B,128,32)$",
-        RED,
-        fontsize=5.8,
-    )
+    # JEPA glucose box: (B, 128) → (B, 288)
+    glu = (1206, 1307, 1254, 1321)
+    _clone_rows(im, glu, 1286)
+    _center(draw, glu, "(B, 288)", times11, CAPTION)
 
-    # ----- JEPA column -----
-    box(ax, 9.70, 3.25, 4.05, 9.75, "", PURPLE, lw=1.1)
-    ax.text(
-        11.72,
-        12.78,
-        "JEPA encoder",
-        ha="center",
-        va="top",
-        fontsize=7.2,
-        color=EDGE,
-        fontweight="bold",
-    )
-    box(
-        ax,
-        9.90,
-        11.55,
-        3.65,
-        0.85,
-        "glucose $x[:,\\,:,0]$\n$(B,288)$",
-        BLUE,
-        fontsize=6.2,
-    )
-    arrow(ax, 11.72, 11.55, 11.72, 11.28)
-    box(
-        ax,
-        9.90,
-        10.40,
-        3.65,
-        0.82,
-        "Instance $z$-score\n(per-window)",
-        GREEN,
-        fontsize=6.2,
-    )
-    arrow(ax, 11.72, 10.40, 11.72, 10.12)
-    box(
-        ax,
-        9.90,
-        8.95,
-        3.65,
-        1.10,
-        "Conv1d patchify\n$1\\to 96$, $k{=}8$, $s{=}8$\n$(B,36,96)$",
-        YELLOW,
-        fontsize=6.2,
-    )
-    arrow(ax, 11.72, 8.95, 11.72, 8.68)
-    box(
-        ax,
-        9.90,
-        6.55,
-        3.65,
-        2.05,
-        "JepaBlock $\\times 3$\n"
-        "MHA self-attn\n$d{=}96$, 6 heads, norm1\n"
-        "MLP $96\\to 384\\to 96$\nnorm2 residual",
-        PURPLE,
-        fontsize=6.1,
-    )
-    arrow(ax, 11.72, 6.55, 11.72, 6.28)
-    box(
-        ax,
-        9.90,
-        4.95,
-        3.65,
-        1.25,
-        "LayerNorm$(96)$\n"
-        "jepa_proj: Linear$(96\\to 32)$\n"
-        "$(B,36,32)$  $K/V$",
-        YELLOW,
-        fontsize=6.1,
-    )
-    arrow(ax, 9.90, 5.55, 9.32, 8.6)
-    ax.text(9.48, 7.15, "$(B,36,32)$", ha="center", va="center", fontsize=5.6, color=EDGE, rotation=90)
+    # Arrow label after instance z-score (leave the vertical arrow).
+    zlab = (1230, 1176, 1292, 1192)
+    _cover(draw, zlab, WHITE)
+    _center(draw, zlab, "(B, 288)", timesi11, SHAPE)
 
-    # ln_fuse
-    arrow(ax, 2.53, 6.62, 4.50, 13.22)
-    arrow(ax, 7.11, 6.62, 5.15, 13.22)
-    box(
-        ax,
-        2.55,
-        13.15,
-        4.55,
-        0.72,
-        "ln_fuse:  $\\mathrm{ms\\_out}+\\mathrm{cross\\_out}$  then LN\n$(B,128,32)$",
-        GREEN,
-        fontsize=6.2,
-    )
-    arrow(ax, 4.82, 13.87, 4.82, 14.12)
+    # PE subtitle inside the green box.
+    pe = (1182, 1065, 1283, 1079)
+    _clone_rows(im, pe, 1062)
+    _center(draw, pe, "own buffer (1, 36, 96)", times11, CAPTION)
 
-    # head
-    box(
-        ax,
-        0.25,
-        14.15,
-        9.15,
-        0.78,
-        "flatten: permute $(B,32,128)$ $\\to$ $(B,4096)$\n"
-        "flatten_fc  Linear$(4096\\to 32)$  + GELU + Dropout$(0.1)$",
-        YELLOW,
-        fontsize=6.3,
-    )
-    arrow(ax, 4.82, 14.93, 4.82, 15.18)
-    box(
-        ax,
-        0.25,
-        15.20,
-        9.15,
-        0.85,
-        "out_fc: Linear$(32\\to 12)$     $\\hat{y}$  $(B,12)$\n"
-        "12 steps $\\times$ 5 min  =  60-minute horizon",
-        BLUE,
-        fontsize=6.5,
-    )
+    # Arrow label after LayerNorm: (B, 16, 96) → (B, 36, 96)
+    lnlab = (1236, 756, 1308, 774)
+    _cover(draw, lnlab, WHITE)
+    _center(draw, lnlab, "(B, 36, 96)", timesi11, SHAPE)
 
-    fig.subplots_adjust(left=0.02, right=0.98, top=0.99, bottom=0.02)
-    out = Path(__file__).with_name("sugar_jepa.png")
-    fig.savefig(out, facecolor="white")
-    print(out)
+    # jepa K/V shape only; keep the "jepa K / V" line.
+    kv = (1018, 996, 1100, 1014)
+    _clone_rows(im, kv, 994)
+    _center(draw, kv, "(B, 36, 32)", timesi10, KV_GREEN)
+
+    im.save(OUT, "PNG")
+    print(OUT)
 
 
 if __name__ == "__main__":
